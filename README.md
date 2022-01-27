@@ -96,8 +96,8 @@ epoch,values
 
 To get familiar with Jitter, we include on this repo **two** Jupyter Notebooks presenting the input time series and the congestion inference using _KS-test_ and _Jitter dispersion_ methods:
 
- 1. [KS-test congestion inference](examples/jitter-kstest-example.ipynb)
- 2. [Jitter dispersion congestion inference](examples/jitter-dispersion-example.ipynb)
+ 1. [KS-test congestion inference](example/jitter-kstest-example.ipynb)
+ 2. [Jitter dispersion congestion inference](example/jitter-dispersion-example.ipynb)
 
 
 # <a name="help"></a> 3. Jitterbug --help
