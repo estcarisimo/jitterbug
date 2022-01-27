@@ -142,14 +142,14 @@ optional arguments:
 ```
 
 
-# <a name="citation"></a>3. Citation
+# <a name="citation"></a>4. Citation
 
 If you use _Jitterbug_, please cite it as:
 
 ```
 ```
 
-# <a name="tree"></a>3. Repo structure
+# <a name="tree"></a>5. Repo structure
 
 ```
 .
