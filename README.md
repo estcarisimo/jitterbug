@@ -153,15 +153,18 @@ If you use _Jitterbug_, please cite it as:
 
 ```
 .
+├── LICENSE
 ├── README.md
 ├── example
 │   ├── data
 │   │   ├── congestion-inferences
-│   │   │   └── jd_inferences.csv
+│   │   │   ├── jd_inferences.csv
+│   │   │   └── kstest_inferences.csv
 │   │   └── congestion-measurements
 │   │       ├── mins.csv
 │   │       └── raw.csv
-│   └── jitter-disperssion-example.ipynb
+│   ├── jitter-dispersion-example.ipynb
+│   └── jitter-kstest-example.ipynb
 ├── jitterbug
 │   ├── __init__.py
 │   ├── _jitter.py
@@ -178,5 +181,5 @@ If you use _Jitterbug_, please cite it as:
 └── tools
     └── jitterbug.py
 
-6 directories, 18 files
+6 directories, 21 files
 ```
