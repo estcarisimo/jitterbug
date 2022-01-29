@@ -1,5 +1,4 @@
 backcall==0.2.0
-bayesian-changepoint-detection==0.3
 cycler==0.11.0
 decorator==5.1.0
 entrypoints==0.3
@@ -7,7 +6,6 @@ ipykernel==5.5.6
 ipython==7.16.2
 ipython-genutils==0.2.0
 jedi==0.17.2
--e git+git@github.com:estcarisimo/stable-dist.git@2d110ccc258ceb19a997d12408bc58a0484a4344#egg=jitterbug&subdirectory=jitterbug
 jupyter-client==7.1.0
 jupyter-core==4.9.1
 kiwisolver==1.3.1
@@ -19,7 +17,6 @@ parso==0.7.1
 pexpect==4.8.0
 pickleshare==0.7.5
 Pillow==8.4.0
-pkg-resources==0.0.0
 prompt-toolkit==3.0.24
 ptyprocess==0.7.0
 Pygments==2.11.1

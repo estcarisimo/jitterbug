@@ -44,6 +44,7 @@ $ pip3 install -r requirements.txt
 $ git clone https://github.com/hildensia/bayesian_changepoint_detection.git
 $ cd bayesian_changepoint_detection
 $ python setup.py install
+$ cd ..
 ```
 
 ## <a name="dependencies"></a> 1.3. Install
