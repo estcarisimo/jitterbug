@@ -5,6 +5,7 @@ import numpy as np
 from bayesian_changepoint_detection.bayesian_models import offline_changepoint_detection
 from bayesian_changepoint_detection.priors import const_prior
 from bayesian_changepoint_detection.offline_likelihoods import IndepentFeaturesLikelihood
+import bayesian_changepoint_detection.offline_likelihoods as offline_ll
 from functools import partial
 
 BCP_MIN_SAMPLES = 1
@@ -34,10 +35,18 @@ class bcp:
         We apply BCP to detect changepoints in a time series.
         https://github.com/hildensia/bayesian_changepoint_detection
         """
+        # Q, P, Pcp = offline_changepoint_detection(
+        #     self.data,
+        #     partial(const_prior, p=1.0 / (len(self.data) + 1)),
+        #     IndepentFeaturesLikelihood(),
+        #     truncate=OFFCD_TRUNCATION
+        # )
+
+        prior_function = partial(const_prior, p=1 / (len(self.data) + 1))
         Q, P, Pcp = offline_changepoint_detection(
-            self.data,
-            partial(const_prior, p=1.0 / (len(self.data) + 1)),
-            IndepentFeaturesLikelihood(),
+            self.data, 
+            prior_function,
+            offline_ll.StudentT(), 
             truncate=OFFCD_TRUNCATION
         )
         

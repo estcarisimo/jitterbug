@@ -14,8 +14,9 @@ from jitterbug.cong_inference import congestionInference
 DEFAULT_MOVING_IQR_ORDER = 4
 DEFAULT_MOVING_AVERAGE_ORDER = 6
 
-DEFAULT_JITTER_DISPERSION_THESHOLD = 0.25
-DEFAULT_LATENCY_JUMP_THESHOLD = 0.5
+DEFAULT_CPD_THRESHOLD = 0.25
+DEFAULT_JITTER_DISPERSION_THRESHOLD = 0.25
+DEFAULT_LATENCY_JUMP_THRESHOLD = 0.5
 
 CONGESTION_INFERENCE_METHODS = ["ks", "jd"]
 CDP_ALGORITHMS = ["bcp", "hmm"]
@@ -41,11 +42,11 @@ def check_even_value(x):
 
 def jitterbug(epoch_rtt, rtt, epoch_mins, mins, inference_method, cdp_algorithm, 
               latency_jump_threshold, jitter_dispresion_threshold, 
-              moving_average_order, moving_iqr_order):
+              moving_average_order, moving_iqr_order, cpd_threshold):
 
     # cdp
     if cdp_algorithm =="bcp":
-        cpDetector = bcp(epoch_mins, mins)
+        cpDetector = bcp(epoch_mins, mins, cpd_threshold=cpd_threshold)
         cpDetector.fit()
         change_points = cpDetector.getChangePoints()
     elif cdp_algorithm == "hmm":
@@ -132,24 +133,32 @@ def main():
                         default="bcp",
                         choices=CDP_ALGORITHMS,
                         type=str)
+    parser.add_argument("-cpdth",
+                        "--cpd_threshold",
+                        help=f"Configure the sensitivity of the Change Point Detection algorithm.\
+                               Default value {DEFAULT_CPD_THRESHOLD}.",
+                        nargs='?', 
+                        const=DEFAULT_CPD_THRESHOLD,
+                        default=DEFAULT_CPD_THRESHOLD,
+                        type=float)
     parser.add_argument("-j",
-                        "--jitter_dispersion_threhold",
+                        "--jitter_dispersion_threshold",
                         help=f"Configure the sensitivity of the increase of the variability of the \
                                jitter dispersion time series to be considered as a period of congestion. \
                                This parameter is only used in the Jitter Dispersion Method. \
-                               Default value {DEFAULT_JITTER_DISPERSION_THESHOLD}.",
+                               Default value {DEFAULT_JITTER_DISPERSION_THRESHOLD}.",
                         nargs='?', 
-                        const=DEFAULT_JITTER_DISPERSION_THESHOLD,
-                        default=DEFAULT_JITTER_DISPERSION_THESHOLD,
+                        const=DEFAULT_JITTER_DISPERSION_THRESHOLD,
+                        default=DEFAULT_JITTER_DISPERSION_THRESHOLD,
                         type=float)
     parser.add_argument("-l",
                         "--latency_jump_threshold",
                         help=f"Configure the sensitivity of the increase of latency baseline \
                                to be considered as a period of congestion. \
-                               Default value {DEFAULT_LATENCY_JUMP_THESHOLD}.",
+                               Default value {DEFAULT_LATENCY_JUMP_THRESHOLD}.",
                         nargs='?', 
-                        const=DEFAULT_LATENCY_JUMP_THESHOLD,
-                        default=DEFAULT_LATENCY_JUMP_THESHOLD,
+                        const=DEFAULT_LATENCY_JUMP_THRESHOLD,
+                        default=DEFAULT_LATENCY_JUMP_THRESHOLD,
                         type=float)
     parser.add_argument("-ma",
                         "--moving_average_order",
@@ -190,7 +199,8 @@ def main():
         args.latency_jump_threshold,
         args.jitter_dispersion_threhold,
         args.moving_average_order,
-        args.moving_iqr_order
+        args.moving_iqr_order,
+        args.cpdth
     )
 
     if len(args.output) > 0:

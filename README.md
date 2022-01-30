@@ -106,7 +106,7 @@ To get familiar with Jitter, we include on this repo **two** Jupyter Notebooks p
 ```
 $ jitterbug --help
 usage: jitterbug [-h] -m MINS -r RTT -i {ks,jd} [-c [{bcp,hmm}]]
-                 [-j [JITTER_DISPERSION_THREHOLD]]
+                 [-cpdth [CPD_THRESHOLD]] [-j [JITTER_DISPERSION_THRESHOLD]]
                  [-l [LATENCY_JUMP_THRESHOLD]] [-ma [MOVING_AVERAGE_ORDER]]
                  [-iqr [MOVING_IQR_ORDER]] [-o [OUTPUT]]
 
@@ -121,7 +121,10 @@ optional arguments:
                         Select the Change Point Detection (CPD) algorithm: (1)
                         Bayesian Chenge Point Detection (bcp, default) (2)
                         Hidden Markov Model (hmm, not implemented yet)
-  -j [JITTER_DISPERSION_THREHOLD], --jitter_dispersion_threhold [JITTER_DISPERSION_THREHOLD]
+  -cpdth [CPD_THRESHOLD], --cpd_threshold [CPD_THRESHOLD]
+                        Configure the sensitivity of the Change Point
+                        Detection algorithm. Default value 0.25.
+  -j [JITTER_DISPERSION_THRESHOLD], --jitter_dispersion_threshold [JITTER_DISPERSION_THRESHOLD]
                         Configure the sensitivity of the increase of the
                         variability of the jitter dispersion time series to be
                         considered as a period of congestion. This parameter
