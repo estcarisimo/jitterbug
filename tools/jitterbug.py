@@ -53,26 +53,34 @@ def jitterbug(epoch_rtt, rtt, epoch_mins, mins, inference_method, cdp_algorithm,
     else:
         raise Exception("There is no such CDP algorithm supported by Jitterbug")
 
-    # Latency jumps
-    lj = latencyJumps(epoch_mins, mins, change_points)
-    lj.fit(latency_jump_threshold)
-    latency_jumps = lj.getLatencyJumps()
 
-    # Jitter analysis
-    if inference_method == "jd":
-        jitter_analysis = compute_jiiter_dispersion(change_points, epoch_mins, mins, 
-                                                    moving_average_order, moving_iqr_order,
-                                                    jitter_dispresion_threshold)
-    elif inference_method == "ks":
-        jitter_analysis = compute_ks_test(change_points, epoch_rtt, rtt)
+    # check whether there are change point in the input signal
+    if len(change_points) > 0:
+
+        # Latency jumps
+        lj = latencyJumps(epoch_mins, mins, change_points)
+        lj.fit(latency_jump_threshold)
+        latency_jumps = lj.getLatencyJumps()
+
+        # Jitter analysis
+        if inference_method == "jd":
+            jitter_analysis = compute_jiiter_dispersion(change_points, epoch_mins, mins, 
+                                                        moving_average_order, moving_iqr_order,
+                                                        jitter_dispresion_threshold)
+        elif inference_method == "ks":
+            jitter_analysis = compute_ks_test(change_points, epoch_rtt, rtt)
+        else:
+            raise Exception("There is no such congestion inference method")
+        
+        # Congestion inference
+        inference = congestionInference(latency_jumps, jitter_analysis)
+        inference.fit()
+        results = inference.getInferences()
+
     else:
-        raise Exception("There is no such congestion inference method")
+        print("No change point was detected!")
+        results = []
     
-    # Congestion inference
-    inference = congestionInference(latency_jumps, jitter_analysis)
-    inference.fit()
-    results = inference.getInferences()
-
     return pd.DataFrame(results, columns=["starts", "ends", "congestion"])
 
 def open_files(rtt_file, min_file):

@@ -53,13 +53,16 @@ class bcp:
     def __find_cps(self):
 
         self.cps = []
-        self.cps.append(self.candidate_cp_t[0])
 
-        for i in range(len(self.candidate_cp_t)):
-            if i > 0 and (self.candidate_cp_t[i] - self.candidate_cp_t[i - 1]) > self.min_time_elapsed:
-                self.cps.append(self.candidate_cp_t[i])
-                
-        self.cps.append(self.candidate_cp_t[-1])
+        # check whether there are change point in the input signal
+        if len(self.candidate_cp_t) > 0:
+            self.cps.append(self.candidate_cp_t[0])
+
+            for i in range(len(self.candidate_cp_t)):
+                if i > 0 and (self.candidate_cp_t[i] - self.candidate_cp_t[i - 1]) > self.min_time_elapsed:
+                    self.cps.append(self.candidate_cp_t[i])
+                    
+            self.cps.append(self.candidate_cp_t[-1])
 
 
     def fit(self):
