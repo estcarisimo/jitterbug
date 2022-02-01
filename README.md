@@ -24,7 +24,7 @@ Jitterbug is a product of the research published in the homonymous paper _"Jitte
 
 ## <a name="venv"></a> 1.1. Set up a virtual environment
 
-We highly recommend you to use a Python virtual environment to run these examples. In this repository, we also include a requirements.txt to install all python packages needed to run the examples.
+We highly recommend you to use a Python virtual environment to run Jitterbug. In this repository, we also include a ```requirements.txt``` to install all python packages needed to run Jitterbug and the examples.
 
 To install this virtual environment, you have to run the following commands.
 
