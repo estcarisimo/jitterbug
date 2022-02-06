@@ -197,10 +197,10 @@ def main():
         args.inference_method,
         args.cdp,
         args.latency_jump_threshold,
-        args.jitter_dispersion_threhold,
+        args.jitter_dispersion_threshold,
         args.moving_average_order,
         args.moving_iqr_order,
-        args.cpdth
+        args.cpd_threshold
     )
 
     if len(args.output) > 0:
