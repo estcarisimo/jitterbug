@@ -151,6 +151,24 @@ optional arguments:
 If you use _Jitterbug_, please cite it as:
 
 ```
+@InProceedings{carisimo2022jitterbug,
+author="Carisimo, Esteban
+and Mok, Ricky K. P.
+and Clark, David D.
+and Claffy, K. C.",
+editor="Hohlfeld, Oliver
+and Moura, Giovane
+and Pelsser, Cristel",
+title="Jitterbug: A New Framework for Jitter-Based Congestion Inference",
+booktitle="Passive and Active Measurement",
+year="2022",
+publisher="Springer International Publishing",
+address="Cham",
+pages="155--179",
+isbn="978-3-030-98785-5"
+}
+
+
 ```
 
 # <a name="tree"></a>5. Repo structure
