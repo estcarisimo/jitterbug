@@ -1,34 +1,30 @@
-# Jitterbug: A new framework for jitter-based congestion inference
+# Jitterbug: Framework for Jitter-Based Congestion Inference
 
-Welcome to the repository of _Jitterbug_. Here you can find a the source code and the instructions to install and use _Jitterbug_.
+Welcome to the Jitterbug repository, where you can access the source code and installation instructions for Jitterbug.
 
-Jitterbug is a product of the research published in the homonymous paper _"Jitterbug: A new framework for jitter-based congestion inference"_ appearing in the Proceedings of the [Passive and Active Measurement Conference (PAM) 2022](https://pam2022.nl/), March 2022, Virtual Event.
+Jitterbug is the outcome of research presented in the paper _"Jitterbug: A new framework for jitter-based congestion inference"_, published in the Proceedings of the Passive and Active Measurement Conference (PAM) 2022, held virtually in March 2022.
 
-# Table of Contents
+## Table of Contents
 
-1. [Install Jitterbug](#setup)
-   1. [Set up a virtual environment](#venv)
-   2. [Clone additional third-party dependencies](#dependencies)
-   3. [Install](#install)
-2. [Run Jitterbug](#run)
-   1. [Example of use](#use)
-   2. [Data format of the input files](#format)
-   3. [Examples with real-world data](#format)
-3. [Jitterbug --help](#help)
-4. [Citation](#citation)
-5. [Strcuture of the repository](#tree)
+1. [Installation Guide](#installation)
+   1. [Setting Up a Virtual Environment](#virtual-environment)
+   2. [Cloning Third-Party Dependencies](#dependencies)
+   3. [Installation Process](#install)
+2. [Using Jitterbug](#usage)
+   1. [Usage Example](#example)
+   2. [Input File Format](#input-format)
+   3. [Real-World Data Examples](#real-data)
+3. [Command-Line Interface](#cli)
+4. [Citing Jitterbug](#citing)
+5. [Repository Structure](#structure)
 
+## <a name="installation"></a> 1. Installation Guide
 
-# <a name="setup"></a> 1. Install Jitterbug
+### <a name="virtual-environment"></a> 1.1. Setting Up a Virtual Environment
 
+It is recommended to use a Python virtual environment for running Jitterbug. This repository contains a `requirements.txt` file for installing all necessary Python packages.
 
-## <a name="venv"></a> 1.1. Set up a virtual environment
-
-We highly recommend you to use a Python virtual environment to run Jitterbug. In this repository, we also include a ```requirements.txt``` to install all python packages needed to run Jitterbug and the examples.
-
-To install this virtual environment, you have to run the following commands.
-
-**This repo includes addition requirements to run the example.**
+Execute the following commands to set up the virtual environment:
 
 ```
 $ python3 -m venv .jitterbug
@@ -38,7 +34,7 @@ $ ipython kernel install --user --name=.jitterbug
 $ pip3 install -r requirements.txt
 ```
 
-## <a name="dependencies"></a> 1.2. Clone additional third-party dependencies
+### <a name="dependencies"></a> 1.2. Cloning Third-Party Dependencies
 
 ```
 $ git clone https://github.com/hildensia/bayesian_changepoint_detection.git
@@ -47,161 +43,112 @@ $ python setup.py install
 $ cd ..
 ```
 
-## <a name="dependencies"></a> 1.3. Install
+### <a name="install"></a> 1.3. Installation Process
 
 ```
 $ python setup.py sdist bdist_wheel build_ext
 $ pip install -e .
 ```
 
-# <a name="run"></a> 2. Run Jitterbug
+## <a name="usage"></a> 2. Using Jitterbug
 
-## <a name="use"></a> 2.1 Example of use
+### <a name="example"></a> 2.1. Usage Example
 
-If you're using a virtual environment, please activate it before running this command
+Ensure the virtual environment is activated before executing Jitterbug:
 
 ```
 $ jitterbug -m mins.csv -r rtts.csv -i jd -c bcp
 ```
 
-You can find real-world examples of ```rtts.csv``` [(here!)](example/data/congestion-measurements/raw.csv) and ```mins.csv``` [(here!)](example/data/congestion-measurements/mins.csv) files in this repository.
+Example `rtts.csv` and `mins.csv` files are provided in the repository.
 
-## <a name="format"></a> 2.2 Data format of the input files
+### <a name="input-format"></a> 2.2. Input File Format
 
-Here we show some example of the structure of the input files to run Jitterbug
+#### RTT Measurements
 
-### 2.2.1 RTT measurements
-
-Data structure of the ```rtts.csv``` file
+Format of `rtts.csv`:
 
 ```
 epoch,values
 1512144010.0,63.86
 1512144010.0,66.52
-1512144010.0,72.09
-1512144020.0,85.2
+...
 ```
-### 2.2.2 minimun RTT
 
-Data structure of the ```mins.csv``` file
+#### Minimum RTT
+
+Format of `mins.csv`:
 
 ```
 epoch,values
 1512144000.0,42.85
 1512144900.0,18.82
-1512145800.0,28.53
-1512146700.0,38.89
+...
 ```
 
-# <a name="notebooks"></a> 2.3 Examples with real-world data
+### <a name="real-data"></a> 2.3. Real-World Data Examples
 
-To get familiar with Jitter, we include on this repo **two** Jupyter Notebooks presenting the input time series and the congestion inference using _KS-test_ and _Jitter dispersion_ methods:
+Explore Jitterbug using two Jupyter Notebooks provided in this repository:
 
- 1. [KS-test congestion inference](example/jitter-kstest-example.ipynb)
- 2. [Jitter dispersion congestion inference](example/jitter-dispersion-example.ipynb)
+1. [KS-test Congestion Inference](example/jitter-kstest-example.ipynb)
+2. [Jitter Dispersion Congestion Inference](example/jitter-dispersion-example.ipynb)
 
+## <a name="cli"></a> 3. Command-Line Interface
 
-# <a name="help"></a> 3. Jitterbug --help
+For detailed command usage, run:
 
 ```
 $ jitterbug --help
-usage: jitterbug [-h] -m MINS -r RTT -i {ks,jd} [-c [{bcp,hmm}]]
-                 [-cpdth [CPD_THRESHOLD]] [-j [JITTER_DISPERSION_THRESHOLD]]
-                 [-l [LATENCY_JUMP_THRESHOLD]] [-ma [MOVING_AVERAGE_ORDER]]
-                 [-iqr [MOVING_IQR_ORDER]] [-o [OUTPUT]]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -m MINS, --mins MINS  path to minimum RTT file.
-  -r RTT, --rtt RTT     path to raw RTT file.
-  -i {ks,jd}, --inference_method {ks,jd}
-                        select the inference method (1) Jitter Dispersion (jd)
-                        (2) KS test (ks).
-  -c [{bcp,hmm}], --cdp [{bcp,hmm}]
-                        Select the Change Point Detection (CPD) algorithm: (1)
-                        Bayesian Chenge Point Detection (bcp, default) (2)
-                        Hidden Markov Model (hmm, not implemented yet)
-  -cpdth [CPD_THRESHOLD], --cpd_threshold [CPD_THRESHOLD]
-                        Configure the sensitivity of the Change Point
-                        Detection algorithm. Default value 0.25.
-  -j [JITTER_DISPERSION_THRESHOLD], --jitter_dispersion_threshold [JITTER_DISPERSION_THRESHOLD]
-                        Configure the sensitivity of the increase of the
-                        variability of the jitter dispersion time series to be
-                        considered as a period of congestion. This parameter
-                        is only used in the Jitter Dispersion Method. Default
-                        value 0.25.
-  -l [LATENCY_JUMP_THRESHOLD], --latency_jump_threshold [LATENCY_JUMP_THRESHOLD]
-                        Configure the sensitivity of the increase of latency
-                        baseline to be considered as a period of congestion.
-                        Default value 0.5.
-  -ma [MOVING_AVERAGE_ORDER], --moving_average_order [MOVING_AVERAGE_ORDER]
-                        Define the order of the Moving Average filter. Use
-                        only POSITIVE EVEN INTEGER values. Default values is
-                        6.
-  -iqr [MOVING_IQR_ORDER], --moving_iqr_order [MOVING_IQR_ORDER]
-                        Define the order of the Moving IQR filter. Use only
-                        POSITIVE INTEGER values. Default values is 4.
-  -o [OUTPUT], --output [OUTPUT]
-                        Specify the output file
 ```
 
+## <a name="citing"></a> 4. Citing Jitterbug
 
-# <a name="citation"></a>4. Citation
-
-If you use _Jitterbug_, please cite it as:
+Please cite Jitterbug using the following reference:
 
 ```
 @InProceedings{carisimo2022jitterbug,
-author="Carisimo, Esteban
-and Mok, Ricky K. P.
-and Clark, David D.
-and Claffy, K. C.",
-editor="Hohlfeld, Oliver
-and Moura, Giovane
-and Pelsser, Cristel",
-title="Jitterbug: A New Framework for Jitter-Based Congestion Inference",
-booktitle="Passive and Active Measurement",
-year="2022",
-publisher="Springer International Publishing",
-address="Cham",
-pages="155--179",
-isbn="978-3-030-98785-5"
+  author="Carisimo, Esteban and Mok, Ricky K. P. and Clark, David D. and Claffy, K. C.",
+  title="Jitterbug: A New Framework for Jitter-Based Congestion Inference",
+  booktitle="Passive and Active Measurement",
+  year="2022",
+  publisher="Springer International Publishing",
+  address="Cham",
+  pages="155--179",
+  isbn="978-3-030-98785-5"
 }
-
-
 ```
 
-# <a name="tree"></a>5. Repo structure
+## <a name="structure"></a> 5. Repository Structure
 
 ```
 .
 ├── LICENSE
 ├── README.md
 ├── example
-│   ├── data
-│   │   ├── congestion-inferences
-│   │   │   ├── jd_inferences.csv
-│   │   │   └── kstest_inferences.csv
-│   │   └── congestion-measurements
-│   │       ├── mins.csv
-│   │       └── raw.csv
-│   ├── jitter-dispersion-example.ipynb
-│   └── jitter-kstest-example.ipynb
+│   ├── data
+│   │   ├── congestion-inferences
+│   │   │   ├── jd_inferences.csv
+│   │   │   └── kstest_inferences.csv
+│   │   └── congestion-measurements
+│   │       ├── mins
+
+.csv
+│   │       └── raw.csv
+│   ├── jitter-dispersion-example.ipynb
+│   └── jitter-kstest-example.ipynb
 ├── jitterbug
-│   ├── __init__.py
-│   ├── _jitter.py
-│   ├── _jitterbug.py
-│   ├── _latency_jump.py
-│   ├── bcp.py
-│   ├── cong_inference.py
-│   ├── filters.py
-│   ├── kstest.py
-│   ├── preprocessing.py
-│   └── signal_energy.py
+│   ├── __init__.py
+│   ├── _jitter.py
+│   ├── _jitterbug.py
+│   ├── _latency_jump.py
+│   ├── bcp.py
+│   ├── cong_inference.py
+│   ├── filters.py
+│   ├── kstest.py
+│   ├── preprocessing.py
+│   └── signal_energy.py
 ├── requirements.txt
 ├── setup.py
 └── tools
     └── jitterbug.py
-
-6 directories, 21 files
 ```
