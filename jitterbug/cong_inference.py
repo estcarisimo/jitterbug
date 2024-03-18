@@ -43,16 +43,17 @@ class CongestionInference:
         """
         Processes the latency jumps and jitter analysis to infer congestion events.
         """
+        self.congestion_inferences = []
         for jump, jitter in zip(self.latency_jumps, self.jitter_analysis):
-            if self.congestion and not jump[2]:
-                # If already in congestion and no new latency jump is detected, maintain the state.
+            # Determine if there is a new congestion state based on latency jump and jitter conditions
+            if jump[2] and jitter[2]:
+                self.congestion = True
+            elif not jump[2]:
                 self.congestion = False
 
-            if jump[2] and jitter[2]:
-                # If both latency jump and jitter increase are detected, infer congestion.
-                self.congestion = True
-
             self.congestion_inferences.append((jump[0], jump[1], self.congestion))
+
+
 
     def getInferences(self):
         """

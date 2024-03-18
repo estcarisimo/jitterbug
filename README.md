@@ -57,10 +57,10 @@ $ pip install -e .
 Ensure the virtual environment is activated before executing Jitterbug:
 
 ```
-$ jitterbug -m mins.csv -r rtts.csv -i jd -c bcp
+$ jitterbug -r rtts.csv -i jd -c bcp
 ```
 
-Example `rtts.csv` and `mins.csv` files are provided in the repository.
+Example `rtts.csv` file is provided in the repository.
 
 ### <a name="input-format"></a> 2.2. Input File Format
 
@@ -75,16 +75,6 @@ epoch,values
 ...
 ```
 
-#### Minimum RTT
-
-Format of `mins.csv`:
-
-```
-epoch,values
-1512144000.0,42.85
-1512144900.0,18.82
-...
-```
 
 ### <a name="real-data"></a> 2.3. Real-World Data Examples
 

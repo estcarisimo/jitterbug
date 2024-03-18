@@ -95,64 +95,55 @@ def jitterbug_analysis(epoch_rtt, rtt, epoch_mins, mins, inference_method, cdp_a
 
     return pd.DataFrame(results, columns=["starts", "ends", "congestion"])
 
-def load_data(file_path, column_names):
+
+def load_and_process_rtt_data(rtt_file):
     """
-    Load data from a CSV file and ensure the header is correctly processed.
+    Loads the RTT data from a specified file and processes it to extract minimum RTT values over intervals.
 
-    Parameters:
-    file_path (str): Path to the CSV file to be loaded.
-    column_names (list): List of column names to use in the DataFrame.
+    Parameters
+    ----------
+    rtt_file : str
+        Path to the file containing RTT data.
 
-    Returns:
-    pd.DataFrame: DataFrame containing the data from the CSV file.
+    Returns
+    -------
+    tuple of pd.DataFrame
+        - The first DataFrame contains the original RTT data with an added datetime column.
+        - The second DataFrame contains the minimum RTT values computed over 15-minute intervals.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the specified RTT file does not exist.
+
+    Notes
+    -----
+    The function reads Round-Trip Time (RTT) data from a CSV file, converts epoch timestamps to datetime,
+    and computes the minimum RTT values within 15-minute intervals. This processed data can be useful for
+    analyzing network performance and identifying patterns or anomalies in RTT over time.
     """
-    # Read the first line to check if header is present
-    with open(file_path, 'r') as file:
-        first_line = file.readline().strip()
-        has_header = first_line.split(',')[0] in column_names
+    # Check if the RTT file exists and raise an error if it does not
+    if not os.path.exists(rtt_file):
+        raise FileNotFoundError("Input file does not exist")
 
-    # Load the data into a DataFrame, handling the header appropriately
-    data_df = pd.read_csv(
-        file_path, 
-        names=column_names, 
-        skiprows=1 if has_header else 0
-    )
+    # Read the RTT data from the file
+    rtts_df = pd.read_csv(rtt_file)
 
-    # Ensure correct data types
-    data_df = data_df.astype({column_names[0]: float, column_names[1]: float})
+    # Convert the 'epoch' column to datetime format for easier analysis
+    rtts_df['datetime'] = pd.to_datetime(rtts_df['epoch'], unit='s')
 
-    return data_df
-
-
-def open_files(rtt_file, min_file):
-    """
-    Opens and reads the RTT and minimum RTT files.
-
-    Parameters:
-    rtt_file (str): Path to the RTT file.
-    min_file (str): Path to the minimum RTT file.
-
-    Returns:
-    tuple: Two pandas DataFrames containing the RTT and minimum RTT data.
-    """
-    if not os.path.exists(rtt_file) or not os.path.exists(min_file):
-        raise FileNotFoundError("Input file(s) do(es) not exist")
-
-    # Define column names for the data
-    cols = ["epoch", "values"]
-
-    # Load RTT and minimum RTT data
-    rtts_df = load_data(rtt_file, cols)
-    mins_df = load_data(min_file, cols)
+    # Group the data by 15-minute intervals and compute the minimum RTT for each interval
+    mins_df = rtts_df.groupby(pd.Grouper(key='datetime', freq="15min"))[["epoch", "values"]].min().reset_index()
 
     return rtts_df, mins_df
+
+
 
 def main():
     """
     Main function to parse arguments and execute the analysis.
     """
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-m", "--mins", required=True, help="path to minimum RTT file.")
     parser.add_argument("-r", "--rtt", required=True, help="path to raw RTT file.")
     parser.add_argument("-i", "--inference_method", required=True, choices=CONGESTION_INFERENCE_METHODS,
                         help="select the inference method: Jitter Dispersion (jd) or KS test (ks).")
@@ -173,7 +164,7 @@ def main():
 
     args = parser.parse_args()
 
-    rtts_df, mins_df = open_files(args.rtt, args.mins)
+    rtts_df, mins_df = load_and_process_rtt_data(args.rtt)
 
     inferences = jitterbug_analysis(
         rtts_df["epoch"].values, 
