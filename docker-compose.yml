@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  jitterbug-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jitterbug-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      - ./examples:/app/examples
+    environment:
+      - JITTERBUG_LOG_LEVEL=info
+      - JITTERBUG_WORKERS=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    
+  jitterbug-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jitterbug-cli
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      - ./examples:/app/examples
+    environment:
+      - JITTERBUG_LOG_LEVEL=info
+    command: ["jitterbug", "--help"]
+    profiles:
+      - cli  # Only start with --profile cli
+    
+  # Optional: InfluxDB for real-time data
+  influxdb:
+    image: influxdb:2.7
+    container_name: jitterbug-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password123
+      - DOCKER_INFLUXDB_INIT_ORG=jitterbug
+      - DOCKER_INFLUXDB_INIT_BUCKET=network-metrics
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: jitterbug-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - influxdb
+
+volumes:
+  influxdb_data:
+  grafana_data:
