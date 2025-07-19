@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "jitterbug"
 version = "2.0.0"
 description = "Framework for jitter-based network congestion inference"
-readme = "README-new.md"
+readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "Esteban Carisimo", email = "esteban.carisimo@northwestern.edu"}
