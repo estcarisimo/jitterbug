@@ -1,0 +1,18 @@
+Algorithm: ADTK
+Total periods: 33
+Congested periods: 9
+Congestion ratio: 27.3%
+Average confidence: 0.889
+Change points detected: 35
+Expected accuracy: 60.0%
+
+Congested periods:
+ 1. 2017-12-02 10:00 - 13:00 (3.0h)
+ 2. 2017-12-02 13:00 - 16:00 (3.0h)
+ 3. 2017-12-02 16:00 - 19:00 (3.0h)
+ 4. 2017-12-03 10:00 - 13:00 (3.0h)
+ 5. 2017-12-03 13:00 - 16:00 (3.0h)
+ 6. 2017-12-03 16:00 - 19:00 (3.0h)
+ 7. 2017-12-04 13:00 - 16:00 (3.0h)
+ 8. 2017-12-05 13:00 - 16:00 (3.0h)
+ 9. 2017-12-05 16:00 - 19:00 (3.0h)

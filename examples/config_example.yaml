@@ -1,0 +1,36 @@
+# Jitterbug 2.0 Configuration Example
+# This file demonstrates all available configuration options
+
+# Change Point Detection Configuration
+change_point_detection:
+  algorithm: "ruptures"  # Options: "ruptures", "bcp", "torch"
+  threshold: 0.25  # Detection sensitivity (0-1)
+  min_time_elapsed: 1800  # Minimum time between change points (seconds)
+  max_change_points: null  # Maximum number of change points (null for unlimited)
+  
+  # Ruptures-specific parameters
+  ruptures_model: "rbf"  # Options: "rbf", "l1", "l2", "normal"
+  ruptures_penalty: 10.0  # Penalty parameter for ruptures
+
+# Jitter Analysis Configuration
+jitter_analysis:
+  method: "jitter_dispersion"  # Options: "jitter_dispersion", "ks_test"
+  threshold: 0.25  # Significance threshold
+  moving_average_order: 6  # Moving average window size (must be even)
+  moving_iqr_order: 4  # Moving IQR window size
+  significance_level: 0.05  # Statistical significance level (for ks_test)
+
+# Latency Jump Detection Configuration
+latency_jump:
+  threshold: 0.5  # Threshold for detecting latency jumps (ms)
+
+# Data Processing Configuration
+data_processing:
+  minimum_interval_minutes: 15  # Interval for minimum RTT computation
+  min_samples_per_interval: 5  # Minimum samples required per interval
+  outlier_detection: true  # Whether to perform outlier detection
+  outlier_threshold: 3.0  # Z-score threshold for outlier detection
+
+# Output Configuration
+output_format: "json"  # Options: "json", "csv", "parquet"
+verbose: false  # Enable verbose logging
