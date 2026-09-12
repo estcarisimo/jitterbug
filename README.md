@@ -727,11 +727,11 @@ from jitterbug import JitterbugAnalyzer, JitterbugConfig
 # Simulate real-time data
 def analyze_realtime_data():
     analyzer = JitterbugAnalyzer(JitterbugConfig())
-    
+
     # Load data in chunks
     for chunk in pd.read_csv('examples/network_analysis/data/raw.csv', chunksize=1000):
         results = analyzer.analyze_from_dataframe(chunk)
-        
+
         # Process results
         if results.get_congested_periods():
             print(f"Alert: Congestion detected at {chunk.iloc[-1]['timestamp']}")

@@ -22,7 +22,7 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
-    
+
   jitterbug-cli:
     build:
       context: .
@@ -37,7 +37,7 @@ services:
     command: ["jitterbug", "--help"]
     profiles:
       - cli  # Only start with --profile cli
-    
+
   # Optional: InfluxDB for real-time data
   influxdb:
     image: influxdb:2.7
@@ -52,7 +52,7 @@ services:
       - DOCKER_INFLUXDB_INIT_BUCKET=network-metrics
     volumes:
       - influxdb_data:/var/lib/influxdb2
-    
+
   # Optional: Grafana for visualization
   grafana:
     image: grafana/grafana:10.0.0

@@ -455,19 +455,19 @@ class AlgorithmBenchmark:
                 <h1>Jitterbug Algorithm Benchmark Report</h1>
                 <p>Generated on: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
             </div>
-            
+
             <div class="section">
                 <h2>Summary Statistics</h2>
                 <p>Total tests: {len(self.results)}</p>
                 <p>Successful tests: {len(self.results[self.results["success"]])}</p>
                 <p>Failed tests: {len(self.results[~self.results["success"]])}</p>
             </div>
-            
+
             <div class="section">
                 <h2>Detailed Results</h2>
                 {self.results.to_html(classes="table", escape=False)}
             </div>
-            
+
             <div class="section">
                 <h2>Algorithm Performance</h2>
                 {

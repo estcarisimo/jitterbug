@@ -30,33 +30,33 @@ def create_app() -> FastAPI:
         title="Jitterbug Network Analysis API",
         description="""
         ## Jitterbug API: Framework for Jitter-Based Congestion Inference
-        
-        This API provides endpoints for analyzing RTT (Round-Trip Time) measurements 
+
+        This API provides endpoints for analyzing RTT (Round-Trip Time) measurements
         to detect network congestion through jitter analysis and change point detection.
-        
+
         ### Features
-        
+
         * **RTT Data Analysis**: Analyze network latency measurements
         * **Change Point Detection**: Identify significant changes in network behavior
         * **Congestion Inference**: Detect network congestion periods
         * **Algorithm Comparison**: Compare different detection algorithms
         * **Data Validation**: Validate input data quality
         * **Multiple Algorithms**: Support for Ruptures, Bayesian, and PyTorch-based detection
-        
+
         ### Usage
-        
+
         1. **Validate Data**: Use `/validate` to check data quality
         2. **Analyze Data**: Use `/analyze` to perform congestion analysis
         3. **Compare Algorithms**: Use `/compare-algorithms` to evaluate different methods
         4. **Monitor Health**: Use `/health` and `/status` for service monitoring
-        
+
         ### Authentication
-        
+
         This API currently does not require authentication for research and development use.
         For production deployments, implement appropriate authentication mechanisms.
-        
+
         ### Rate Limits
-        
+
         This API does not currently implement rate limiting. For production use,
         consider implementing rate limiting based on your requirements.
         """,

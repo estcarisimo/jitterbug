@@ -507,7 +507,7 @@ results = {}
 for algorithm in algorithms:
     for method in methods:
         print(f"Testing {algorithm} + {method}...")
-        
+
         config = JitterbugConfig(
             change_point_detection=ChangePointDetectionConfig(
                 algorithm=algorithm,
@@ -518,12 +518,12 @@ for algorithm in algorithms:
                 threshold=0.25
             )
         )
-        
+
         analyzer = JitterbugAnalyzer(config)
         result = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
-        
+
         results[f"{algorithm}_{method}"] = result
-        
+
         # Print summary
         summary = analyzer.get_summary_statistics(result)
         print(f"  Congested periods: {summary['congested_periods']}")
@@ -646,10 +646,10 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
    uv pip install jitterbug[bayesian]  # For Bayesian
    uv pip install jitterbug[rbeast]  # For Rbeast
    uv pip install jitterbug[adtk]  # For ADTK
-   
+
    # If bayesian installation fails, try direct installation:
    uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
-   
+
    # If other installations fail, try direct installation:
    uv pip install Rbeast  # For Rbeast
    uv pip install adtk  # For ADTK

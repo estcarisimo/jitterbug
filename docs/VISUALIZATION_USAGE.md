@@ -327,8 +327,8 @@ dashboard = JitterbugDashboard()
 
 # Show static plot inline
 fig = dashboard.static.plot_congestion_analysis(
-    analyzer.raw_data, 
-    analyzer.min_rtt_data, 
+    analyzer.raw_data,
+    analyzer.min_rtt_data,
     results
 )
 plt.show()
@@ -397,7 +397,7 @@ end_time = datetime(2024, 1, 7)
 
 # Filter data
 filtered_data = raw_data[
-    (raw_data.epoch >= start_time.timestamp()) & 
+    (raw_data.epoch >= start_time.timestamp()) &
     (raw_data.epoch <= end_time.timestamp())
 ]
 
