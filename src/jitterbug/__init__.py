@@ -15,35 +15,35 @@ Key Features:
 Example Usage:
     from jitterbug import JitterbugAnalyzer
     from jitterbug.models import JitterbugConfig
-    
+
     # Load configuration
     config = JitterbugConfig()
-    
+
     # Create analyzer
     analyzer = JitterbugAnalyzer(config)
-    
+
     # Analyze RTT data
     results = analyzer.analyze_from_file('rtts.csv')
-    
+
     # Get congestion periods
     congested_periods = results.get_congested_periods()
 """
 
 from .analyzer import JitterbugAnalyzer
 from .models import (
-    RTTMeasurement,
-    RTTDataset,
-    MinimumRTTDataset,
     ChangePoint,
-    LatencyJump,
-    JitterAnalysis,
+    ChangePointDetectionConfig,
     CongestionInference,
     CongestionInferenceResult,
-    JitterbugConfig,
-    ChangePointDetectionConfig,
-    JitterAnalysisConfig,
-    LatencyJumpConfig,
     DataProcessingConfig,
+    JitterAnalysis,
+    JitterAnalysisConfig,
+    JitterbugConfig,
+    LatencyJump,
+    LatencyJumpConfig,
+    MinimumRTTDataset,
+    RTTDataset,
+    RTTMeasurement,
 )
 
 __version__ = "2.0.0"
@@ -53,23 +53,20 @@ __email__ = "esteban.carisimo@northwestern.edu"
 __all__ = [
     # Main analyzer
     "JitterbugAnalyzer",
-    
     # Data models
     "RTTMeasurement",
     "RTTDataset",
     "MinimumRTTDataset",
-    
     # Analysis models
     "ChangePoint",
-    "LatencyJump", 
+    "LatencyJump",
     "JitterAnalysis",
     "CongestionInference",
     "CongestionInferenceResult",
-    
     # Configuration models
     "JitterbugConfig",
     "ChangePointDetectionConfig",
     "JitterAnalysisConfig",
-    "LatencyJumpConfig", 
+    "LatencyJumpConfig",
     "DataProcessingConfig",
 ]

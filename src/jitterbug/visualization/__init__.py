@@ -2,12 +2,8 @@
 Visualization tools for Jitterbug network analysis.
 """
 
-from .plotter import JitterbugPlotter
 from .dashboard import JitterbugDashboard
 from .interactive import InteractiveVisualizer
+from .plotter import JitterbugPlotter
 
-__all__ = [
-    "JitterbugPlotter",
-    "JitterbugDashboard", 
-    "InteractiveVisualizer"
-]
+__all__ = ["JitterbugPlotter", "JitterbugDashboard", "InteractiveVisualizer"]

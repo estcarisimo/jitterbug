@@ -19,56 +19,34 @@ from .app import create_app
 
 def main():
     """Main entry point for the API server."""
-    parser = argparse.ArgumentParser(
-        description="Jitterbug Network Analysis API Server"
-    )
-    parser.add_argument(
-        "--host",
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)"
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="Port to bind to (default: 8000)"
-    )
-    parser.add_argument(
-        "--reload",
-        action="store_true",
-        help="Enable auto-reload for development"
-    )
+    parser = argparse.ArgumentParser(description="Jitterbug Network Analysis API Server")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=8000, help="Port to bind to (default: 8000)")
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     parser.add_argument(
         "--log-level",
         choices=["debug", "info", "warning", "error"],
         default="info",
-        help="Log level (default: info)"
+        help="Log level (default: info)",
     )
     parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of worker processes (default: 1)"
+        "--workers", type=int, default=1, help="Number of worker processes (default: 1)"
     )
-    parser.add_argument(
-        "--access-log",
-        action="store_true",
-        help="Enable access logging"
-    )
-    
+    parser.add_argument("--access-log", action="store_true", help="Enable access logging")
+
     args = parser.parse_args()
-    
+
     # Configure logging
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    
+
     logger = logging.getLogger(__name__)
-    
+
     # Create application
     app = create_app()
-    
+
     # Server configuration
     config = {
         "host": args.host,
@@ -77,19 +55,19 @@ def main():
         "access_log": args.access_log,
         "reload": args.reload,
     }
-    
+
     # Add workers for production
     if not args.reload and args.workers > 1:
         config["workers"] = args.workers
-    
+
     logger.info(f"🚀 Starting Jitterbug API server on {args.host}:{args.port}")
     logger.info(f"📚 API documentation available at http://{args.host}:{args.port}/docs")
     logger.info(f"🔧 Configuration: {config}")
-    
+
     try:
         # Start server
         uvicorn.run(app, **config)
-        
+
     except KeyboardInterrupt:
         logger.info("🛑 Server stopped by user")
         sys.exit(0)
