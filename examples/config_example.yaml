@@ -7,7 +7,7 @@ change_point_detection:
   threshold: 0.25  # Detection sensitivity (0-1)
   min_time_elapsed: 1800  # Minimum time between change points (seconds)
   max_change_points: null  # Maximum number of change points (null for unlimited)
-  
+
   # Ruptures-specific parameters
   ruptures_model: "rbf"  # Options: "rbf", "l1", "l2", "normal"
   ruptures_penalty: 10.0  # Penalty parameter for ruptures

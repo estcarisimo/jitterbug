@@ -364,7 +364,7 @@ class JitterbugDashboard:
                 <h1>{report["title"]}</h1>
                 <p>Generated on: {report.get("generated_at", "N/A")}</p>
             </div>
-            
+
             <div class="section">
                 <h2>📊 Key Statistics</h2>
                 <div class="grid">
@@ -386,7 +386,7 @@ class JitterbugDashboard:
                     </div>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2>🖼️ Static Plots</h2>
                 <ul>
@@ -399,7 +399,7 @@ class JitterbugDashboard:
         html_content += """
                 </ul>
             </div>
-            
+
             <div class="section">
                 <h2>🌐 Interactive Plots</h2>
                 <ul>
@@ -412,7 +412,7 @@ class JitterbugDashboard:
         html_content += """
                 </ul>
             </div>
-            
+
             <div class="section">
                 <h2>📄 Report Files</h2>
                 <ul>

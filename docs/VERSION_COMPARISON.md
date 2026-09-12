@@ -43,7 +43,7 @@ src/jitterbug/
 ├── api/                        # FastAPI REST server
 ├── models/                     # Pydantic data models
 ├── detection/                  # Change point algorithms
-├── analysis/                   # Analysis components  
+├── analysis/                   # Analysis components
 ├── io/                         # Data loading/export
 ├── visualization/              # Interactive plots
 └── config/                     # Configuration management
@@ -79,7 +79,7 @@ src/jitterbug/
 ### Performance Against Expected Results (15 congestion periods)
 - **BCP**: 14/15 periods detected (93.3% accuracy) - Gold standard
 - **Ruptures**: 12-14/15 periods detected (~85-93% accuracy)
-- **PyTorch**: 11-14/15 periods detected (~75-93% accuracy)  
+- **PyTorch**: 11-14/15 periods detected (~75-93% accuracy)
 - **Rbeast**: 10/15 periods detected (66.7% accuracy)
 - **ADTK**: 9/15 periods detected (60% accuracy)
 
@@ -170,24 +170,24 @@ results = response.json()
 - **Processing**: Manual data preprocessing
 
 ### v2.0 Data Support
-- **Input Formats**: 
+- **Input Formats**:
   - CSV files
   - JSON (scamper format)
   - InfluxDB queries
   - Pandas DataFrames
   - Direct API calls
-  
+
 - **Output Formats**:
   - JSON (structured results)
   - CSV (tabular export)
   - Parquet (efficient storage)
   - Interactive HTML dashboards
-  
-- **Validation**: 
+
+- **Validation**:
   - Pydantic model validation
   - Automatic type conversion
   - Comprehensive error messages
-  
+
 - **Processing**:
   - Automatic outlier detection
   - Configurable minimum interval calculation
@@ -304,7 +304,7 @@ jitterbug visualize rtts.csv --algorithm bcp --dashboard
 - **Documentation**: Type hints, docstrings, usage guides
 - **Type Safety**: Full Pydantic validation
 - **Error Handling**: Structured error responses
-- **Development Tools**: 
+- **Development Tools**:
   - Black code formatting
   - isort import sorting
   - mypy type checking

@@ -132,7 +132,7 @@ jitterbug analyze data.csv --algorithm torch --threshold 0.25
 ### Parameter Sensitivity
 
 #### Ruptures Parameters
-- **ruptures_model**: 
+- **ruptures_model**:
   - `"rbf"`: Radial Basis Function (default, good for most cases)
   - `"l1"`: L1 norm (good for sparse changes)
   - `"l2"`: L2 norm (good for gradual changes)

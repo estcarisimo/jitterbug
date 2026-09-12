@@ -497,16 +497,16 @@ class AlgorithmSelector:
 
         print("\n🐍 Python API Usage:")
         print(f"""   from jitterbug import JitterbugAnalyzer, JitterbugConfig
-   
+
    # Load configuration
    config = JitterbugConfig.from_file('{config_file.name}')
-   
+
    # Create analyzer
    analyzer = JitterbugAnalyzer(config)
-   
+
    # Analyze data
    results = analyzer.analyze_from_file('data.csv')
-   
+
    # Get congestion periods
    congested_periods = results.get_congested_periods()
    print(f"Found {{len(congested_periods)}} congestion periods")""")

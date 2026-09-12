@@ -26,7 +26,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --locked --extra dev --extra visualization
+        run: uv sync --locked --extra visualization
 
       - name: Ruff lint
         run: uv run ruff check src/ tests/ examples/ tools/
@@ -40,7 +40,7 @@ jobs:
 
       - name: pip-audit (audits the locked dependency set)
         run: |
-          uv export --no-emit-project --no-hashes --extra dev --extra visualization \
+          uv export --no-emit-project --no-hashes --extra visualization \
             --format requirements.txt -o requirements-audit.txt
           uvx pip-audit -r requirements-audit.txt --no-deps --disable-pip
 
@@ -66,7 +66,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --locked --extra dev --extra visualization
+        run: uv sync --locked --extra visualization
 
       - name: Run tests
         run: uv run pytest tests/ --cov=jitterbug --cov-report=term-missing --cov-report=xml

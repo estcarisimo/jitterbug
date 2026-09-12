@@ -12,6 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
+from .. import __version__
 from .models import ErrorResponseAPI
 from .routes import router
 
@@ -29,37 +30,37 @@ def create_app() -> FastAPI:
         title="Jitterbug Network Analysis API",
         description="""
         ## Jitterbug API: Framework for Jitter-Based Congestion Inference
-        
-        This API provides endpoints for analyzing RTT (Round-Trip Time) measurements 
+
+        This API provides endpoints for analyzing RTT (Round-Trip Time) measurements
         to detect network congestion through jitter analysis and change point detection.
-        
+
         ### Features
-        
+
         * **RTT Data Analysis**: Analyze network latency measurements
         * **Change Point Detection**: Identify significant changes in network behavior
         * **Congestion Inference**: Detect network congestion periods
         * **Algorithm Comparison**: Compare different detection algorithms
         * **Data Validation**: Validate input data quality
         * **Multiple Algorithms**: Support for Ruptures, Bayesian, and PyTorch-based detection
-        
+
         ### Usage
-        
+
         1. **Validate Data**: Use `/validate` to check data quality
         2. **Analyze Data**: Use `/analyze` to perform congestion analysis
         3. **Compare Algorithms**: Use `/compare-algorithms` to evaluate different methods
         4. **Monitor Health**: Use `/health` and `/status` for service monitoring
-        
+
         ### Authentication
-        
+
         This API currently does not require authentication for research and development use.
         For production deployments, implement appropriate authentication mechanisms.
-        
+
         ### Rate Limits
-        
+
         This API does not currently implement rate limiting. For production use,
         consider implementing rate limiting based on your requirements.
         """,
-        version="2.0.0",
+        version=__version__,
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
@@ -111,7 +112,7 @@ def create_app() -> FastAPI:
         """Root endpoint with API information."""
         return {
             "service": "Jitterbug Network Analysis API",
-            "version": "2.0.0",
+            "version": __version__,
             "description": "Framework for Jitter-Based Congestion Inference",
             "docs": "/docs",
             "health": "/api/v1/health",
@@ -125,7 +126,7 @@ def create_app() -> FastAPI:
 
         openapi_schema = get_openapi(
             title="Jitterbug Network Analysis API",
-            version="2.0.0",
+            version=__version__,
             description=app.description,
             routes=app.routes,
         )

@@ -39,7 +39,7 @@ This installs:
 
 ```bash
 # Method 1: Install via extra
-uv pip install jitterbug[bayesian]
+uv pip install jitterbug[bcp]
 
 # Method 2: Install dependency directly (if Method 1 fails)
 uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
@@ -129,11 +129,10 @@ This includes all algorithms, visualization, API, and data source support.
 git clone https://github.com/estcarisimo/jitterbug.git
 cd jitterbug
 
-# Install in development mode
-pip install -e ".[all]"
-
-# Install development tools
-pip install -e ".[dev]"
+# Create the environment, install the package in editable mode with every optional
+# back end, and the development tools (the `dev` dependency group is installed by default)
+uv sync --extra all
+source .venv/bin/activate  # or prefix each command below with `uv run`
 ```
 
 ## Installation Verification
