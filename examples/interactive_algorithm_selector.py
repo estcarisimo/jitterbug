@@ -371,9 +371,8 @@ class AlgorithmSelector:
                 config["ruptures_penalty"] = 10.0
 
         # Real-time adjustments
-        if "max_latency" in self.user_preferences:
-            if self.user_preferences["max_latency"] < 1.0:
-                config["min_time_elapsed"] = 900  # 15 minutes
+        if self.user_preferences.get("max_latency", float("inf")) < 1.0:
+            config["min_time_elapsed"] = 900  # 15 minutes
 
         return config
 
@@ -472,13 +471,13 @@ class AlgorithmSelector:
             import yaml
 
             config_file = Path(__file__).parent / "recommended_config.yaml"
-            with open(config_file, "w") as f:
+            with config_file.open("w") as f:
                 yaml.dump(config, f, default_flow_style=False)
             print(f"✅ Configuration saved to: {config_file}")
         except ImportError:
             # Save as JSON if YAML not available
             config_file = Path(__file__).parent / "recommended_config.json"
-            with open(config_file, "w") as f:
+            with config_file.open("w") as f:
                 json.dump(config, f, indent=2)
             print(f"✅ Configuration saved to: {config_file}")
 

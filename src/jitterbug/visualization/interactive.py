@@ -40,7 +40,8 @@ class InteractiveVisualizer:
         """
         if not PLOTLY_AVAILABLE:
             raise ImportError(
-                "plotly is required for interactive visualization. Install with: pip install jitterbug[visualization]"
+                "plotly is required for interactive visualization. "
+                "Install with: pip install jitterbug[visualization]"
             )
 
         self.theme = theme
@@ -87,7 +88,8 @@ class InteractiveVisualizer:
         go.Figure
             Interactive plotly figure
         """
-        # Create subplots with consistent x-axis ranges but no shared_xaxes to avoid annotation issues
+        # Create subplots with consistent x-axis ranges but no shared_xaxes, to avoid
+        # annotation issues
         fig = make_subplots(
             rows=3,
             cols=1,
@@ -182,7 +184,8 @@ class InteractiveVisualizer:
             congestion_values.extend([value, value])
 
             hover_text = (
-                f"<b>Period: {inf.start_timestamp.strftime('%H:%M:%S')} - {inf.end_timestamp.strftime('%H:%M:%S')}</b><br>"
+                f"<b>Period: {inf.start_timestamp.strftime('%H:%M:%S')} - "
+                f"{inf.end_timestamp.strftime('%H:%M:%S')}</b><br>"
                 + f"Status: {'Congested' if inf.is_congested else 'Normal'}<br>"
                 + f"Confidence: {inf.confidence:.3f}<br>"
             )
@@ -290,7 +293,8 @@ class InteractiveVisualizer:
             statuses.append("Congested" if inf.is_congested else "Normal")
 
             hover_text = (
-                f"<b>Period: {inf.start_timestamp.strftime('%H:%M:%S')} - {inf.end_timestamp.strftime('%H:%M:%S')}</b><br>"
+                f"<b>Period: {inf.start_timestamp.strftime('%H:%M:%S')} - "
+                f"{inf.end_timestamp.strftime('%H:%M:%S')}</b><br>"
                 + f"Status: {'Congested' if inf.is_congested else 'Normal'}<br>"
                 + f"Confidence: {inf.confidence:.3f}<br>"
                 + f"Duration: {duration:.1f} minutes<br>"

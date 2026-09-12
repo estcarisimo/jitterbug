@@ -113,7 +113,7 @@ async def health_check():
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=500, detail="Health check failed")
+        raise HTTPException(status_code=500, detail="Health check failed") from e
 
 
 @router.get("/status", response_model=StatusAPI)
@@ -136,7 +136,7 @@ async def get_status():
         )
     except Exception as e:
         logger.error(f"Status check failed: {e}")
-        raise HTTPException(status_code=500, detail="Status check failed")
+        raise HTTPException(status_code=500, detail="Status check failed") from e
 
 
 @router.post("/analyze", response_model=AnalysisResponseAPI)
@@ -426,7 +426,7 @@ async def get_available_algorithms():
 
     except Exception as e:
         logger.error(f"Failed to get algorithms: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get algorithms")
+        raise HTTPException(status_code=500, detail="Failed to get algorithms") from e
 
 
 @router.get("/methods")
@@ -450,7 +450,7 @@ async def get_available_methods():
 
     except Exception as e:
         logger.error(f"Failed to get methods: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get methods")
+        raise HTTPException(status_code=500, detail="Failed to get methods") from e
 
 
 @router.get("/config/template")
@@ -462,7 +462,7 @@ async def get_config_template():
 
     except Exception as e:
         logger.error(f"Failed to get config template: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get config template")
+        raise HTTPException(status_code=500, detail="Failed to get config template") from e
 
 
 # Error handlers

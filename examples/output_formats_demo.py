@@ -173,7 +173,7 @@ def demonstrate_json_output(results: CongestionInferenceResult):
 
     # Save to file
     output_file = Path(__file__).parent / "sample_results.json"
-    with open(output_file, "w") as f:
+    with output_file.open("w") as f:
         json.dump(json_output, f, indent=2, default=str)
     print(f"\n💾 JSON saved to: {output_file}")
 
@@ -307,7 +307,7 @@ def demonstrate_xml_output(results: CongestionInferenceResult):
 
     # Save to file
     output_file = Path(__file__).parent / "sample_results.xml"
-    with open(output_file, "w") as f:
+    with output_file.open("w") as f:
         f.write(xml_output)
     print(f"\n💾 XML saved to: {output_file}")
 
@@ -329,7 +329,7 @@ def demonstrate_yaml_output(results: CongestionInferenceResult):
 
         # Save to file
         output_file = Path(__file__).parent / "sample_results.yaml"
-        with open(output_file, "w") as f:
+        with output_file.open("w") as f:
             yaml.dump(yaml_data, f, default_flow_style=False, default_str=str)
         print(f"\n💾 YAML saved to: {output_file}")
 
@@ -384,7 +384,7 @@ def demonstrate_summary_output(results: CongestionInferenceResult):
 
     # Save summary
     output_file = Path(__file__).parent / "sample_results_summary.json"
-    with open(output_file, "w") as f:
+    with output_file.open("w") as f:
         json.dump(summary, f, indent=2, default=str)
     print(f"\n💾 Summary saved to: {output_file}")
 
@@ -501,7 +501,7 @@ def demonstrate_custom_serialization(results: CongestionInferenceResult):
 
     for format_name, data in formats.items():
         output_file = Path(__file__).parent / f"sample_results_{format_name}.json"
-        with open(output_file, "w") as f:
+        with output_file.open("w") as f:
             json.dump(data, f, indent=2, default=str)
         print(f"\n💾 {format_name.title()} format saved to: {output_file}")
 

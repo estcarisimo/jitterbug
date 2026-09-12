@@ -97,10 +97,7 @@ def analyze(
 
     try:
         # Load configuration
-        if config:
-            jitterbug_config = JitterbugConfig.from_file(config)
-        else:
-            jitterbug_config = JitterbugConfig()
+        jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
 
         # Override config with command-line arguments
         jitterbug_config.jitter_analysis.method = method
@@ -145,7 +142,7 @@ def analyze(
 
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -230,7 +227,7 @@ def validate(
 
     except Exception as e:
         console.print(f"❌ Validation failed: {e}", style="red")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -313,10 +310,7 @@ def visualize(
 
     try:
         # Load configuration
-        if config:
-            jitterbug_config = JitterbugConfig.from_file(config)
-        else:
-            jitterbug_config = JitterbugConfig()
+        jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
 
         # Override config with command-line arguments
         jitterbug_config.jitter_analysis.method = method
@@ -416,7 +410,7 @@ def visualize(
             import traceback
 
             console.print(traceback.format_exc(), style="red")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -545,7 +539,8 @@ def _display_validation_results(results, verbose=False):
 
         # Time range
         console.print(
-            f"\n⏰ [bold]Time Range[/bold]: {metrics['time_range']['start']} to {metrics['time_range']['end']}"
+            f"\n⏰ [bold]Time Range[/bold]: {metrics['time_range']['start']} "
+            f"to {metrics['time_range']['end']}"
         )
 
 

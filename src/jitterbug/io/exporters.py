@@ -48,7 +48,7 @@ class ResultExporter:
                 return obj.isoformat()
             return str(obj)
 
-        with open(output_path, "w") as f:
+        with output_path.open("w") as f:
             if pretty:
                 json.dump(data, f, indent=2, default=json_serializer)
             else:
@@ -164,7 +164,7 @@ class ResultExporter:
                     "max": float(pd.Series(confidences).max()),
                 }
 
-        with open(output_path, "w") as f:
+        with output_path.open("w") as f:
             json.dump(summary, f, indent=2)
 
         logger.info(f"Summary exported to JSON: {output_path}")

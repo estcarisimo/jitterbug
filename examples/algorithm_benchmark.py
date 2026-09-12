@@ -405,7 +405,8 @@ class AlgorithmBenchmark:
         # Most confident
         most_confident = successful_tests.loc[successful_tests["avg_confidence"].idxmax()]
         print(
-            f"   Most confident: {most_confident['algorithm']} ({most_confident['avg_confidence']:.3f})"
+            f"   Most confident: {most_confident['algorithm']} "
+            f"({most_confident['avg_confidence']:.3f})"
         )
 
         # Most consistent
@@ -488,7 +489,7 @@ class AlgorithmBenchmark:
         </html>
         """
 
-        with open(output_file, "w") as f:
+        with output_file.open("w") as f:
             f.write(html_content)
 
         print(f"📄 Detailed report saved to: {output_file}")
@@ -560,7 +561,8 @@ def main():
         best_overall = successful_results.loc[performance_score.idxmin()]
 
         print(
-            f"   🏆 Best overall performer: {best_overall['algorithm']} (config: {best_overall['config_name']})"
+            f"   🏆 Best overall performer: {best_overall['algorithm']} "
+            f"(config: {best_overall['config_name']})"
         )
 
         # Best for real-time
@@ -570,13 +572,15 @@ def main():
                 successful_results[real_time_mask]["avg_confidence"].idxmax()
             ]
             print(
-                f"   ⚡ Best for real-time: {real_time_best['algorithm']} (config: {real_time_best['config_name']})"
+                f"   ⚡ Best for real-time: {real_time_best['algorithm']} "
+                f"(config: {real_time_best['config_name']})"
             )
 
         # Best for accuracy
         accuracy_best = successful_results.loc[successful_results["avg_confidence"].idxmax()]
         print(
-            f"   🎯 Best for accuracy: {accuracy_best['algorithm']} (config: {accuracy_best['config_name']})"
+            f"   🎯 Best for accuracy: {accuracy_best['algorithm']} "
+            f"(config: {accuracy_best['config_name']})"
         )
 
     print("\n✅ Benchmark complete!")

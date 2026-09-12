@@ -254,7 +254,7 @@ class JitterbugAnalyzer:
         if format == "json":
             import json
 
-            with open(output_path, "w") as f:
+            with output_path.open("w") as f:
                 json.dump(results.dict(), f, indent=2, default=str)
 
         elif format == "csv":

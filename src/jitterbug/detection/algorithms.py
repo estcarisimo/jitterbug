@@ -75,11 +75,11 @@ class RupturesDetector(BaseChangePointDetector):
             import ruptures as rpt
 
             self.rpt = rpt
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "ruptures package is required for ruptures change point detection. "
                 "Install it with: pip install ruptures"
-            )
+            ) from e
 
     def detect(self, dataset: MinimumRTTDataset) -> list[ChangePoint]:
         """
@@ -251,11 +251,11 @@ class BayesianChangePointDetector(BaseChangePointDetector):
             self.offline_likelihoods = ol
             self.priors = pr
 
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "bayesian_changepoint_detection package is required for BCP detection. "
                 "Install it from: https://github.com/estcarisimo/bayesian_changepoint_detection"
-            )
+            ) from e
 
     def detect(self, dataset: MinimumRTTDataset) -> list[ChangePoint]:
         """
@@ -350,11 +350,11 @@ class TorchChangePointDetector(BaseChangePointDetector):
             self.DataLoader = DataLoader
             self.TensorDataset = TensorDataset
 
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "PyTorch is required for torch change point detection. "
                 "Install it with: pip install torch"
-            )
+            ) from e
 
         # Initialize the neural network model
         self.model = self._create_model()
@@ -610,7 +610,8 @@ class TorchChangePointDetector(BaseChangePointDetector):
                         )
                         used_epochs.add(epoch)
 
-            # If we still don't have enough change points, fill gaps with remaining high-priority candidates
+            # If we still don't have enough change points, fill gaps with the remaining
+            # high-priority candidates
             if len(change_points) < 25:
                 remaining_candidates = [
                     (epoch, conf, score, priority)
@@ -710,7 +711,8 @@ class TorchChangePointDetector(BaseChangePointDetector):
 
 class RbeastDetector(BaseChangePointDetector):
     """
-    Change point detection using Rbeast (Bayesian changepoint detection and time series decomposition).
+    Change point detection using Rbeast (Bayesian changepoint detection and time series
+    decomposition).
 
     Rbeast is a Bayesian algorithm for detecting changepoints and decomposing
     time series into trend, seasonal, and remainder components.
@@ -905,22 +907,23 @@ class RbeastDetector(BaseChangePointDetector):
             segment_quality = min(n_before, n_after) / min_segment_size
             adaptive_threshold = base_threshold / (0.5 + segment_quality)
 
-            if change_score > adaptive_threshold:
-                # Check minimum time constraint
-                if not change_points or epoch - change_points[-1].epoch >= min_time_gap:
-                    timestamp = datetime.fromtimestamp(epoch)
+            # Keep the change point only if it also respects the minimum time gap
+            if change_score > adaptive_threshold and (
+                not change_points or epoch - change_points[-1].epoch >= min_time_gap
+            ):
+                timestamp = datetime.fromtimestamp(epoch)
 
-                    # Confidence based on strength of evidence
-                    confidence = min(1.0, change_score / (adaptive_threshold * 2))
+                # Confidence based on strength of evidence
+                confidence = min(1.0, change_score / (adaptive_threshold * 2))
 
-                    change_points.append(
-                        ChangePoint(
-                            timestamp=timestamp,
-                            epoch=epoch,
-                            confidence=confidence,
-                            algorithm="rbeast_fallback",
-                        )
+                change_points.append(
+                    ChangePoint(
+                        timestamp=timestamp,
+                        epoch=epoch,
+                        confidence=confidence,
+                        algorithm="rbeast_fallback",
                     )
+                )
 
         # Post-process to match expected pattern
         # Remove low-confidence points if too many
@@ -1184,20 +1187,21 @@ class ADTKDetector(BaseChangePointDetector):
                 segment_quality = min(len(before_segment), len(after_segment)) / window_size
                 adaptive_threshold = base_threshold / (0.5 + segment_quality)
 
-                if combined_score > adaptive_threshold:
-                    # Check minimum time constraint
-                    if not change_points or epoch - change_points[-1].epoch >= min_time_gap:
-                        timestamp = datetime.fromtimestamp(epoch)
-                        confidence = min(1.0, combined_score / (adaptive_threshold * 1.5))
+                # Keep the change point only if it also respects the minimum time gap
+                if combined_score > adaptive_threshold and (
+                    not change_points or epoch - change_points[-1].epoch >= min_time_gap
+                ):
+                    timestamp = datetime.fromtimestamp(epoch)
+                    confidence = min(1.0, combined_score / (adaptive_threshold * 1.5))
 
-                        change_points.append(
-                            ChangePoint(
-                                timestamp=timestamp,
-                                epoch=epoch,
-                                confidence=confidence,
-                                algorithm="adtk_fallback",
-                            )
+                    change_points.append(
+                        ChangePoint(
+                            timestamp=timestamp,
+                            epoch=epoch,
+                            confidence=confidence,
+                            algorithm="adtk_fallback",
                         )
+                    )
 
         # Post-process to match expected pattern (~35 change points)
         if len(change_points) > 45:

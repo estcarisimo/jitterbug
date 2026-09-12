@@ -261,7 +261,7 @@ class JitterbugConfig(BaseSettings):
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-        with open(config_path) as f:
+        with config_path.open() as f:
             if config_path.suffix.lower() in [".yaml", ".yml"]:
                 data = yaml.safe_load(f)
             elif config_path.suffix.lower() == ".json":
@@ -286,7 +286,7 @@ class JitterbugConfig(BaseSettings):
 
         data = self.model_dump()
 
-        with open(config_path, "w") as f:
+        with config_path.open("w") as f:
             if config_path.suffix.lower() in [".yaml", ".yml"]:
                 yaml.dump(data, f, default_flow_style=False)
             elif config_path.suffix.lower() == ".json":
