@@ -12,6 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
+from .. import __version__
 from .models import ErrorResponseAPI
 from .routes import router
 
@@ -59,7 +60,7 @@ def create_app() -> FastAPI:
         This API does not currently implement rate limiting. For production use,
         consider implementing rate limiting based on your requirements.
         """,
-        version="2.0.0",
+        version=__version__,
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
@@ -111,7 +112,7 @@ def create_app() -> FastAPI:
         """Root endpoint with API information."""
         return {
             "service": "Jitterbug Network Analysis API",
-            "version": "2.0.0",
+            "version": __version__,
             "description": "Framework for Jitter-Based Congestion Inference",
             "docs": "/docs",
             "health": "/api/v1/health",
@@ -125,7 +126,7 @@ def create_app() -> FastAPI:
 
         openapi_schema = get_openapi(
             title="Jitterbug Network Analysis API",
-            version="2.0.0",
+            version=__version__,
             description=app.description,
             routes=app.routes,
         )

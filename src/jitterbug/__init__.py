@@ -29,6 +29,9 @@ Example Usage:
     congested_periods = results.get_congested_periods()
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 from .analyzer import JitterbugAnalyzer
 from .models import (
     ChangePoint,
@@ -46,7 +49,10 @@ from .models import (
     RTTMeasurement,
 )
 
-__version__ = "2.0.0"
+try:
+    __version__ = _pkg_version("jitterbug")
+except PackageNotFoundError:  # running from a source tree without an install
+    __version__ = "0.0.0+unknown"
 __author__ = "Esteban Carisimo"
 __email__ = "esteban.carisimo@northwestern.edu"
 

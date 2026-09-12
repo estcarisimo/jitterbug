@@ -2,7 +2,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 **Jitterbug 2.0** is a modern, completely rewritten Python framework for detecting network congestion through jitter analysis and change point detection in Round-Trip Time (RTT) measurements.
 
@@ -622,35 +622,29 @@ starts,ends,congestion,confidence,has_latency_jump,has_jitter_change
 git clone https://github.com/estcarisimo/jitterbug.git
 cd jitterbug
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Create the environment and install the package with its dev tools
+uv sync --extra visualization
 
-# Install development dependencies
-uv pip install -e ".[dev]"
+# Optional: install pre-commit hooks (ruff check + format on every commit)
+uv run pre-commit install
 
-# Run tests
-pytest
-
-# Format code
-black src/
-isort src/
-
-# Type checking
-mypy src/jitterbug/
+# Lint, format and type-check
+uv run ruff check src/ tests/ examples/ tools/
+uv run ruff format src/ tests/ examples/ tools/
+uv run mypy src/jitterbug
 ```
 
 ### Running Tests
 
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=jitterbug
+uv run pytest --cov=jitterbug
 
 # Run specific test file
-pytest tests/test_analyzer.py
+uv run pytest tests/test_analyzer.py
 ```
 
 ## 📚 Examples
@@ -661,15 +655,11 @@ pytest tests/test_analyzer.py
 # IMPORTANT: Install from the repository directory (not from PyPI)
 cd jitterbug  # Make sure you're in the cloned repository
 
-# Option 1: Use the installation script
-./install_dev.sh
+# Install jitterbug with the Bayesian back end used in the paper
+uv sync --extra bcp
 
-# Option 2: Manual installation with uv
-uv pip install -e .  # Install jitterbug in editable mode
-uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git  # For Bayesian
-
-# Test installation
-python test_algorithms.py
+# Check which algorithms are available
+uv run jitterbug version
 
 # Quick analysis (uses ruptures algorithm - no extra dependencies needed)
 jitterbug analyze examples/network_analysis/data/raw.csv

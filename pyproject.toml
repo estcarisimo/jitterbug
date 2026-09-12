@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.8,<0.10"]
+build-backend = "uv_build"
 
 [project]
 name = "jitterbug"
@@ -46,10 +46,33 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-torch = ["torch>=1.9.0"]
+# Change point detection back ends. `ruptures` is a core dependency; the rest are opt-in.
+# `bcp` is a git dependency until bayesian_changepoint_detection is published on PyPI,
+# which also means a wheel with this extra cannot be uploaded to PyPI yet.
+bcp = ["bayesian_changepoint_detection @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git"]
+torch = ["torch>=2.0"]
+rbeast = ["Rbeast>=0.1.20"]
+adtk = ["adtk>=0.6"]
+# Data sources and outputs
 influx = ["influxdb-client>=1.30.0"]
 visualization = ["matplotlib>=3.5.0", "plotly>=5.0.0"]
+api = ["fastapi>=0.104.0", "uvicorn>=0.24.0"]
 jupyter = ["ipykernel>=6.0.0", "jupyter>=1.0.0"]
+# Everything installable from PyPI (excludes `bcp`, see above)
+all = [
+    "torch>=2.0",
+    "Rbeast>=0.1.20",
+    "adtk>=0.6",
+    "influxdb-client>=1.30.0",
+    "matplotlib>=3.5.0",
+    "plotly>=5.0.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "ipykernel>=6.0.0",
+    "jupyter>=1.0.0",
+]
+
+[dependency-groups]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
@@ -60,29 +83,15 @@ dev = [
     "types-requests",
     "pre-commit>=4.0",
 ]
-all = [
-    "torch>=1.9.0",
-    "influxdb-client>=1.30.0",
-    "matplotlib>=3.5.0",
-    "plotly>=5.0.0",
-    "ipykernel>=6.0.0",
-    "jupyter>=1.0.0",
-]
 
 [project.urls]
 Homepage = "https://github.com/estcarisimo/jitterbug"
 Repository = "https://github.com/estcarisimo/jitterbug"
 "Bug Reports" = "https://github.com/estcarisimo/jitterbug/issues"
-Documentation = "https://github.com/estcarisimo/jitterbug/blob/main/README-new.md"
+Documentation = "https://github.com/estcarisimo/jitterbug/blob/main/README.md"
 
 [project.scripts]
 jitterbug = "jitterbug.cli:main"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-jitterbug = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
@@ -147,7 +156,6 @@ source = ["src/jitterbug"]
 omit = [
     "*/tests/*",
     "*/test_*",
-    "setup.py",
 ]
 
 [tool.coverage.report]

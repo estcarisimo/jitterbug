@@ -21,24 +21,17 @@ RUN pip install uv
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files
-COPY requirements.txt .
-COPY setup.py .
-COPY pyproject.toml* .
-
-# Install Python dependencies
-RUN uv pip install --system -r requirements.txt
-
-# Copy source code
+# Copy project metadata and source
+COPY pyproject.toml README.md LICENSE* ./
 COPY src/ ./src/
 COPY examples/ ./examples/
 COPY docs/ ./docs/
 COPY scripts/ ./scripts/
-COPY README.md .
-COPY LICENSE* .
 
-# Install the package
-RUN uv pip install --system -e .
+# Install the package with the extras the image needs (all PyPI extras; `bcp` is a
+# git dependency and is installed separately)
+RUN uv pip install --system ".[all]" \
+    && uv pip install --system "git+https://github.com/estcarisimo/bayesian_changepoint_detection.git"
 
 # Production stage
 FROM python:3.11-slim as production
