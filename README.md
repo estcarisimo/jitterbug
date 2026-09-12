@@ -657,6 +657,7 @@ cd jitterbug  # Make sure you're in the cloned repository
 
 # Install jitterbug with the Bayesian back end used in the paper
 uv sync --extra bcp
+source .venv/bin/activate  # or prefix each command below with `uv run`
 
 # Check which algorithms are available
 uv run jitterbug version

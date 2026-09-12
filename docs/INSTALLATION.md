@@ -132,6 +132,7 @@ cd jitterbug
 # Create the environment, install the package in editable mode with every optional
 # back end, and the development tools (the `dev` dependency group is installed by default)
 uv sync --extra all
+source .venv/bin/activate  # or prefix each command below with `uv run`
 ```
 
 ## Installation Verification
