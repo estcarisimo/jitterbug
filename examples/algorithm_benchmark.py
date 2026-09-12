@@ -243,7 +243,7 @@ class AlgorithmBenchmark:
 
     def __init__(self):
         """Initialize the benchmark."""
-        self.algorithms = ["ruptures", "bcp", "torch"]
+        self.algorithms = ["ruptures", "bcp"]
         self.results = []
 
     def run_single_test(

@@ -37,8 +37,8 @@ network requests of its own except:
 
 - **InfluxDB**: only when you use the InfluxDB loader, and only to the server and with
   the token you configure.
-- **Installing optional back ends** (`bcp`, `torch`, `rbeast`, `adtk`) fetches packages
-  from PyPI or GitHub at install time, as with any Python dependency.
+- **Installing the optional `bcp` back end** fetches a package from GitHub at install
+  time, as with any Python dependency.
 
 ## Scope
 
@@ -54,8 +54,8 @@ In scope:
 
 Out of scope:
 
-- Vulnerabilities in optional third-party back ends (ruptures, PyTorch, Rbeast, ADTK,
-  bayesian_changepoint_detection); report those upstream.
+- Vulnerabilities in the third-party detectors (ruptures, bayesian_changepoint_detection);
+  report those upstream.
 - Findings from automated scanners with no demonstrated impact.
 
 ## Automated scanning

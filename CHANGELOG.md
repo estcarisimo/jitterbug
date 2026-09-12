@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `bcp_device` option in `change_point_detection` (default `cpu`). The Bayesian library
+  picks a GPU when it sees one, and on Apple Silicon that made the paper's configuration
+  take over half an hour; on CPU it takes about two minutes.
+- `get_available_algorithms()` now reports only the detectors whose packages are
+  installed (`importlib.util.find_spec`), with tests.
 - Continuous integration on GitHub Actions: ruff lint and format checks, mypy
   (advisory), `pip-audit` over the locked dependency set, tests on Python 3.10–3.13
   (Ubuntu) and 3.12 (macOS) with a CLI smoke test on the bundled PAM 2022 dataset,
@@ -47,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Bayesian detector no longer swallows exceptions and returns "no change points";
+  a failure is raised as `RuntimeError` with the cause attached.
 - `JitterbugAnalyzer.analyze()` returns the same `metadata` keys (`total_measurements`,
   `min_intervals`, `change_points`) on its early-return paths as on the full path. (#3)
 - Test suite: eight assertions that had drifted from the code, and five tests that
@@ -54,6 +61,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The experimental `torch`, `rbeast` and `adtk` detectors** and their extras. None of
+  them was evaluated in the paper; `torch` was a heuristic rather than a trained model,
+  and `rbeast`/`adtk` silently fell back to an internal statistical method when their
+  package was missing while still labelling the output with the back end's name. The
+  detectors are now `ruptures` (default) and `bcp`. `algorithms.py` shrinks from 1 215
+  to 318 lines; `examples/interactive_algorithm_selector.py` and the stale plots for the
+  removed detectors are gone, and `examples/network_analysis/plots/` was regenerated
+  (BCP 14/15, ruptures 11/15, unchanged).
 - **The REST API server and the Docker image.** `jitterbug.api`, the `api` extra, the
   `Dockerfile`, `docker-compose.yml`, the entrypoint script, `docs/DOCKER.md` and the two
   related examples are gone. The server had not been able to start since the 2.0

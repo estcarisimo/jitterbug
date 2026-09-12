@@ -26,7 +26,7 @@ src/jitterbug/
                          JitterAnalysis, CongestionInference*), config.py (JitterbugConfig
                          and per-stage configs)
   detection/             change_point_detector.py (dispatch by config.algorithm),
-                         algorithms.py (Ruptures, Bayesian/BCP, Torch, Rbeast, ADTK)
+                         algorithms.py (RupturesDetector, BayesianChangePointDetector)
   analysis/              jitter_analyzer.py (dispersion, KS test), latency_jump_analyzer.py,
                          congestion_inference_analyzer.py
   io/                    data_loader.py (CSV, scamper JSON, InfluxDB), exporters.py
@@ -73,10 +73,10 @@ uv build                                   # sdist + wheel via uv_build
 
 ## Things that are easy to get wrong
 
-- `get_available_algorithms()` lists all five back ends even when their packages are
-  missing; `rbeast` and `adtk` silently fall back to an internal statistical method
-  and label the output as if the real back end had run. Do not rely on the label to
-  know which algorithm ran until this is fixed (roadmap, Fase 4).
+- Only two detectors exist: `ruptures` (core dependency) and `bcp` (extra). The
+  experimental `torch`, `rbeast` and `adtk` detectors were removed in 2.1; do not
+  reintroduce silent fallbacks. `get_available_algorithms()` checks with
+  `importlib.util.find_spec`, so it only lists what can run.
 - `visualization/dashboard.py` has known runtime errors (issue #7) and, with
   `interactive.py`, is a removal candidate. `plotter.py` (matplotlib) is the one to keep.
 - The ruptures detector retries with a lower penalty and tags those results

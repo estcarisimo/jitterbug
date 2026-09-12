@@ -71,53 +71,17 @@ change_point_detection:
 jitterbug analyze data.csv --algorithm bcp --threshold 0.25
 ```
 
-### 3. PyTorch Neural Network
-**Algorithm**: `torch`
-
-**Description**: Deep learning approach using CNN+LSTM architecture for pattern recognition.
-
-**Strengths**:
-- Can learn complex patterns
-- Potentially higher accuracy with training
-- Good for non-linear change patterns
-- Handles noisy data well
-
-**Weaknesses**:
-- Requires PyTorch installation
-- More computationally intensive
-- May need training for optimal performance
-- Less interpretable
-
-**Best for**:
-- Complex network congestion patterns
-- RTT datasets with non-linear behavior
-- When you have GPU resources available
-- Research into ML-based network analysis
-
-**Configuration**:
-```yaml
-change_point_detection:
-  algorithm: "torch"
-  threshold: 0.25
-  min_time_elapsed: 1800
-```
-
-**CLI Usage**:
-```bash
-jitterbug analyze data.csv --algorithm torch --threshold 0.25
-```
-
 ## 🎯 Algorithm Selection Matrix
 
-| Criteria | Ruptures | BCP | PyTorch |
-|----------|----------|-----|---------|
-| **Speed** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
-| **Accuracy** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **Ease of Use** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Interpretability** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
-| **Configurability** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
-| **Memory Usage** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
-| **Dependencies** | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
+| Criteria | Ruptures | BCP |
+|----------|----------|-----|
+| **Speed** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| **Accuracy** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| **Ease of Use** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| **Interpretability** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Configurability** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| **Memory Usage** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Dependencies** | ⭐⭐⭐⭐ | ⭐⭐⭐ |
 
 ## 🔍 Detailed Algorithm Comparison
 
@@ -127,7 +91,6 @@ jitterbug analyze data.csv --algorithm torch --threshold 0.25
 |-----------|----------------|------------------|----------------|
 | Ruptures | O(n log n) | O(n) | 10 |
 | BCP | O(n²) | O(n) | 5 |
-| PyTorch | O(n) | O(n) | 50 |
 
 ### Parameter Sensitivity
 
@@ -142,10 +105,6 @@ jitterbug analyze data.csv --algorithm torch --threshold 0.25
 #### BCP Parameters
 - **threshold**: Detection sensitivity (0.01-0.5, default: 0.25)
 - **min_time_elapsed**: Minimum time between change points (seconds)
-
-#### PyTorch Parameters
-- **threshold**: Detection sensitivity (0.1-0.5, default: 0.25)
-- Uses internal neural network parameters (automatically configured)
 
 ## 📈 Use Case Recommendations
 
@@ -177,11 +136,11 @@ change_point_detection:
 ```
 
 ### Noisy Data
-**Recommended**: PyTorch or Ruptures with higher penalty
+**Recommended**: Ruptures with a higher penalty
 ```yaml
 change_point_detection:
-  algorithm: "torch"  # or "ruptures"
-  ruptures_penalty: 20.0  # For ruptures
+  algorithm: "ruptures"
+  ruptures_penalty: 20.0
   threshold: 0.3      # Less sensitive
 ```
 
@@ -220,21 +179,20 @@ change_point_detection:
 
 1. **What's your primary goal?**
    - Fast, reliable detection → **Ruptures**
-   - Research/interpretability → **BCP**
-   - Complex pattern detection → **PyTorch**
+   - Research/interpretability, or reproducing the paper → **BCP**
 
 2. **What's your RTT dataset size?**
    - Small (<100 measurements) → **BCP**
    - Medium (100-1000 measurements) → **Ruptures**
-   - Large (>1000 measurements) → **Ruptures** or **PyTorch**
+   - Large (>1000 measurements) → **Ruptures**
 
 3. **What's your tolerance for false positives?**
    - Low (prefer fewer detections) → Higher penalty/threshold
    - High (prefer more detections) → Lower penalty/threshold
 
 4. **What are your computational resources?**
-   - Limited → **Ruptures** or **BCP**
-   - Abundant → **PyTorch**
+   - Limited → **Ruptures**
+   - A few minutes of CPU per series is fine → **BCP**
 
 ### Decision Tree
 
@@ -245,8 +203,7 @@ RTT Dataset Size?
 │   ├── Need interpretability? → BCP
 │   └── Need speed? → Ruptures
 └── Large (>1000 measurements)
-    ├── Have GPU? → PyTorch
-    ├── Complex network patterns? → PyTorch
+    ├── Reproducing the paper? → BCP (about two minutes for 1 500 points on CPU)
     └── Production monitoring? → Ruptures
 ```
 
@@ -255,8 +212,7 @@ RTT Dataset Size?
 ### General Guidelines
 1. **Start with Ruptures**: It's fast, accurate, and well-tested
 2. **Use BCP for research**: When you need theoretical grounding
-3. **Try PyTorch for complex data**: When traditional methods fail
-4. **Adjust sensitivity**: Start with defaults, then fine-tune
+3. **Adjust sensitivity**: Start with defaults, then fine-tune
 
 ### Performance Optimization
 1. **Large datasets**: Use Ruptures with higher penalty
@@ -300,14 +256,6 @@ change_point_detection:
   min_time_elapsed: 600  # 10 minutes
 ```
 
-### Complex Network Pattern Detection
-```yaml
-change_point_detection:
-  algorithm: "torch"
-  threshold: 0.3
-  min_time_elapsed: 1200  # 20 minutes
-```
-
 ## 🔬 Advanced Topics
 
 ### Custom Algorithm Development
@@ -319,13 +267,7 @@ For advanced users who want to implement custom algorithms:
 4. Register in `ChangePointDetector._create_algorithm()`
 
 ### Algorithm Evaluation
-Use the built-in benchmarking to compare algorithms:
-
-```python
-from jitterbug.evaluation import AlgorithmBenchmark
-
-benchmark = AlgorithmBenchmark(dataset)
-results = benchmark.compare_algorithms(['ruptures', 'bcp', 'torch'])
-```
+`examples/algorithm_benchmark.py` runs both detectors with several configurations on
+the bundled dataset and writes an HTML report.
 
 This guide should help you select the most appropriate algorithm for your specific use case and data characteristics.

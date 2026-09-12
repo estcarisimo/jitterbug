@@ -159,7 +159,7 @@ class TestJitterbugAnalyzer:
 
     def test_different_algorithms(self):
         """Test different change point detection algorithms."""
-        algorithms = ["ruptures", "bcp"]  # Skip torch for now due to dependencies
+        algorithms = ["ruptures", "bcp"]
 
         for algorithm in algorithms:
             try:

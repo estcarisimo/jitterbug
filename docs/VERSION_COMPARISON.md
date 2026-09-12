@@ -72,16 +72,10 @@ src/jitterbug/
 |-----------|-------------|------------|----------|
 | **Bayesian Change Point (BCP)** | ⭐⭐⭐⭐⭐ (93.3%) | Medium | Gold standard, statistical rigor |
 | **Ruptures** | ⭐⭐⭐⭐ | Low | Fast, well-tested, multiple models |
-| **PyTorch Neural Network** | ⭐⭐⭐⭐ | High | Complex patterns, deep learning |
-| **Rbeast** | ⭐⭐⭐ | Medium | Seasonal patterns, time series |
-| **ADTK** | ⭐⭐ | Low | Anomaly detection, statistical fallback |
 
 ### Performance Against Expected Results (15 congestion periods)
 - **BCP**: 14/15 periods detected (93.3% accuracy) - Gold standard
 - **Ruptures**: 12-14/15 periods detected (~85-93% accuracy)
-- **PyTorch**: 11-14/15 periods detected (~75-93% accuracy)
-- **Rbeast**: 10/15 periods detected (66.7% accuracy)
-- **ADTK**: 9/15 periods detected (60% accuracy)
 
 ---
 
@@ -277,9 +271,6 @@ jitterbug visualize rtts.csv --algorithm bcp --dashboard
 |-----------|---------|---------|------------------|
 | BCP | 30-45s | ~150MB | 14/15 (93.3%) |
 | Ruptures | 10-20s | ~100MB | 12-14/15 (80-93%) |
-| PyTorch | 30-60s | ~200MB | 11-14/15 (75-93%) |
-| Rbeast | 25-40s | ~150MB | 10/15 (66.7%) |
-| ADTK | 15-25s | ~120MB | 9/15 (60%) |
 
 **v2.0 Improvements:**
 - Algorithm selection based on speed/accuracy tradeoffs

@@ -2,6 +2,7 @@
 Comprehensive tests for all change point detection algorithms.
 """
 
+import importlib.util
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -12,7 +13,7 @@ from jitterbug.detection import (
     BayesianChangePointDetector,
     ChangePointDetector,
     RupturesDetector,
-    TorchChangePointDetector,
+    get_available_algorithms,
 )
 from jitterbug.models import (
     ChangePoint,
@@ -257,81 +258,6 @@ class TestBayesianChangePointDetector:
             pytest.skip("Bayesian change point detection library not available")
 
 
-class TestTorchChangePointDetector:
-    """Test the PyTorch change point detector."""
-
-    def test_torch_detector_initialization(self):
-        """Test initializing the PyTorch detector."""
-        config = ChangePointDetectionConfig(algorithm="torch", threshold=0.25)
-
-        try:
-            detector = TorchChangePointDetector(config)
-            assert detector.config == config
-            assert detector.torch is not None
-            assert detector.model is not None
-        except ImportError:
-            pytest.skip("PyTorch library not available")
-
-    def test_torch_detection(self):
-        """Test PyTorch detection with synthetic data."""
-        dataset = TestDataGenerator.generate_synthetic_data(50, [20, 35])
-
-        try:
-            config = ChangePointDetectionConfig(algorithm="torch", threshold=0.25)
-            detector = TorchChangePointDetector(config)
-
-            change_points = detector.detect(dataset)
-
-            # Should return valid change points
-            assert isinstance(change_points, list)
-            assert all(isinstance(cp, ChangePoint) for cp in change_points)
-
-            # Check algorithm name
-            for cp in change_points:
-                assert cp.algorithm == "torch_heuristic"
-                assert 0 <= cp.confidence <= 1
-
-        except ImportError:
-            pytest.skip("PyTorch library not available")
-
-    def test_torch_data_preparation(self):
-        """Test PyTorch data preparation methods."""
-        dataset = TestDataGenerator.generate_synthetic_data(60)
-
-        try:
-            config = ChangePointDetectionConfig(algorithm="torch")
-            detector = TorchChangePointDetector(config)
-
-            # Test data preparation
-            data_tensor, epochs, mean, std = detector._prepare_data(dataset)
-
-            assert data_tensor is not None
-            assert len(epochs) == len(dataset)
-            assert isinstance(mean, float)
-            assert isinstance(std, float)
-
-        except ImportError:
-            pytest.skip("PyTorch library not available")
-
-    def test_torch_model_creation(self):
-        """Test PyTorch model creation."""
-        try:
-            config = ChangePointDetectionConfig(algorithm="torch")
-            detector = TorchChangePointDetector(config)
-
-            model = detector._create_model()
-            assert model is not None
-
-            # Test model with dummy data
-            dummy_input = detector.torch.randn(1, 50, 1)
-            output = model(dummy_input)
-
-            assert output.shape == (1, 50)
-
-        except ImportError:
-            pytest.skip("PyTorch library not available")
-
-
 class TestChangePointDetectorInterface:
     """Test the unified change point detector interface."""
 
@@ -340,7 +266,6 @@ class TestChangePointDetectorInterface:
         algorithms = [
             ("ruptures", RupturesDetector),
             ("bcp", BayesianChangePointDetector),
-            ("torch", TorchChangePointDetector),
         ]
 
         for algo_name, expected_class in algorithms:
@@ -356,7 +281,7 @@ class TestChangePointDetectorInterface:
     def test_detector_with_all_algorithms(self):
         """Test detection with all available algorithms."""
         dataset = TestDataGenerator.generate_synthetic_data(40, [15, 25])
-        algorithms = ["ruptures", "bcp", "torch"]
+        algorithms = ["ruptures", "bcp"]
 
         for algorithm in algorithms:
             try:
@@ -419,7 +344,7 @@ class TestAlgorithmComparison:
             num_points=50, change_points=[20, 35], noise_level=0.5, base_values=[20.0, 35.0, 25.0]
         )
 
-        algorithms = ["ruptures", "bcp", "torch"]
+        algorithms = ["ruptures", "bcp"]
         results = {}
 
         for algorithm in algorithms:
@@ -443,7 +368,7 @@ class TestAlgorithmComparison:
         import time
 
         dataset = TestDataGenerator.generate_synthetic_data(100, [30, 70])
-        algorithms = ["ruptures", "bcp", "torch"]
+        algorithms = ["ruptures", "bcp"]
         performance = {}
 
         for algorithm in algorithms:
@@ -550,3 +475,19 @@ class TestEdgeCases:
 
         except ImportError:
             pytest.skip("Ruptures library not available")
+
+
+class TestAlgorithmAvailability:
+    """`get_available_algorithms` must only report back ends that can actually run."""
+
+    def test_ruptures_is_always_available(self):
+        assert "ruptures" in get_available_algorithms()
+
+    def test_bcp_reported_only_when_installed(self):
+        installed = importlib.util.find_spec("bayesian_changepoint_detection") is not None
+        assert ("bcp" in get_available_algorithms()) is installed
+
+    def test_removed_algorithms_are_rejected_by_config(self):
+        for name in ("torch", "rbeast", "adtk"):
+            with pytest.raises(ValidationError, match="algorithm"):
+                ChangePointDetectionConfig(algorithm=name)

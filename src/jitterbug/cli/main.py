@@ -260,7 +260,7 @@ def visualize(
         "ruptures",
         "--algorithm",
         "-a",
-        help="Change point detection algorithm (ruptures, bcp, torch)",
+        help="Change point detection algorithm (ruptures, bcp)",
     ),
     threshold: float | None = typer.Option(
         0.25, "--threshold", "-t", help="Change point detection threshold"
