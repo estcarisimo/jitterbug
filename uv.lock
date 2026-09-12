@@ -1605,6 +1605,7 @@ adtk = [
 ]
 all = [
     { name = "adtk" },
+    { name = "bayesian-changepoint-detection" },
     { name = "fastapi" },
     { name = "influxdb-client" },
     { name = "ipykernel" },
@@ -1662,6 +1663,7 @@ dev = [
 requires-dist = [
     { name = "adtk", marker = "extra == 'adtk'", specifier = ">=0.6" },
     { name = "adtk", marker = "extra == 'all'", specifier = ">=0.6" },
+    { name = "bayesian-changepoint-detection", marker = "extra == 'all'", git = "https://github.com/estcarisimo/bayesian_changepoint_detection.git" },
     { name = "bayesian-changepoint-detection", marker = "extra == 'bcp'", git = "https://github.com/estcarisimo/bayesian_changepoint_detection.git" },
     { name = "click", specifier = ">=8.0.0" },
     { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.104.0" },

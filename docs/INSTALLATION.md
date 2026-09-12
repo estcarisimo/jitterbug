@@ -129,11 +129,9 @@ This includes all algorithms, visualization, API, and data source support.
 git clone https://github.com/estcarisimo/jitterbug.git
 cd jitterbug
 
-# Install in development mode
-pip install -e ".[all]"
-
-# Install development tools
-pip install -e ".[dev]"
+# Create the environment, install the package in editable mode with every optional
+# back end, and the development tools (the `dev` dependency group is installed by default)
+uv sync --extra all
 ```
 
 ## Installation Verification

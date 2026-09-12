@@ -1,5 +1,6 @@
 """Smoke tests for the Typer CLI on the bundled PAM 2022 example dataset."""
 
+import importlib.metadata
 import json
 from pathlib import Path
 
@@ -17,7 +18,7 @@ runner = CliRunner()
 
 
 def test_version_is_derived_from_package_metadata():
-    assert jitterbug.__version__ not in ("", "0.0.0+unknown")
+    assert jitterbug.__version__ == importlib.metadata.version("jitterbug")
 
 
 def test_version_command():
