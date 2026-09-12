@@ -740,7 +740,7 @@ def analyze_realtime_data():
 
 ## 🔬 Research & Citations
 
-If you use Jitterbug in your research, please cite:
+If you use Jitterbug in your research, please cite the PAM 2022 paper (also available as [CITATION.cff](CITATION.cff) for GitHub's "Cite this repository" button):
 
 ```bibtex
 @InProceedings{carisimo2022jitterbug,
@@ -757,7 +757,7 @@ If you use Jitterbug in your research, please cite:
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and suggest improvements.
+Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) for the development setup, the checks every change must pass, and the pull request workflow. This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct. Changes are tracked in the [CHANGELOG](CHANGELOG.md).
 
 ## 📄 License
 
@@ -767,7 +767,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Documentation**: Check the [docs](https://github.com/estcarisimo/jitterbug/tree/main/docs)
 - **Issues**: Report bugs on [GitHub Issues](https://github.com/estcarisimo/jitterbug/issues)
-- **Discussions**: Join our [GitHub Discussions](https://github.com/estcarisimo/jitterbug/discussions)
+- **Security**: Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue
 
 ## 🙏 Acknowledgments
 

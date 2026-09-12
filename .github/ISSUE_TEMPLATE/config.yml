@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/estcarisimo/jitterbug/tree/main/docs
+    about: Installation, algorithm selection, and usage guides.
+  - name: Security issue
+    url: https://github.com/estcarisimo/jitterbug/security/advisories/new
+    about: Report a vulnerability privately (see SECURITY.md).

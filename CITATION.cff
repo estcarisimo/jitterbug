@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use Jitterbug in your research, please cite the PAM 2022 paper below."
+type: software
+title: "Jitterbug: Framework for Jitter-Based Congestion Inference"
+authors:
+  - family-names: Carisimo
+    given-names: Esteban
+    email: esteban.carisimo@northwestern.edu
+    affiliation: Northwestern University
+repository-code: https://github.com/estcarisimo/jitterbug
+license: MIT
+version: 2.0.0
+date-released: "2025-07-19"
+preferred-citation:
+  type: conference-paper
+  title: "Jitterbug: A New Framework for Jitter-Based Congestion Inference"
+  authors:
+    - family-names: Carisimo
+      given-names: Esteban
+    - family-names: Mok
+      given-names: Ricky K. P.
+    - family-names: Clark
+      given-names: David D.
+    - family-names: Claffy
+      given-names: K. C.
+  collection-title: "Passive and Active Measurement (PAM 2022)"
+  publisher:
+    name: Springer International Publishing
+  year: 2022
+  start: 155
+  end: 179
+  isbn: "978-3-030-98785-5"
+  doi: 10.1007/978-3-030-98785-5_7
