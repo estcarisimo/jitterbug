@@ -38,11 +38,8 @@ jitterbug validate examples/network_analysis/data/raw.csv --verbose
 # Install visualization dependencies first
 pip install jitterbug[visualization]
 
-# Generate comprehensive visualization report
+# Save the standard set of plots (PNG)
 jitterbug visualize examples/network_analysis/data/raw.csv --output-dir analysis_report
-
-# Generate only interactive plots
-jitterbug visualize examples/network_analysis/data/raw.csv --interactive-only --output-dir interactive_plots
 ```
 
 ### Configuration

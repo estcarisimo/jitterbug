@@ -52,7 +52,7 @@ pip install -e .
 | --- | --- | --- |
 | `bcp` | [bayesian_changepoint_detection](https://github.com/estcarisimo/bayesian_changepoint_detection) (git) | The Bayesian detector used in the paper |
 | `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
-| `visualization` | matplotlib, plotly | Plotting helpers |
+| `visualization` | matplotlib | `jitterbug visualize` and the plotting helpers |
 | `all` | everything above | |
 
 ```bash
@@ -230,8 +230,8 @@ src/jitterbug/
 │   ├── jitter_analyzer.py  #   jitter dispersion and KS test
 │   └── congestion_inference_analyzer.py
 ├── io/                     # DataLoader (CSV, scamper JSON, InfluxDB) and exporters
-├── cli/main.py             # Typer CLI: analyze, validate, config, version
-└── visualization/          # matplotlib plotter (plotly modules are experimental)
+├── cli/main.py             # Typer CLI: analyze, validate, config, visualize, version
+└── visualization/          # JitterbugPlotter (matplotlib): the figures behind `jitterbug visualize`
 ```
 
 Bundled data: `examples/network_analysis/data/raw.csv` is the PAM 2022 dataset, and `examples/network_analysis/expected_results/` holds the paper's reference output for both jitter methods.

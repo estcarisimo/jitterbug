@@ -17,13 +17,11 @@ from ..analyzer import JitterbugAnalyzer
 from ..io import DataLoader
 from ..models import JitterbugConfig
 
-# Import visualization only when needed
+# matplotlib is an optional dependency; the visualize command checks for it at run time.
 try:
-    from ..visualization import JitterbugDashboard
-
-    VISUALIZATION_AVAILABLE = True
-except ImportError:
-    VISUALIZATION_AVAILABLE = False
+    from ..visualization.plotter import MATPLOTLIB_AVAILABLE
+except ImportError:  # pragma: no cover - only if the package itself is broken
+    MATPLOTLIB_AVAILABLE = False
 
 
 # Initialize Rich console
@@ -265,39 +263,29 @@ def visualize(
     threshold: float | None = typer.Option(
         0.25, "--threshold", "-t", help="Change point detection threshold"
     ),
-    title: str | None = typer.Option(
-        None, "--title", help="Report title (default: filename-based)"
-    ),
-    static_only: bool = typer.Option(
-        False, "--static-only", help="Generate only static plots (no interactive)"
-    ),
-    interactive_only: bool = typer.Option(
-        False, "--interactive-only", help="Generate only interactive plots (no static)"
+    prefix: str = typer.Option(
+        "jitterbug", "--prefix", help="Filename prefix for the generated PNG files"
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
 ):
     """
-    Create comprehensive visualizations of RTT data analysis.
+    Run the analysis and save the standard set of plots as PNG files.
+
+    Generates the congestion analysis, change points, confidence heatmap, summary
+    statistics and RTT time series figures (matplotlib, 300 dpi).
 
     [bold]Examples:[/bold]
 
     • Basic visualization:
       [cyan]jitterbug visualize rtts.csv[/cyan]
 
-    • Custom output directory:
-      [cyan]jitterbug visualize rtts.csv --output-dir my_plots[/cyan]
-
-    • Interactive only:
-      [cyan]jitterbug visualize rtts.csv --interactive-only[/cyan]
-
-    • With custom title:
-      [cyan]jitterbug visualize rtts.csv --title "Network Analysis Report"[/cyan]
+    • Custom output directory and algorithm:
+      [cyan]jitterbug visualize rtts.csv --output-dir my_plots --algorithm bcp[/cyan]
     """
-    # Check if visualization dependencies are available
-    if not VISUALIZATION_AVAILABLE:
+    if not MATPLOTLIB_AVAILABLE:
         console.print(
-            "❌ [bold red]Visualization dependencies not found![/bold red]\n"
-            "Install with: [cyan]pip install jitterbug[visualization][/cyan]",
+            "❌ [bold red]matplotlib not found![/bold red]\n"
+            "Install with: [cyan]uv sync --extra visualization[/cyan]",
             style="red",
         )
         raise typer.Exit(1)
@@ -321,9 +309,7 @@ def visualize(
         # Create analyzer
         analyzer = JitterbugAnalyzer(jitterbug_config)
 
-        # Set title
-        if not title:
-            title = f"Jitterbug Analysis: {input_file.name}"
+        from ..visualization import JitterbugPlotter
 
         with Progress(
             SpinnerColumn(),
@@ -331,78 +317,30 @@ def visualize(
             console=console,
             transient=True,
         ) as progress:
-            # Load and analyze data
-            task = progress.add_task("Loading RTT data...", total=None)
+            task = progress.add_task("Loading and analyzing RTT data...", total=None)
             results = analyzer.analyze_from_file(input_file, format)
 
-            # Get datasets and change points from analyzer
-            progress.update(task, description="Preparing data for visualization...")
-            raw_data = analyzer.raw_data
-            min_rtt_data = analyzer.min_rtt_data
-            change_points = analyzer.change_points or []
-
-            # Create dashboard
-            dashboard = JitterbugDashboard()
-
-            # Generate visualizations
-            progress.update(task, description="Generating visualizations...")
-
-            include_interactive = not static_only
-            if interactive_only:
-                # Generate only interactive plots
-                interactive_dir = output_dir / "interactive"
-                interactive_dir.mkdir(parents=True, exist_ok=True)
-
-                # Main timeline
-                timeline_fig = dashboard.interactive.create_interactive_timeline(
-                    raw_data,
-                    min_rtt_data,
-                    results,
-                    change_points,
-                    title=f"{title} - Interactive Timeline",
-                )
-                timeline_path = interactive_dir / "timeline.html"
-                dashboard.interactive.save_html(timeline_fig, timeline_path)
-
-                # Dashboard
-                dashboard_fig = dashboard.interactive.create_dashboard(
-                    raw_data, min_rtt_data, results, change_points, title=f"{title} - Dashboard"
-                )
-                dashboard_path = interactive_dir / "dashboard.html"
-                dashboard.interactive.save_html(dashboard_fig, dashboard_path)
-
-                console.print(
-                    f"✅ Interactive visualizations saved to [bold]{interactive_dir}[/bold]"
-                )
-                console.print(f"🌐 Open [bold]{timeline_path}[/bold] to view the main timeline")
-                console.print(f"📊 Open [bold]{dashboard_path}[/bold] to view the dashboard")
-
-            else:
-                # Generate comprehensive report
-                report = dashboard.create_comprehensive_report(
-                    raw_data=raw_data,
-                    min_rtt_data=min_rtt_data,
-                    results=results,
-                    change_points=change_points,
-                    output_dir=output_dir,
-                    title=title,
-                    include_interactive=include_interactive,
-                )
-
-                console.print(f"✅ Comprehensive report generated in [bold]{output_dir}[/bold]")
-                console.print(
-                    f"📄 Open [bold]{output_dir / 'index.html'}[/bold] to view the report"
-                )
-
-                # Display key statistics
-                stats = report["statistics"]
-                console.print("\n📊 [bold]Key Statistics:[/bold]")
-                console.print(f"   • Total periods: {stats['total_periods']}")
-                console.print(f"   • Congested periods: {stats['congested_periods']}")
-                console.print(f"   • Congestion ratio: {stats['congestion_ratio']:.1%}")
-                console.print(f"   • Change points: {stats['change_points']}")
-
+            progress.update(task, description="Generating plots...")
+            saved = JitterbugPlotter().save_all_plots(
+                raw_data=analyzer.raw_data,
+                min_rtt_data=analyzer.min_rtt_data,
+                results=results,
+                change_points=analyzer.change_points or [],
+                output_dir=output_dir,
+                prefix=prefix,
+            )
             progress.update(task, description="Visualization complete!", total=1, completed=1)
+
+        console.print(f"✅ {len(saved)} plots saved to [bold]{output_dir}[/bold]")
+        for name, path in saved.items():
+            console.print(f"   • {name}: {path.name}")
+
+        stats = analyzer.get_summary_statistics(results)
+        console.print("\n📊 [bold]Key Statistics:[/bold]")
+        console.print(f"   • Total periods: {stats['total_periods']}")
+        console.print(f"   • Congested periods: {stats['congested_periods']}")
+        console.print(f"   • Congestion ratio: {stats['congestion_ratio']:.1%}")
+        console.print(f"   • Change points: {len(analyzer.change_points or [])}")
 
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")

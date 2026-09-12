@@ -59,9 +59,7 @@ uv pip install jitterbug[visualization]
 
 **What this enables:**
 - `jitterbug visualize` command
-- Static plots with matplotlib
-- Interactive plots with plotly
-- Comprehensive analysis reports
+- `JitterbugPlotter` (matplotlib figures)
 
 ### InfluxDB Support
 
@@ -168,7 +166,7 @@ ERROR: Microsoft Visual C++ 14.0 is required (Windows)
 ```bash
 # On Windows, install Visual C++ Build Tools
 # Or use conda instead:
-conda install matplotlib plotly
+conda install matplotlib
 pip install jitterbug
 ```
 

@@ -53,7 +53,7 @@ bcp = ["bayesian_changepoint_detection @ git+https://github.com/estcarisimo/baye
 bayesian = ["jitterbug[bcp]"]  # deprecated alias for the old extra name; remove in 3.0
 # Data sources and outputs
 influx = ["influxdb-client>=1.30.0"]
-visualization = ["matplotlib>=3.5.0", "plotly>=5.0.0"]
+visualization = ["matplotlib>=3.5.0"]
 jupyter = ["ipykernel>=6.0.0", "jupyter>=1.0.0"]
 # Every optional back end and front end. Includes `bcp` (a git dependency), which is fine
 # for the GitHub-based install this project uses today; PyPI rejects direct URL
@@ -62,7 +62,6 @@ all = [
     "bayesian_changepoint_detection @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git",
     "influxdb-client>=1.30.0",
     "matplotlib>=3.5.0",
-    "plotly>=5.0.0",
     "ipykernel>=6.0.0",
     "jupyter>=1.0.0",
 ]
@@ -123,7 +122,6 @@ module = [
     "bayesian_changepoint_detection.*",
     "influxdb_client.*",
     "matplotlib.*",
-    "plotly.*",
 ]
 ignore_missing_imports = true
 
