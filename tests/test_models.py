@@ -3,7 +3,7 @@ Tests for Jitterbug data models.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
@@ -42,7 +42,7 @@ class TestRTTMeasurement:
         """Test that invalid RTT values raise validation errors."""
         timestamp = datetime.now()
         
-        with pytest.raises(ValueError, match="RTT value must be positive"):
+        with pytest.raises(ValueError, match="greater than 0"):
             RTTMeasurement(
                 timestamp=timestamp,
                 epoch=timestamp.timestamp(),
@@ -144,7 +144,7 @@ class TestChangePoint:
         """Test that invalid confidence values raise validation errors."""
         timestamp = datetime.now()
         
-        with pytest.raises(ValueError, match="Confidence must be between 0 and 1"):
+        with pytest.raises(ValueError, match="less than or equal to 1"):
             ChangePoint(
                 timestamp=timestamp,
                 epoch=timestamp.timestamp(),
@@ -159,7 +159,7 @@ class TestLatencyJump:
     def test_valid_latency_jump(self):
         """Test creating a valid latency jump."""
         start_time = datetime.now()
-        end_time = start_time.replace(minute=start_time.minute + 15)
+        end_time = start_time + timedelta(minutes=15)
         
         jump = LatencyJump(
             start_timestamp=start_time,
@@ -178,7 +178,7 @@ class TestLatencyJump:
     def test_invalid_time_order(self):
         """Test that invalid time ordering raises validation errors."""
         start_time = datetime.now()
-        end_time = start_time.replace(minute=start_time.minute - 15)  # Earlier than start
+        end_time = start_time - timedelta(minutes=15)  # Earlier than start
         
         with pytest.raises(ValueError, match="End epoch must be after start epoch"):
             LatencyJump(
@@ -198,7 +198,7 @@ class TestJitterAnalysis:
     def test_valid_jitter_analysis(self):
         """Test creating a valid jitter analysis."""
         start_time = datetime.now()
-        end_time = start_time.replace(minute=start_time.minute + 15)
+        end_time = start_time + timedelta(minutes=15)
         
         analysis = JitterAnalysis(
             start_timestamp=start_time,
@@ -218,7 +218,7 @@ class TestJitterAnalysis:
     def test_ks_test_with_p_value(self):
         """Test jitter analysis with KS test and p-value."""
         start_time = datetime.now()
-        end_time = start_time.replace(minute=start_time.minute + 15)
+        end_time = start_time + timedelta(minutes=15)
         
         analysis = JitterAnalysis(
             start_timestamp=start_time,
@@ -242,7 +242,7 @@ class TestCongestionInference:
     def test_valid_congestion_inference(self):
         """Test creating a valid congestion inference."""
         start_time = datetime.now()
-        end_time = start_time.replace(minute=start_time.minute + 15)
+        end_time = start_time + timedelta(minutes=15)
         
         inference = CongestionInference(
             start_timestamp=start_time,
@@ -259,7 +259,7 @@ class TestCongestionInference:
     def test_to_dict(self):
         """Test converting congestion inference to dictionary."""
         start_time = datetime.now()
-        end_time = start_time.replace(minute=start_time.minute + 15)
+        end_time = start_time + timedelta(minutes=15)
         
         inference = CongestionInference(
             start_timestamp=start_time,
@@ -313,7 +313,7 @@ class TestJitterbugConfig:
     def test_config_validation(self):
         """Test configuration validation."""
         # Test invalid threshold
-        with pytest.raises(ValueError, match="Threshold must be between 0 and 1"):
+        with pytest.raises(ValueError, match="less than or equal to 1"):
             ChangePointDetectionConfig(threshold=2.0)
         
         # Test invalid moving average order

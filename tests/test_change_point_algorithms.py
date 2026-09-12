@@ -6,6 +6,7 @@ import pytest
 import numpy as np
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
+from pydantic import ValidationError
 
 from jitterbug.models import (
     MinimumRTTDataset,
@@ -129,9 +130,10 @@ class TestRupturesDetector:
                 assert isinstance(change_points, list)
                 assert all(isinstance(cp, ChangePoint) for cp in change_points)
                 
-                # Check algorithm name
+                # Check algorithm name (the detector retries with a lower
+                # penalty and tags those results with a "_lowpen" suffix)
                 for cp in change_points:
-                    assert cp.algorithm == f"ruptures_{model}"
+                    assert cp.algorithm in (f"ruptures_{model}", f"ruptures_{model}_lowpen")
                 
             except ImportError:
                 pytest.skip(f"Ruptures library not available for model {model}")
@@ -434,10 +436,9 @@ class TestChangePointDetectorInterface:
             pytest.skip("Ruptures library not available")
     
     def test_invalid_algorithm(self):
-        """Test error handling for invalid algorithms."""
-        with pytest.raises(ValueError, match="Unknown change point detection algorithm"):
-            config = ChangePointDetectionConfig(algorithm="invalid_algorithm")
-            ChangePointDetector(config)
+        """Test that an unknown algorithm is rejected at configuration time."""
+        with pytest.raises(ValidationError, match="algorithm"):
+            ChangePointDetectionConfig(algorithm="invalid_algorithm")
 
 
 class TestAlgorithmComparison:
@@ -511,15 +512,9 @@ class TestEdgeCases:
     """Test edge cases and error conditions."""
     
     def test_empty_dataset(self):
-        """Test behavior with empty dataset."""
-        measurements = []
-        dataset = MinimumRTTDataset(measurements=measurements, interval_minutes=15)
-        
-        config = ChangePointDetectionConfig(algorithm="ruptures")
-        detector = ChangePointDetector(config)
-        
-        change_points = detector.detect(dataset)
-        assert len(change_points) == 0
+        """Test that an empty dataset is rejected by the model itself."""
+        with pytest.raises(ValidationError, match="at least one measurement"):
+            MinimumRTTDataset(measurements=[], interval_minutes=15)
     
     def test_single_point_dataset(self):
         """Test behavior with single data point."""
