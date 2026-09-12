@@ -175,7 +175,9 @@ class JitterbugAnalyzer:
                 inferences=[],
                 metadata={
                     'error': 'Insufficient data for analysis',
+                    'total_measurements': len(rtt_data),
                     'min_intervals': len(min_rtt_data),
+                    'change_points': 0,
                     'config': self.config.dict()
                 }
             )
@@ -192,6 +194,8 @@ class JitterbugAnalyzer:
             return CongestionInferenceResult(
                 inferences=[],
                 metadata={
+                    'total_measurements': len(rtt_data),
+                    'min_intervals': len(min_rtt_data),
                     'change_points': 0,
                     'config': self.config.dict()
                 }
