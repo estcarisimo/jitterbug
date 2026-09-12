@@ -2,8 +2,8 @@
 Change point detection algorithms for Jitterbug.
 """
 
-from .change_point_detector import ChangePointDetector
 from .algorithms import RupturesDetector
+from .change_point_detector import ChangePointDetector
 
 # Make optional algorithms available but don't fail if dependencies are missing
 try:

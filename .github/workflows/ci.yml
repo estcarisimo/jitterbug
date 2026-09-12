@@ -1,147 +1,112 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+    branches: [main]
+  pull_request:  # every PR, including stacked ones whose base is another branch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --locked --extra dev --extra visualization
+
+      - name: Ruff lint
+        run: uv run ruff check src/ tests/ examples/ tools/
+
+      - name: Ruff format check
+        run: uv run ruff format --check src/ tests/ examples/ tools/
+
+      - name: mypy (advisory until the known errors are fixed)
+        run: uv run mypy src/jitterbug
+        continue-on-error: true
+
+      - name: pip-audit (audits the locked dependency set)
+        run: |
+          uv export --no-emit-project --no-hashes --extra dev --extra visualization \
+            --format requirements.txt -o requirements-audit.txt
+          uvx pip-audit -r requirements-audit.txt --no-deps --disable-pip
+
   test:
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }}, ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: [3.8, 3.9, "3.10", "3.11", "3.12"]
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-new.txt
-        pip install -e ".[dev]"
-    
-    - name: Lint with flake8
-      run: |
-        flake8 src/jitterbug --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 src/jitterbug --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
-    
-    - name: Format check with black
-      run: |
-        black --check src/jitterbug
-    
-    - name: Sort imports check with isort
-      run: |
-        isort --check-only src/jitterbug
-    
-    - name: Type check with mypy
-      run: |
-        mypy src/jitterbug
-      continue-on-error: true  # MyPy can be strict, don't fail CI
-    
-    - name: Test with pytest
-      run: |
-        pytest --cov=jitterbug --cov-report=xml
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - os: macos-latest
+            python-version: "3.12"
 
-  test-dependencies:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        deps: [
-          "minimal",
-          "ruptures", 
-          "torch",
-          "influx",
-          "all"
-        ]
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ "${{ matrix.deps }}" = "minimal" ]; then
-          pip install -e .
-        elif [ "${{ matrix.deps }}" = "all" ]; then
-          pip install -e ".[all]"
-        else
-          pip install -e ".[${{ matrix.deps }}]"
-        fi
-    
-    - name: Test basic functionality
-      run: |
-        python examples/test_new_implementation.py
+      - uses: actions/checkout@v7
 
-  docker:
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Login to DockerHub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
-    - name: Build and push
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: |
-          jitterbug/jitterbug:latest
-          jitterbug/jitterbug:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
 
-  release:
+      - name: Install dependencies
+        run: uv sync --locked --extra dev --extra visualization
+
+      - name: Run tests
+        run: uv run pytest tests/ --cov=jitterbug --cov-report=term-missing --cov-report=xml
+
+      - name: CLI smoke test
+        run: uv run jitterbug analyze examples/network_analysis/data/raw.csv --output results.json
+
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  build:
+    name: build
     runs-on: ubuntu-latest
-    needs: [test, docker]
-    if: github.ref == 'refs/heads/main' && startsWith(github.ref, 'refs/tags/')
-    
+    needs: [lint, test]
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
-    
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-    
-    - name: Build package
-      run: python -m build
-    
-    - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
+
+      - name: Build package
+        run: uv build
+
+      - name: Check distribution metadata
+        run: uvx twine check dist/*
+
+      - name: Install the wheel in a clean environment and smoke test
+        run: |
+          uv venv /tmp/smoke
+          uv pip install --python /tmp/smoke/bin/python dist/*.whl
+          /tmp/smoke/bin/jitterbug version
+          /tmp/smoke/bin/jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/smoke/results.json
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/

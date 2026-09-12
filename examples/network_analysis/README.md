@@ -90,7 +90,7 @@ config = JitterbugConfig()
 analyzer = JitterbugAnalyzer(config)
 
 # Analyze data
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
+results = analyzer.analyze_from_file("examples/network_analysis/data/raw.csv")
 
 # Get congestion periods
 congested_periods = results.get_congested_periods()

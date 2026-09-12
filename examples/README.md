@@ -74,7 +74,7 @@ from jitterbug import JitterbugAnalyzer, JitterbugConfig
 
 # Load and analyze data
 analyzer = JitterbugAnalyzer(JitterbugConfig())
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
+results = analyzer.analyze_from_file("examples/network_analysis/data/raw.csv")
 
 # Process results
 congested_periods = results.get_congested_periods()
