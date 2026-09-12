@@ -28,7 +28,7 @@ uvicorn>=0.24.0
 pytest>=6.2.0
 pytest-cov>=3.0.0
 black>=22.0.0
-isort>=5.10.0
+isort>=9.0.1
 flake8>=4.0.0
 mypy>=0.910
 
