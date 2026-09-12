@@ -230,13 +230,10 @@ def demonstrate_comprehensive_report():
 
         # Show file structure
         print("\n📁 Generated Files:")
-        for root, _dirs, files in (output_dir).walk():
-            level = root.relative_to(output_dir).parts
-            indent = "  " * len(level)
-            print(f"{indent}{root.name}/")
-            subindent = "  " * (len(level) + 1)
-            for file in files:
-                print(f"{subindent}{file}")
+        for path in sorted(output_dir.rglob("*")):  # Path.walk() needs Python 3.12
+            depth = len(path.relative_to(output_dir).parts) - 1
+            indent = "  " * depth
+            print(f"{indent}{path.name}{'/' if path.is_dir() else ''}")
 
     except Exception as e:
         print(f"⚠️  Report generation failed: {e}")

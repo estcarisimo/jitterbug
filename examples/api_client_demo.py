@@ -92,7 +92,7 @@ class JitterbugAPIClient:
         return response.json()
 
     def compare_algorithms(
-        self, measurements: list[dict[str, Any]], algorithms: list[str] = None
+        self, measurements: list[dict[str, Any]], algorithms: list[str] | None = None
     ) -> dict[str, Any]:
         """Compare different algorithms."""
         if algorithms is None:
