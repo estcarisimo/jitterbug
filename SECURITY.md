@@ -40,16 +40,12 @@ network requests of its own except:
 - **Installing optional back ends** (`bcp`, `torch`, `rbeast`, `adtk`) fetches packages
   from PyPI or GitHub at install time, as with any Python dependency.
 
-The optional REST API server (`jitterbug[api]`) exposes the analysis over HTTP without
-authentication. It is intended for local or trusted-network use only; do not expose it
-to the Internet.
-
 ## Scope
 
 In scope:
 
-- Path traversal or unintended file writes through the output options of the CLI, the
-  exporters, or the API.
+- Path traversal or unintended file writes through the output options of the CLI or the
+  exporters.
 - Unsafe parsing or deserialisation of input files (CSV, JSON, YAML configuration).
 - Leakage of InfluxDB credentials through logs, configuration dumps, or results files.
 - Denial of service through crafted input that is disproportionate to its size (for
@@ -58,8 +54,6 @@ In scope:
 
 Out of scope:
 
-- The REST API having no authentication (documented above; run it behind your own
-  access controls).
 - Vulnerabilities in optional third-party back ends (ruptures, PyTorch, Rbeast, ADTK,
   bayesian_changepoint_detection); report those upstream.
 - Findings from automated scanners with no demonstrated impact.

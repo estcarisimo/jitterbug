@@ -10,7 +10,7 @@ A complete example using real network measurement data:
 
 - **Dataset**: 47,164 RTT measurements from network monitoring
 - **Format**: CSV with epoch timestamps and RTT values
-- **Use cases**: Basic analysis, visualization, API usage
+- **Use cases**: Basic analysis, visualization, library usage
 - **Expected results**: Reference outputs from original research
 
 **Quick Start:**
@@ -81,34 +81,6 @@ congested_periods = results.get_congested_periods()
 summary = analyzer.get_summary_statistics(results)
 ```
 
-### Docker Usage
-
-```bash
-# Start services
-docker-compose up -d
-
-# Run analysis
-docker-compose run --rm jitterbug-cli analyze \
-  /app/examples/network_analysis/data/raw.csv
-
-# Generate visualizations
-docker-compose run --rm jitterbug-cli visualize \
-  /app/examples/network_analysis/data/raw.csv \
-  --output-dir /app/output/plots
-```
-
-### REST API
-
-```bash
-# Start API server
-python -m jitterbug.api.server
-
-# Test with example data (requires preprocessing)
-curl -X POST http://localhost:8000/api/v1/analyze \
-  -H "Content-Type: application/json" \
-  -d @examples/api_request.json
-```
-
 ## Creating Your Own Examples
 
 To create a new example:
@@ -151,4 +123,3 @@ For the network analysis example:
 - Check the main README for installation instructions
 - Review the example-specific README files
 - Run `jitterbug --help` for CLI usage
-- Visit the API documentation at `http://localhost:8000/docs` when running the server

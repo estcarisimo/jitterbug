@@ -75,18 +75,6 @@ uv pip install jitterbug[visualization]
 - Interactive plots with plotly
 - Comprehensive analysis reports
 
-### API Server
-
-```bash
-# Install API server dependencies
-uv pip install jitterbug[api]
-```
-
-**What this enables:**
-- REST API server (`python -m jitterbug.api.server`)
-- Web interface for analysis
-- JSON API endpoints
-
 ### InfluxDB Support
 
 ```bash
@@ -120,7 +108,7 @@ uv pip install jitterbug[jupyter]
 pip install jitterbug[all]
 ```
 
-This includes all algorithms, visualization, API, and data source support.
+This includes all algorithms, visualization, and data source support.
 
 ### Development Installation
 
@@ -165,13 +153,6 @@ jitterbug analyze examples/network_analysis/data/raw.csv --algorithm torch
 ```bash
 # Test visualization (requires visualization extra)
 jitterbug visualize examples/network_analysis/data/raw.csv --output-dir test_viz
-```
-
-### Test API Server
-
-```bash
-# Test API server (requires api extra)
-python -m jitterbug.api.server --help
 ```
 
 ## Troubleshooting
@@ -274,33 +255,6 @@ uv pip install jitterbug[all]
 pip install jitterbug[all]
 ```
 
-## Docker Installation
-
-### Using Docker Compose
-
-```bash
-# Clone repository
-git clone https://github.com/estcarisimo/jitterbug.git
-cd jitterbug
-
-# Start services
-docker-compose up -d
-
-# Use CLI
-docker-compose run --rm jitterbug-cli analyze examples/network_analysis/data/raw.csv
-```
-
-### Using Docker Directly
-
-```bash
-# Build image
-docker build -t jitterbug .
-
-# Run analysis
-docker run --rm -v $(pwd)/examples:/app/examples jitterbug \
-  analyze /app/examples/network_analysis/data/raw.csv
-```
-
 ## Version Information
 
 ```bash
@@ -322,7 +276,6 @@ After installation:
 2. **Try the algorithm guide**: See `docs/ALGORITHM_USAGE.md`
 3. **Analyze your data**: Use your own RTT measurements
 4. **Explore visualization**: Generate analysis reports
-5. **Set up API server**: For programmatic access
 
 ## Getting Help
 
