@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     make \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast dependency installation

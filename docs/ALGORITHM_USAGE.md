@@ -26,7 +26,7 @@ Jitterbug supports multiple change point detection algorithms:
 uv pip install jitterbug
 
 # For Bayesian change point detection
-uv pip install jitterbug[bayesian]
+uv pip install jitterbug[bcp]
 # OR install directly:
 uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
 
@@ -98,11 +98,11 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
     --method ks_test
 ```
 
-### Bayesian Change Point Algorithm *(Requires: uv pip install jitterbug[bayesian])*
+### Bayesian Change Point Algorithm *(Requires: uv pip install jitterbug[bcp])*
 
 ```bash
 # First install the dependency:
-uv pip install jitterbug[bayesian]
+uv pip install jitterbug[bcp]
 
 # OR install the bayesian dependency directly:
 uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
@@ -643,7 +643,7 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 1. **Algorithm not found**: Install required dependencies
    ```bash
    uv pip install jitterbug[torch]  # For PyTorch
-   uv pip install jitterbug[bayesian]  # For Bayesian
+   uv pip install jitterbug[bcp]  # For Bayesian
    uv pip install jitterbug[rbeast]  # For Rbeast
    uv pip install jitterbug[adtk]  # For ADTK
 

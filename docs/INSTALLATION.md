@@ -39,7 +39,7 @@ This installs:
 
 ```bash
 # Method 1: Install via extra
-uv pip install jitterbug[bayesian]
+uv pip install jitterbug[bcp]
 
 # Method 2: Install dependency directly (if Method 1 fails)
 uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git

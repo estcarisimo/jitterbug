@@ -50,6 +50,7 @@ dependencies = [
 # `bcp` is a git dependency until bayesian_changepoint_detection is published on PyPI,
 # which also means a wheel with this extra cannot be uploaded to PyPI yet.
 bcp = ["bayesian_changepoint_detection @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git"]
+bayesian = ["jitterbug[bcp]"]  # deprecated alias for the old extra name; remove in 3.0
 torch = ["torch>=2.0"]
 rbeast = ["Rbeast>=0.1.20"]
 adtk = ["adtk>=0.6"]

@@ -11,6 +11,7 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from .. import __version__
 from ..analyzer import JitterbugAnalyzer
 from ..detection import ChangePointDetector
 from ..io import DataLoader
@@ -106,7 +107,7 @@ async def health_check():
         return HealthCheckAPI(
             status="healthy",
             timestamp=datetime.now(),
-            version="2.0.0",
+            version=__version__,
             uptime=time.time() - service_stats["start_time"],
             dependencies=dependencies,
         )

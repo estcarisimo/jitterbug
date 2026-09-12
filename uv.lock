@@ -1620,6 +1620,9 @@ api = [
     { name = "fastapi" },
     { name = "uvicorn" },
 ]
+bayesian = [
+    { name = "bayesian-changepoint-detection" },
+]
 bcp = [
     { name = "bayesian-changepoint-detection" },
 ]
@@ -1667,6 +1670,7 @@ requires-dist = [
     { name = "influxdb-client", marker = "extra == 'influx'", specifier = ">=1.30.0" },
     { name = "ipykernel", marker = "extra == 'all'", specifier = ">=6.0.0" },
     { name = "ipykernel", marker = "extra == 'jupyter'", specifier = ">=6.0.0" },
+    { name = "jitterbug", extras = ["bcp"], marker = "extra == 'bayesian'" },
     { name = "jupyter", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "jupyter", marker = "extra == 'jupyter'", specifier = ">=1.0.0" },
     { name = "matplotlib", marker = "extra == 'all'", specifier = ">=3.5.0" },
@@ -1690,7 +1694,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'all'", specifier = ">=0.24.0" },
     { name = "uvicorn", marker = "extra == 'api'", specifier = ">=0.24.0" },
 ]
-provides-extras = ["bcp", "torch", "rbeast", "adtk", "influx", "visualization", "api", "jupyter", "all"]
+provides-extras = ["bcp", "bayesian", "torch", "rbeast", "adtk", "influx", "visualization", "api", "jupyter", "all"]
 
 [package.metadata.requires-dev]
 dev = [

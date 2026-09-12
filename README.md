@@ -97,7 +97,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv pip install -e .
 
 # Install optional dependencies
-uv pip install -e ".[bayesian]"  # For Bayesian algorithm
+uv pip install -e ".[bcp]"  # For Bayesian algorithm
 uv pip install -e ".[torch]"      # For PyTorch algorithm
 uv pip install -e ".[visualization]"  # For visualization
 uv pip install -e ".[all]"        # For all optional dependencies
@@ -113,7 +113,7 @@ uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection
 uv pip install jitterbug[torch]
 
 # For Bayesian change point detection
-uv pip install jitterbug[bayesian]
+uv pip install jitterbug[bcp]
 # OR install directly from GitHub:
 uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
 
