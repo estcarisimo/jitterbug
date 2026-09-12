@@ -1,780 +1,387 @@
-# Jitterbug 2.0: Framework for Jitter-Based Congestion Inference
+# 🐞 Jitterbug
 
+A Python framework for inferring Internet path congestion from Round-Trip Time (RTT) measurements. Jitterbug splits an RTT time series at change points, then classifies each period as congested or not by combining a latency-jump test with a jitter test (jitter dispersion or Kolmogorov–Smirnov). It implements the method from *Jitterbug: A New Framework for Jitter-Based Congestion Inference* (PAM 2022) and ships the paper's dataset so you can reproduce it in one command.
+
+[![CI](https://github.com/estcarisimo/jitterbug/actions/workflows/ci.yml/badge.svg)](https://github.com/estcarisimo/jitterbug/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-**Jitterbug 2.0** is a modern, completely rewritten Python framework for detecting network congestion through jitter analysis and change point detection in Round-Trip Time (RTT) measurements.
+## ✨ Features
 
-This framework is the result of research presented in the paper *"Jitterbug: A new framework for jitter-based congestion inference"*, published in the Proceedings of the Passive and Active Measurement Conference (PAM) 2022.
+- 📉 **Congestion inference from RTTs alone**: no active probing beyond the pings you already have
+- 🔀 **Pluggable change point detection**: `ruptures` out of the box, the paper's Bayesian detector (`bcp`) as an extra
+- 📐 **Two jitter tests**: jitter dispersion (moving IQR + moving average) or a Kolmogorov–Smirnov test between periods
+- 📁 **Multiple input formats**: CSV, scamper JSON, and InfluxDB queries
+- 📊 **Rich terminal output**: summary and per-period tables, plus JSON or CSV results files
+- ⚙️ **Typed configuration**: Pydantic models, YAML/JSON config files, `JITTERBUG_*` environment variables
+- 🧪 **Reproducible**: the PAM 2022 dataset (47 164 measurements) and its reference results are bundled
+- 🐍 **Library and CLI**: use `jitterbug analyze` or call `JitterbugAnalyzer` from your own code
 
-## 📚 Table of Contents
+## 🚀 Quick Start
 
-- [What's New in Version 2.0](#-whats-new-in-version-20)
-- [Installation](#-installation)
-  - [Using pip](#using-pip-recommended)
-  - [Using uv](#using-uv-fast-python-package-manager)
-  - [From Source](#from-source)
-  - [Using Docker](#using-docker-containerized)
-- [Quick Start](#-quick-start)
-  - [Command Line Interface](#command-line-interface)
-  - [Python API](#python-api)
-- [REST API Server (Optional)](#-rest-api-server-optional)
-- [Visualization (Optional)](#-visualization-optional)
-- [Website (Future Feature)](#-website-future-feature)
-- [Input Data Formats](#-input-data-formats)
-- [Configuration](#%EF%B8%8F-configuration)
-- [Analysis Pipeline](#-analysis-pipeline)
-- [Algorithms](#-algorithms)
-- [Output Formats](#-output-formats)
-- [Development](#%EF%B8%8F-development)
-- [Examples](#-examples)
-- [Research & Citations](#-research--citations)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Support](#-support)
+### Installation
 
-## 🚀 What's New in Version 2.0
-
-- **Complete Rewrite**: Modern Python architecture with type safety
-- **Pydantic Models**: Robust data validation and serialization
-- **Multiple Algorithms**: Support for 5 change point detection algorithms (BCP, Ruptures, PyTorch, Rbeast, ADTK)
-- **Flexible Input Formats**: CSV, JSON (scamper), and InfluxDB support
-- **Rich CLI Interface**: Beautiful command-line interface with progress bars and tables
-- **Configuration Management**: YAML/JSON configuration files with validation
-- **Better Performance**: Optimized algorithms and memory usage
-- **Comprehensive Documentation**: Type hints, docstrings, and examples
-
-## 📦 Installation
-
-### Using uv (Recommended)
-
-⚠️ **Note**: The PyPI version may be outdated. For the latest features and algorithms, install from source (see below).
+Using [uv](https://docs.astral.sh/uv/) (recommended):
 
 ```bash
-# Install with uv (faster)
-uv pip install jitterbug
-
-# Or with traditional pip
-pip install jitterbug
-```
-
-### Using uv (Fast Python Package Manager)
-
-First install uv if you haven't already:
-
-```bash
-# Install uv (recommended for faster dependency resolution)
+# Install uv if you haven't already
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Or with pip
-pip install uv
-
-# Or with homebrew (macOS)
-brew install uv
+# Clone and install
+git clone https://github.com/estcarisimo/jitterbug.git
+cd jitterbug
+uv sync
+source .venv/bin/activate   # or prefix every command below with `uv run`
 ```
 
-Then install Jitterbug:
-
-```bash
-# Create a new virtual environment and install
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e .
-```
-
-### From Source (Development)
+Traditional pip installation:
 
 ```bash
 git clone https://github.com/estcarisimo/jitterbug.git
 cd jitterbug
-
-# Create a new virtual environment with uv
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install in editable mode with core dependencies
-uv pip install -e .
-
-# Install optional dependencies
-uv pip install -e ".[bcp]"  # For Bayesian algorithm
-uv pip install -e ".[torch]"      # For PyTorch algorithm
-uv pip install -e ".[visualization]"  # For visualization
-uv pip install -e ".[all]"        # For all optional dependencies
-
-# OR install the bayesian dependency directly:
-uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
+pip install -e .
 ```
 
-### Optional Dependencies
+> **Note:** this package is not published to PyPI (the `jitterbug` name there belongs to
+> an unrelated project). Install from a clone, as shown above.
+
+### Optional back ends
+
+| Extra | Installs | Use it for |
+| --- | --- | --- |
+| `bcp` | [bayesian_changepoint_detection](https://github.com/estcarisimo/bayesian_changepoint_detection) (git) | The Bayesian detector used in the paper |
+| `torch` | PyTorch | Experimental neural change point detector |
+| `rbeast` | Rbeast | Experimental seasonal/trend detector |
+| `adtk` | ADTK | Experimental level-shift detector |
+| `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
+| `visualization` | matplotlib, plotly | Plotting helpers |
+| `all` | everything above | |
 
 ```bash
-# For PyTorch change point detection
-uv pip install jitterbug[torch]
-
-# For Bayesian change point detection
-uv pip install jitterbug[bcp]
-# OR install directly from GitHub:
-uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
-
-# For InfluxDB support
-uv pip install jitterbug[influx]
-
-# For visualization (matplotlib, plotly)
-uv pip install jitterbug[visualization]
-
-# For REST API server (fastapi, uvicorn)
-uv pip install jitterbug[api]
-
-# For Jupyter notebooks
-uv pip install jitterbug[jupyter]
-
-# Install everything
-uv pip install jitterbug[all]
+uv sync --extra bcp            # the paper's setup
+uv sync --extra all            # everything
 ```
 
-### Using Docker (Containerized)
+### System requirements
 
-Docker provides an easy way to run Jitterbug without installing Python dependencies:
+- Python 3.10 or higher
+- `git` on `PATH` if you install the `bcp` extra (it is a git dependency)
 
-```bash
-# Quick start with Docker Compose
-git clone https://github.com/estcarisimo/jitterbug.git
-cd jitterbug
-docker-compose up -d
+## 📖 Usage
 
-# The API server will be available at http://localhost:8000
-curl http://localhost:8000/api/v1/health
-```
-
-**Docker Usage Examples:**
+### Analyze a file
 
 ```bash
-# Run CLI analysis
-docker-compose run --rm jitterbug-cli analyze /app/examples/network_analysis/data/raw.csv
-
-# Run visualization
-docker-compose run --rm jitterbug-cli visualize /app/examples/network_analysis/data/raw.csv --output-dir /app/output
-
-# Run validation
-docker-compose run --rm jitterbug-cli validate /app/examples/network_analysis/data/raw.csv
-
-# Start API server only
-docker-compose up jitterbug-api
-```
-
-**Using Docker directly:**
-
-```bash
-# Build the image
-docker build -t jitterbug:latest .
-
-# Run CLI commands
-docker run --rm -v $(pwd)/examples:/app/examples jitterbug:latest cli analyze /app/examples/network_analysis/data/raw.csv
-
-# Run API server
-docker run -d -p 8000:8000 --name jitterbug-api jitterbug:latest
-
-# Interactive shell
-docker run -it --rm jitterbug:latest bash
-```
-
-**Data Processing with Docker:**
-
-```bash
-# Create data directory
-mkdir -p data output
-
-# Use the example data (or copy your own RTT data)
-# cp your_rtt_data.csv examples/network_analysis/data/
-
-# Start services
-docker-compose up -d
-
-# Process data
-docker-compose run --rm jitterbug-cli analyze /app/examples/network_analysis/data/raw.csv --output /app/output/results.json
-
-# Generate visualizations
-docker-compose run --rm jitterbug-cli visualize /app/examples/network_analysis/data/raw.csv --output-dir /app/output/plots
-
-# Check results
-ls output/
-```
-
-See the [Docker documentation](docs/DOCKER.md) for detailed deployment instructions.
-
-## 🔧 Quick Start
-
-### Command Line Interface
-
-```bash
-# Basic analysis (shows summary on screen)
+# Print the summary and the congestion periods found in the bundled dataset
 jitterbug analyze examples/network_analysis/data/raw.csv
 
-# Save results to file
+# Save the full results
 jitterbug analyze examples/network_analysis/data/raw.csv --output results.json
 
-# With custom configuration
-jitterbug analyze examples/network_analysis/data/raw.csv --config config.yaml --output results.json
+# Reproduce the paper: Bayesian change points + KS test (needs `uv sync --extra bcp`)
+jitterbug analyze examples/network_analysis/data/raw.csv --algorithm bcp --method ks_test
 
-# Using different algorithms
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm ruptures --method ks_test
-
-# Show only summary statistics
+# Only the summary table
 jitterbug analyze examples/network_analysis/data/raw.csv --summary-only
 
-# Generate configuration template
+# CSV instead of JSON (Parquet is also supported if `pyarrow` is installed)
+jitterbug analyze rtts.csv --output results.csv --output-format csv
+```
+
+### Validate input before analyzing
+
+```bash
+jitterbug validate rtts.csv --verbose
+```
+
+### Configuration files
+
+```bash
+# Write a template with every option and its default
 jitterbug config --template --output config.yaml
 
-# Validate data quality
-jitterbug validate examples/network_analysis/data/raw.csv --verbose
+# Use it
+jitterbug analyze rtts.csv --config config.yaml
+```
+
+### Additional commands
+
+```bash
+jitterbug version
+jitterbug --help
+jitterbug analyze --help
 ```
 
 ### Python API
 
 ```python
+from pathlib import Path
+
 from jitterbug import JitterbugAnalyzer, JitterbugConfig
 
-# Load configuration
-config = JitterbugConfig()
-
-# Create analyzer
+config = JitterbugConfig()  # or JitterbugConfig.from_file(Path("config.yaml"))
 analyzer = JitterbugAnalyzer(config)
 
-# Analyze RTT data
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
+results = analyzer.analyze_from_file("examples/network_analysis/data/raw.csv")
 
-# Get congestion periods
-congested_periods = results.get_congested_periods()
+for period in results.get_congested_periods():
+    print(period.start_timestamp, period.end_timestamp, period.confidence)
 
-# Display summary
 summary = analyzer.get_summary_statistics(results)
-print(f"Found {len(congested_periods)} congestion periods")
-print(f"Total congestion duration: {summary['congestion_duration_seconds']:.1f}s")
-```
-
-## 🌐 REST API Server (Optional)
-
-For integration with other systems or web applications, Jitterbug provides an optional REST API server:
-
-### Starting the API Server
-
-```bash
-# Install API dependencies
-uv pip install jitterbug[api]  # or uv pip install fastapi uvicorn
-
-# Start the server (using Python module)
-python -m jitterbug.api.server --host 0.0.0.0 --port 8000
-
-# Or with default settings
-python -m jitterbug.api.server
-```
-
-### API Documentation
-
-Once the server is running, you can access:
-- **API Documentation**: http://localhost:8000/docs
-- **API Explorer**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/api/v1/health
-
-### Using the API
-
-```bash
-# Check API health
-curl http://localhost:8000/api/v1/health
-
-# Analyze data via API
-curl -X POST http://localhost:8000/api/v1/analyze \
-  -H "Content-Type: application/json" \
-  -d '{
-    "data": {
-      "measurements": [
-        {
-          "timestamp": "2024-01-01T10:00:00Z",
-          "epoch": 1704110400.0,
-          "rtt_value": 25.6,
-          "source": "192.168.1.1",
-          "destination": "8.8.8.8"
-        }
-      ]
-    },
-    "algorithm": "ruptures",
-    "method": "jitter_dispersion"
-  }'
-```
-
-### Python API Client
-
-```python
-import requests
-
-# Analyze data programmatically
-response = requests.post('http://localhost:8000/api/v1/analyze', json={
-    "data": {"measurements": [...]},
-    "algorithm": "ruptures"
-})
-
-if response.status_code == 200:
-    results = response.json()
-    print(f"Analysis completed in {results['execution_time']:.2f}s")
-```
-
-## 📊 Visualization (Optional)
-
-Jitterbug provides comprehensive visualization capabilities for analyzing network congestion patterns:
-
-### Installing Visualization Dependencies
-
-```bash
-# Install visualization dependencies
-uv pip install jitterbug[visualization]  # or uv pip install matplotlib plotly
-```
-
-### Generating Visualizations
-
-```bash
-# Basic visualization report
-jitterbug visualize examples/network_analysis/data/raw.csv
-
-# Custom output directory
-jitterbug visualize examples/network_analysis/data/raw.csv --output-dir my_plots
-
-# Static plots only (PNG/PDF)
-jitterbug visualize examples/network_analysis/data/raw.csv --static-only
-
-# Interactive plots only (HTML)
-jitterbug visualize examples/network_analysis/data/raw.csv --interactive-only
-
-# Custom title and algorithm
-jitterbug visualize examples/network_analysis/data/raw.csv --title "Network Analysis Report" --algorithm bcp
-```
-
-### Visualization Output
-
-The visualization command generates:
-
-**Static Plots** (PNG format):
-- RTT time series with congestion periods highlighted
-- Change point detection visualization
-- Confidence score heatmaps
-- Summary statistics and distributions
-
-**Interactive Plots** (HTML format):
-- Interactive timeline with zoom/pan capabilities
-- Comprehensive dashboard with multiple views
-- Algorithm comparison charts
-- Hover tooltips with detailed information
-
-### Example Visualization Usage
-
-```bash
-# Generate comprehensive report
-jitterbug visualize examples/network_analysis/data/raw.csv \
-  --title "Network Congestion Analysis" \
-  --output-dir network_analysis_report
-
-# This creates:
-# network_analysis_report/
-# ├── index.html              # Main report page
-# ├── static/                 # Static PNG plots
-# │   ├── congestion_analysis.png
-# │   ├── change_points.png
-# │   └── summary_stats.png
-# └── interactive/            # Interactive HTML plots
-#     ├── timeline.html
-#     ├── dashboard.html
-#     └── confidence_scatter.html
-```
-
-### Programmatic Visualization
-
-```python
-from jitterbug.visualization import JitterbugDashboard
-from jitterbug import JitterbugAnalyzer
-
-# Analyze data
-analyzer = JitterbugAnalyzer()
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
-
-# Create visualizations
-dashboard = JitterbugDashboard()
-report = dashboard.create_comprehensive_report(
-    raw_data=analyzer.raw_data,
-    min_rtt_data=analyzer.min_rtt_data,
-    results=results,
-    change_points=analyzer.change_points,
-    output_dir="./analysis_report",
-    title="My Network Analysis"
+print(
+    f"{summary['congested_periods']} congested periods, "
+    f"{summary['congestion_duration_seconds']:.0f} s in total"
 )
-
-print(f"Report generated: {report['output_dir']}/index.html")
 ```
 
-## 🌍 Website (Future Feature)
+`analyze_from_dataframe(df)` accepts a pandas DataFrame with `epoch` and `values` columns, and `analyze(dataset)` an `RTTDataset` you built yourself.
 
-**Note**: The website feature is planned for future development and is not yet implemented.
+### Input formats
 
-**Planned Purpose**: The website will provide:
-- **Web-based Interface**: Upload RTT data files through a web browser
-- **Real-time Analysis**: Interactive analysis without installing Python
-- **Visualization Gallery**: Browse and share network analysis results
-- **Educational Resources**: Tutorials and documentation about network congestion analysis
-- **Community Features**: Share datasets and analysis results with researchers
-
-**Current Status**: This feature is in the planning phase. For now, users can:
-- Use the CLI for local analysis
-- Use the REST API for programmatic access
-- Use the visualization tools for creating reports
-- Deploy the API server for web integration
-
-## 📊 Input Data Formats
-
-### CSV Format
+**CSV**: one RTT sample per row, epoch seconds and milliseconds.
 
 ```csv
 epoch,values
 1512144010.0,63.86
 1512144010.0,66.52
 1512144020.0,85.2
-1512144110.0,50.79
 ```
 
-*Example data available in `examples/network_analysis/data/raw.csv` (47,164 measurements)*
-
-### JSON Format (Scamper)
+**scamper JSON** (`ping` records, one per line):
 
 ```json
-{"type":"ping", "src":"192.168.1.1", "dst":"8.8.8.8", "responses":[{"rtt":1.712, "tx":{"sec":1752855461, "usec":719258}}]}
+{"type":"ping","src":"192.168.1.1","dst":"8.8.8.8","responses":[{"rtt":1.712,"tx":{"sec":1752855461,"usec":719258}}]}
 ```
 
-### InfluxDB Query Results
-
-Direct integration with InfluxDB for real-time analysis:
+**InfluxDB** (`uv sync --extra influx`):
 
 ```python
 from jitterbug.io import DataLoader
 
-loader = DataLoader()
-dataset = loader.load_from_influxdb(
+dataset = DataLoader().load_from_influxdb(
     url="http://localhost:8086",
-    token="your-token",
-    org="your-org",
+    token="...",
+    org="my-org",
     bucket="network-metrics",
-    query='from(bucket:"network-metrics") |> range(start: -1h) |> filter(fn: (r) => r._measurement == "rtt")'
+    query='from(bucket:"network-metrics") |> range(start: -1h) |> filter(fn: (r) => r._measurement == "rtt")',
 )
 ```
 
-## ⚙️ Configuration
+## 🔧 Configuration
 
-Create a configuration file to customize analysis parameters:
+Every option lives in a Pydantic model and can be set from a YAML/JSON file or from the CLI flags. `jitterbug config --template` prints the full set; the important ones:
 
 ```yaml
-# config.yaml
 change_point_detection:
-  algorithm: "ruptures"  # or "bcp", "torch"
+  algorithm: ruptures          # ruptures | bcp | torch | rbeast | adtk
   threshold: 0.25
-  min_time_elapsed: 1800  # seconds
-  ruptures_model: "rbf"
+  min_time_elapsed: 1800       # seconds between change points
+  ruptures_model: rbf
   ruptures_penalty: 10.0
 
 jitter_analysis:
-  method: "jitter_dispersion"  # or "ks_test"
+  method: jitter_dispersion    # jitter_dispersion | ks_test
   threshold: 0.25
   moving_average_order: 6
   moving_iqr_order: 4
   significance_level: 0.05
 
 latency_jump:
-  threshold: 0.5
+  threshold: 0.5               # minimum-RTT increase (ms) that counts as a jump
 
 data_processing:
-  minimum_interval_minutes: 15
+  minimum_interval_minutes: 15 # width of the minimum-RTT intervals
   outlier_detection: true
   outlier_threshold: 3.0
 
-output_format: "json"  # or "csv", "parquet"
+output_format: json            # json | csv | parquet (parquet needs pyarrow)
 verbose: false
 ```
 
-## 🧪 Analysis Pipeline
+Top-level options can also come from environment variables with the `JITTERBUG_` prefix:
 
-Jitterbug follows a sophisticated analysis pipeline:
-
-1. **Data Loading & Validation**: Load RTT measurements with quality checks
-2. **Minimum RTT Computation**: Aggregate data into time intervals
-3. **Change Point Detection**: Identify significant changes in RTT patterns
-4. **Latency Jump Analysis**: Detect baseline latency increases
-5. **Jitter Analysis**: Analyze jitter dispersion or distribution changes
-6. **Congestion Inference**: Combine evidence to infer congestion periods
-
-## 🔍 Algorithms
-
-Jitterbug v2.0 supports multiple change point detection algorithms with proven performance on real network data.
-
-### Change Point Detection Algorithms
-
-| Algorithm | Performance | Rating | Description | Use Case |
-|-----------|-------------|---------|-------------|----------|
-| **BCP (Bayesian)** | 14/15 (93.3%) | ⭐⭐⭐⭐⭐ | Classical Bayesian approach with statistical rigor | Gold standard, research applications |
-| **PyTorch Neural** | 14/15 (93.3%) | ⭐⭐⭐⭐⭐ | Deep learning-based pattern recognition | Complex patterns, advanced analysis |
-| **Ruptures** | 11/15 (73.3%) | ⭐⭐⭐⭐ | Fast and reliable using multiple models | Production environments, quick analysis |
-| **Rbeast** | 10/15 (66.7%) | ⭐⭐⭐ | Seasonal pattern detection and trends | Time series with seasonal components |
-| **ADTK** | 9/15 (60.0%) | ⭐⭐ | Anomaly detection with level shifts | Basic anomaly detection, simple patterns |
-
-*Performance tested against 47,164 RTT measurements with 15 expected congestion periods*
-
-### Algorithm Selection Guide
-
-**Choose BCP when:**
-- You need the highest accuracy (93.3%)
-- Statistical rigor is important
-- Research or academic applications
-- Uncertainty quantification required
-
-**Choose PyTorch when:**
-- Complex pattern recognition needed (93.3% accuracy)
-- Advanced machine learning capabilities desired
-- Non-standard network behavior expected
-
-**Choose Ruptures when:**
-- Fast processing is priority (10-20s runtime)
-- Good balance of speed and accuracy (73.3%)
-- Production environments with time constraints
-
-**Choose Rbeast when:**
-- Seasonal patterns are present in data
-- Trend analysis is important
-- Moderate accuracy acceptable (66.7%)
-
-**Choose ADTK when:**
-- Simple anomaly detection sufficient
-- Minimal computational resources
-- Basic pattern detection acceptable (60.0%)
-
-### Jitter Analysis Methods
-
-- **Jitter Dispersion**: Analyzes changes in jitter variability using moving IQR and averaging
-- **Kolmogorov-Smirnov Test**: Statistical test for distribution changes between periods
-
-### Example Results (BCP + KS-Test)
-
-Using the gold-standard BCP algorithm with KS-test jitter analysis on example dataset:
-
-```
-📊 Analysis Summary
-┌─────────────────────┬────────────┐
-│ Total Periods       │ 34         │
-│ Congested Periods   │ 14         │
-│ Congestion Ratio    │ 41.18%     │
-│ Average Confidence  │ 0.90       │
-│ Detection Accuracy  │ 93.3%      │
-└─────────────────────┴────────────┘
+```bash
+export JITTERBUG_VERBOSE=true
+export JITTERBUG_OUTPUT_FORMAT=csv
 ```
 
-*Complete visualization examples available in `examples/network_analysis/plots/`*
+### How the analysis works
 
-![BCP + KS-Test](/examples/network_analysis/plots/bcp_congestion_analysis.png)
+1. **Minimum-RTT intervals**: the raw samples are binned (15 min by default) and the minimum of each bin is kept, which removes most queueing noise.
+2. **Change point detection** on the minimum-RTT series marks the boundaries between periods.
+3. **Latency jump**: a period is a candidate if its mean minimum RTT rises above the previous period's by more than `latency_jump.threshold`.
+4. **Jitter test**: jitter dispersion (variance of the filtered jitter series) or a KS test of the RTT distributions on both sides of the change point.
+5. **Congestion inference**: a period is congested when both tests agree; each result carries a confidence and the evidence behind it.
 
-## 📈 Output Formats
+The detectors `ruptures` and `bcp` are the two evaluated in the paper. `torch`, `rbeast` and `adtk` are experimental; see [docs/ALGORITHM_SELECTION_GUIDE.md](docs/ALGORITHM_SELECTION_GUIDE.md).
 
-### JSON Output
+## 🏗️ Architecture
 
-```json
-{
-  "inferences": [
-    {
-      "start_timestamp": "2024-01-01T10:00:00",
-      "end_timestamp": "2024-01-01T10:15:00",
-      "is_congested": true,
-      "confidence": 0.85,
-      "latency_jump": {
-        "has_jump": true,
-        "magnitude": 12.5
-      },
-      "jitter_analysis": {
-        "has_significant_jitter": true,
-        "method": "jitter_dispersion"
-      }
-    }
-  ],
-  "metadata": {
-    "total_measurements": 1000,
-    "change_points": 5,
-    "congestion_periods": 2
-  }
-}
+```text
+src/jitterbug/
+├── analyzer.py             # JitterbugAnalyzer: orchestrates the pipeline below
+├── models/                 # Pydantic models
+│   ├── rtt_data.py         #   RTTMeasurement, RTTDataset, MinimumRTTDataset
+│   ├── analysis.py         #   ChangePoint, LatencyJump, JitterAnalysis, CongestionInference
+│   └── config.py           #   JitterbugConfig and the per-stage configs (BaseSettings)
+├── detection/              # Change point detection
+│   ├── change_point_detector.py   # dispatch on config.algorithm
+│   └── algorithms.py       #   Ruptures, Bayesian (bcp), Torch, Rbeast, ADTK
+├── analysis/               # Period classification
+│   ├── latency_jump_analyzer.py
+│   ├── jitter_analyzer.py  #   jitter dispersion and KS test
+│   └── congestion_inference_analyzer.py
+├── io/                     # DataLoader (CSV, scamper JSON, InfluxDB) and exporters
+├── cli/main.py             # Typer CLI: analyze, validate, config, version
+├── visualization/          # matplotlib plotter (plotly modules are experimental)
+└── api/                    # optional FastAPI server (experimental, extra `api`)
 ```
 
-### CSV Output
+Bundled data: `examples/network_analysis/data/raw.csv` is the PAM 2022 dataset, and `examples/network_analysis/expected_results/` holds the paper's reference output for both jitter methods.
 
-```csv
-starts,ends,congestion,confidence,has_latency_jump,has_jitter_change
-1641024000,1641024900,true,0.85,true,true
-1641024900,1641025800,false,0.0,false,false
-```
-
-## 🛠️ Development
-
-### Setting Up Development Environment
+## 🧪 Development
 
 ```bash
 # Clone repository
 git clone https://github.com/estcarisimo/jitterbug.git
 cd jitterbug
 
-# Create the environment and install the package with its dev tools
+# Environment with the dev tools (the `dev` dependency group is installed by default)
 uv sync --extra visualization
 
-# Optional: install pre-commit hooks (ruff check + format on every commit)
+# Install pre-commit hooks (ruff lint + format on staged files)
 uv run pre-commit install
+```
 
-# Lint, format and type-check
+### Running tests
+
+```bash
+uv run pytest
+uv run pytest --cov=jitterbug --cov-report=term-missing
+uv run pytest tests/test_cli.py -v
+```
+
+Tests run in a few seconds and need no network. Coverage is about 23 %, concentrated in `models/`; `analysis/`, `io/` and `visualization/` are the areas where contributions are most welcome.
+
+### Code quality
+
+```bash
 uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format src/ tests/ examples/ tools/
 uv run mypy src/jitterbug
 ```
 
-### Running Tests
+`ruff check` and `ruff format` are enforced in CI. `mypy` is **advisory**: there is a backlog of pre-existing type errors, so the CI step does not fail on them. Please don't add new ones. See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull request workflow.
+
+### Building
 
 ```bash
-# Run all tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=jitterbug
-
-# Run specific test file
-uv run pytest tests/test_analyzer.py
+uv build
+uv pip install dist/*.whl
 ```
 
-## 📚 Examples
+## 📊 Example Output
 
-**🚀 Ready to Try?** Use the comprehensive example dataset with 47,164 RTT measurements:
+`jitterbug analyze examples/network_analysis/data/raw.csv` with the default `ruptures` detector:
 
-```bash
-# IMPORTANT: Install from the repository directory (not from PyPI)
-cd jitterbug  # Make sure you're in the cloned repository
+```text
+📊 Analysis Summary
+┌─────────────────────┬────────────┐
+│ Total Periods       │ 22         │
+│ Congested Periods   │ 11         │
+│ Congestion Ratio    │ 24.44%     │
+│ Total Duration      │ 1197000.0s │
+│ Congestion Duration │ 292497.0s  │
+│ Average Confidence  │ 0.90       │
+└─────────────────────┴────────────┘
 
-# Install jitterbug with the Bayesian back end used in the paper
-uv sync --extra bcp
-source .venv/bin/activate  # or prefix each command below with `uv run`
-
-# Check which algorithms are available
-uv run jitterbug version
-
-# Quick analysis (uses ruptures algorithm - no extra dependencies needed)
-jitterbug analyze examples/network_analysis/data/raw.csv
-
-# Test all available algorithms
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm bcp      # Bayesian (93.3% accuracy)
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm torch    # PyTorch Neural (93.3% accuracy)
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm ruptures # Ruptures (73.3% accuracy)
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm rbeast   # Rbeast (66.7% accuracy)
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm adtk     # ADTK (60.0% accuracy)
-
-# Generate visualization examples (requires matplotlib/plotly)
-uv pip install matplotlib plotly  # Install visualization dependencies
-jitterbug visualize examples/network_analysis/data/raw.csv --algorithm bcp --output-dir bcp_report
-python3 generate_visualizations.py  # Generate all algorithm comparison plots
-
-# View generated visualizations
-ls examples/network_analysis/plots/  # Individual algorithm plots and comparison charts
+🔍 Congestion Periods
+┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃             ┃             ┃          ┃            ┃ Latency    ┃ Jitter      ┃
+┃ Start Time  ┃ End Time    ┃ Duration ┃ Confidence ┃ Jump       ┃ Change      ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ 2017-12-02  │ 2017-12-02  │ 27000.0s │ 0.90       │ ✓          │ ✓           │
+│ 06:00:10    │ 13:30:10    │          │            │            │             │
+│ 2017-12-03  │ 2017-12-03  │ 27000.0s │ 0.90       │ ✓          │ ✓           │
+│ 05:45:09    │ 13:15:09    │          │            │            │             │
+│ 2017-12-04  │ 2017-12-04  │ 18000.0s │ 0.90       │ ✓          │ ✓           │
+│ 08:00:10    │ 13:00:10    │          │            │            │             │
+│ ...         │ ...         │          │            │            │             │
+└─────────────┴─────────────┴──────────┴────────────┴────────────┴─────────────┘
 ```
 
-See `examples/README.md` for detailed documentation and more examples.
+The dataset shows the daily congestion episodes the paper analyzes. With the Bayesian detector and the KS test (`--algorithm bcp --method ks_test`) the output matches the reference in `examples/network_analysis/expected_results/`:
 
-### Basic Analysis
+![BCP + KS test on the PAM 2022 dataset](examples/network_analysis/plots/bcp_congestion_analysis.png)
 
-```python
-from jitterbug import JitterbugAnalyzer, JitterbugConfig
+Each entry in `results.json` carries the period, the verdict, and the evidence:
 
-# Create analyzer with default configuration
-analyzer = JitterbugAnalyzer(JitterbugConfig())
-
-# Analyze data
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
-
-# Print summary
-for period in results.get_congested_periods():
-    print(f"Congestion from {period.start_timestamp} to {period.end_timestamp}")
-    print(f"  Confidence: {period.confidence:.2f}")
-    print(f"  Latency jump: {period.latency_jump.magnitude:.2f}ms")
-```
-
-### Custom Configuration
-
-```python
-from jitterbug import JitterbugAnalyzer, JitterbugConfig, ChangePointDetectionConfig
-
-# Custom configuration
-config = JitterbugConfig(
-    change_point_detection=ChangePointDetectionConfig(
-        algorithm="ruptures",
-        threshold=0.15,
-        ruptures_model="l2"
-    )
-)
-
-analyzer = JitterbugAnalyzer(config)
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
-```
-
-### Real-time Analysis
-
-```python
-import pandas as pd
-from jitterbug import JitterbugAnalyzer, JitterbugConfig
-
-# Simulate real-time data
-def analyze_realtime_data():
-    analyzer = JitterbugAnalyzer(JitterbugConfig())
-
-    # Load data in chunks
-    for chunk in pd.read_csv('examples/network_analysis/data/raw.csv', chunksize=1000):
-        results = analyzer.analyze_from_dataframe(chunk)
-
-        # Process results
-        if results.get_congested_periods():
-            print(f"Alert: Congestion detected at {chunk.iloc[-1]['timestamp']}")
-```
-
-## 🔬 Research & Citations
-
-If you use Jitterbug in your research, please cite the PAM 2022 paper (also available as [CITATION.cff](CITATION.cff) for GitHub's "Cite this repository" button):
-
-```bibtex
-@InProceedings{carisimo2022jitterbug,
-  author="Carisimo, Esteban and Mok, Ricky K. P. and Clark, David D. and Claffy, K. C.",
-  title="Jitterbug: A New Framework for Jitter-Based Congestion Inference",
-  booktitle="Passive and Active Measurement",
-  year="2022",
-  publisher="Springer International Publishing",
-  address="Cham",
-  pages="155--179",
-  isbn="978-3-030-98785-5"
+```json
+{
+  "start_timestamp": "2017-12-02 06:00:10",
+  "end_timestamp": "2017-12-02 13:30:10",
+  "is_congested": true,
+  "confidence": 0.9,
+  "latency_jump": {"has_jump": true, "magnitude": 20.62, "threshold": 0.5},
+  "jitter_analysis": {"method": "jitter_dispersion", "has_significant_jitter": true, "jitter_metric": 14.55}
 }
 ```
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) for the development setup, the checks every change must pass, and the pull request workflow. This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct. Changes are tracked in the [CHANGELOG](CHANGELOG.md).
+Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md) for the development setup, the checks every change must pass, and the pull request workflow.
+
+1. Fork the repository
+2. Create a feature branch (`git switch -c feat/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feat/amazing-feature`)
+5. Open a Pull Request
+
+### Project documentation
+
+| Document | Contents |
+| --- | --- |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, workflow, PR expectations |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [AGENTS.md](AGENTS.md) | Guidance for AI coding agents working in this repo |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting, and what data this tool handles |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
+| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Installation details and troubleshooting |
+| [docs/ALGORITHM_SELECTION_GUIDE.md](docs/ALGORITHM_SELECTION_GUIDE.md) | Choosing a change point detector |
+| [docs/ALGORITHM_USAGE.md](docs/ALGORITHM_USAGE.md) | Per-detector options and examples |
+| [examples/README.md](examples/README.md) | Scripts and notebooks |
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## 🔗 Related Resources
 
-- **Documentation**: Check the [docs](https://github.com/estcarisimo/jitterbug/tree/main/docs)
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/estcarisimo/jitterbug/issues)
-- **Security**: Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue
+- [Jitterbug paper (PAM 2022)](https://doi.org/10.1007/978-3-030-98785-5_7)
+- [bayesian_changepoint_detection](https://github.com/estcarisimo/bayesian_changepoint_detection): the Bayesian detector behind the `bcp` extra
+- [ruptures](https://centre-borelli.github.io/ruptures-docs/): the default change point library
+- [scamper](https://www.caida.org/catalog/software/scamper/): the measurement tool whose JSON output Jitterbug reads
 
-## 🙏 Acknowledgments
+## 🙏 Acknowledgements
 
-- Northwestern University, CAIDA/UC San Diego and MIT for supporting this research
-- The Passive and Active Measurement Conference (PAM) community
-- All contributors and users of Jitterbug
+Jitterbug is the software behind the following paper. If you use it in your research, please cite it (also available as [CITATION.cff](CITATION.cff) for GitHub's "Cite this repository" button):
 
----
+**Paper**: *"Jitterbug: A New Framework for Jitter-Based Congestion Inference"*
+**Authors**: Esteban Carisimo, Ricky K. P. Mok, David D. Clark, and K. C. Claffy
+**Conference**: Passive and Active Measurement (PAM), March 2022
+**Link**: [https://doi.org/10.1007/978-3-030-98785-5_7](https://doi.org/10.1007/978-3-030-98785-5_7)
 
-**Jitterbug 2.0** - Making network congestion analysis accessible, accurate, and efficient.
+```bibtex
+@InProceedings{carisimo2022jitterbug,
+  author    = {Carisimo, Esteban and Mok, Ricky K. P. and Clark, David D. and Claffy, K. C.},
+  title     = {Jitterbug: A New Framework for Jitter-Based Congestion Inference},
+  booktitle = {Passive and Active Measurement},
+  year      = {2022},
+  publisher = {Springer International Publishing},
+  pages     = {155--179},
+  doi       = {10.1007/978-3-030-98785-5_7}
+}
+```
+
+Thanks to the authors of `ruptures` and `bayesian_changepoint_detection` for the libraries this framework builds on.

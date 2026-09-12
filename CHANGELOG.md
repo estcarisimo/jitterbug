@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- README rewritten in the project's canonical layout: features, quick start, usage,
+  configuration, architecture, development, example output, citation. The table of
+  contents, the duplicated installation sections and the `pip install jitterbug`
+  instructions are gone; every command was run before being documented. The REST API,
+  Docker and `visualize` command are not documented until they work (#6, #7).
 - **Python 3.10 or newer is required** (was 3.8). (#4)
 - `pyproject.toml` is the single source of packaging metadata; `setup.py`,
   `requirements.txt`, `requirements-new.txt` and `install_dev.sh` are gone. The build
