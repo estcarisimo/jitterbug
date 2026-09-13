@@ -1,6 +1,6 @@
 # Jitterbug Examples
 
-This directory contains comprehensive examples demonstrating how to use Jitterbug 2.0 for network congestion analysis.
+This directory contains comprehensive examples demonstrating how to use Jitterbug for network congestion analysis.
 
 ## Available Examples
 
