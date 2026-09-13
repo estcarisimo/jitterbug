@@ -67,6 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Change point timestamps are timezone-aware UTC, like the measurements they come from.
+  They used to be naive local time, so `start_timestamp`/`end_timestamp` in results
+  files and the CLI table depended on the machine's timezone (the epochs were always
+  right). The CLI table columns are now labelled `Start (UTC)` / `End (UTC)`.
 - `DataLoader.validate_data()` returns plain Python numbers and booleans (it used to
   return numpy scalars, which `json.dumps` rejects); CSV datasets record `source: csv`
   and the file path in their metadata; `.jsonl` is recognised as scamper JSON.
