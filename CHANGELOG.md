@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Unit tests for `analysis/` (latency jumps, jitter dispersion, KS test, the congestion
+  state machine) and `io/` (CSV, DataFrame, scamper JSON, format inference, mocked
+  InfluxDB, validation, the JSON/CSV/summary exporters) on small synthetic series.
+  Coverage 23 % → 84 %; CI now fails below 75 %.
 - `tests/test_paper_regression.py`: golden counts for both detectors on the PAM 2022
   dataset (ruptures + jitter dispersion: 22 periods / 11 congested; BCP + KS test:
   34 / 14) and overlap-based agreement with the paper's reference intervals (11/15 and
@@ -63,6 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `DataLoader.validate_data()` returns plain Python numbers and booleans (it used to
+  return numpy scalars, which `json.dumps` rejects); CSV datasets record `source: csv`
+  and the file path in their metadata; `.jsonl` is recognised as scamper JSON.
 - `jitterbug analyze` and `jitterbug visualize` no longer overwrite the `algorithm`,
   `method`, `threshold` and `output_format` values of a `--config` file with the CLI's
   own defaults; a flag now overrides the file only when it is given explicitly. A wrong
@@ -83,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Dead code in `analysis/`: `LatencyJumpAnalyzer.analyze_detailed`,
+  `CongestionInferenceAnalyzer._apply_inference_logic` and `_post_process_inferences`
+  implemented alternative rules that nothing called.
 - **The plotly dashboard and interactive modules** (`visualization/dashboard.py`,
   `visualization/interactive.py`), the `plotly` dependency, `examples/visualization_demo.py`
   and the generated `interactive_bcp_ks/timeline.html`. They had no tests, the dashboard
