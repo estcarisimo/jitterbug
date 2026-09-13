@@ -34,9 +34,8 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check src/ tests/ examples/ tools/
 
-      - name: mypy (advisory until the known errors are fixed)
+      - name: mypy
         run: uv run mypy src/jitterbug
-        continue-on-error: true
 
       - name: pip-audit (audits the locked dependency set)
         run: |

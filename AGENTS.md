@@ -46,7 +46,7 @@ uv sync --extra bcp                        # + Bayesian back end (git dependency
 uv run pre-commit install                  # once per clone
 uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format src/ tests/ examples/ tools/   # CI checks with --check
-uv run mypy src/jitterbug                  # advisory; do not add new errors
+uv run mypy src/jitterbug                  # blocking in CI (disallow_untyped_defs)
 uv run pytest                              # ~37 tests, seconds
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/r.json
 uv build                                   # sdist + wheel via uv_build

@@ -268,7 +268,7 @@ uv run ruff format src/ tests/ examples/ tools/
 uv run mypy src/jitterbug
 ```
 
-`ruff check` and `ruff format` are enforced in CI. `mypy` is **advisory**: there is a backlog of pre-existing type errors, so the CI step does not fail on them. Please don't add new ones. See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull request workflow.
+`ruff check`, `ruff format --check` and `mypy` are all enforced in CI. See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull request workflow.
 
 ### Building
 

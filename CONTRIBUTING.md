@@ -23,7 +23,7 @@ Run the same checks CI runs:
 ```bash
 uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format --check src/ tests/ examples/ tools/
-uv run mypy src/jitterbug            # advisory for now; do not add new errors
+uv run mypy src/jitterbug            # blocking in CI
 uv run pytest                        # ~37 tests, a few seconds
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/results.json
 uv build
@@ -44,8 +44,8 @@ uv build
 - Configuration is Pydantic models in `src/jitterbug/models/config.py`. Add a field
   there and thread it through the CLI (`src/jitterbug/cli/main.py`) rather than adding
   ad-hoc parameters.
-- Type hints on every function; mypy will become blocking once the known errors are
-  fixed.
+- Type hints on every function; mypy runs with `disallow_untyped_defs` and is blocking
+  in CI.
 - Tests are plain pytest functions with fixtures and `parametrize`, one file per
   module (`tests/test_<module>.py`). Use small synthetic RTT series; the bundled
   `examples/network_analysis/data/raw.csv` (47 164 rows, PAM 2022) is for smoke and

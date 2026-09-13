@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- mypy passes with `disallow_untyped_defs` on the whole package and is now a blocking CI
+  check. Pydantic models use `model_config = ConfigDict(...)` / `SettingsConfigDict`
+  and `model_dump()` instead of the deprecated `class Config` / `.dict()`; the two
+  remaining test warnings are from third-party libraries.
 - README rewritten in the project's canonical layout: features, quick start, usage,
   configuration, architecture, development, example output, citation. The table of
   contents, the duplicated installation sections and the `pip install jitterbug`
@@ -54,6 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `jitterbug analyze` and `jitterbug visualize` no longer overwrite the `algorithm`,
+  `method`, `threshold` and `output_format` values of a `--config` file with the CLI's
+  own defaults; a flag now overrides the file only when it is given explicitly. A wrong
+  `--algorithm` value is rejected with Pydantic's message instead of failing later.
 - `jitterbug visualize` works again: it now writes the five matplotlib figures through
   `JitterbugPlotter.save_all_plots` and prints the summary. It used to abort with
   `'CongestionInference' object has no attribute 'timestamp'` (#7). The

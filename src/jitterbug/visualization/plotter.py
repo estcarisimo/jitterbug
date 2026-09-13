@@ -7,11 +7,8 @@ try:
     import matplotlib.pyplot as plt
 
     MATPLOTLIB_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - exercised only without the visualization extra
     MATPLOTLIB_AVAILABLE = False
-    # Create dummy objects for type annotations
-    plt = None
-    mdates = None
 
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -109,7 +106,9 @@ class JitterbugPlotter:
 
         for name, dataset in datasets.items():
             # Convert to timestamps and values
-            timestamps = [m.timestamp for m in dataset.measurements]
+            timestamps = np.array(
+                [m.timestamp for m in dataset.measurements], dtype="datetime64[ns]"
+            )
             values = [m.rtt_value for m in dataset.measurements]
 
             # Plot line
@@ -289,7 +288,7 @@ class JitterbugPlotter:
         fig, ax = plt.subplots(figsize=self.figsize)
 
         # Plot RTT data
-        timestamps = [m.timestamp for m in dataset.measurements]
+        timestamps = np.array([m.timestamp for m in dataset.measurements], dtype="datetime64[ns]")
         values = [m.rtt_value for m in dataset.measurements]
 
         ax.plot(timestamps, values, label="RTT", color=self.colors["rtt"], linewidth=2, alpha=0.8)
@@ -297,7 +296,7 @@ class JitterbugPlotter:
         # Plot change points
         for cp in change_points:
             ax.axvline(
-                x=cp.timestamp,
+                x=mdates.date2num(cp.timestamp),
                 color=self.colors["change_point"],
                 linestyle="--",
                 alpha=0.8,

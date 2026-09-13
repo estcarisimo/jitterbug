@@ -19,9 +19,8 @@ class CongestionInferenceAnalyzer:
     final congestion inferences.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the congestion inference analyzer."""
-        pass
 
     def infer(
         self, latency_jumps: list[LatencyJump], jitter_analyses: list[JitterAnalysis]

@@ -220,7 +220,7 @@ class RupturesDetector(BaseChangePointDetector):
         # Normalize to [0, 1] range
         confidence = min(1.0, (mean_diff + var_change) / 10.0)
 
-        return max(0.0, confidence)
+        return float(max(0.0, confidence))
 
 
 class BayesianChangePointDetector(BaseChangePointDetector):
@@ -280,8 +280,8 @@ class BayesianChangePointDetector(BaseChangePointDetector):
 
         try:
             # Set up prior
-            def prior_function(x):
-                return self.priors.const_prior(x, p=1 / (len(rtt_values) + 1))
+            def prior_function(x: int) -> float:
+                return float(self.priors.const_prior(x, p=1 / (len(rtt_values) + 1)))
 
             # Run offline change point detection. The library defaults to a GPU when one
             # is visible (MPS on Apple Silicon), which is an order of magnitude slower than

@@ -18,9 +18,8 @@ class ResultExporter:
     Exporter for analysis results to various formats.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the result exporter."""
-        pass
 
     def export_to_json(
         self, results: CongestionInferenceResult, output_path: str | Path, pretty: bool = True
@@ -40,13 +39,12 @@ class ResultExporter:
         output_path = Path(output_path)
 
         # Convert to dictionary
-        data = results.dict()
+        data = results.model_dump()
 
         # Custom serialization for datetime objects
-        def json_serializer(obj):
-            if hasattr(obj, "isoformat"):
-                return obj.isoformat()
-            return str(obj)
+        def json_serializer(obj: object) -> str:
+            isoformat = getattr(obj, "isoformat", None)
+            return isoformat() if callable(isoformat) else str(obj)
 
         with output_path.open("w") as f:
             if pretty:

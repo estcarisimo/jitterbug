@@ -102,7 +102,9 @@ ignore = [
 known-first-party = ["jitterbug"]
 
 [tool.mypy]
-python_version = "3.10"
+# 3.12 so mypy can parse numpy 2.5's stubs (they use the `type` statement); the 3.10
+# language floor is enforced by ruff (target-version = "py310").
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -119,6 +121,7 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = [
     "ruptures.*",
+    "scipy.*",
     "bayesian_changepoint_detection.*",
     "influxdb_client.*",
     "matplotlib.*",

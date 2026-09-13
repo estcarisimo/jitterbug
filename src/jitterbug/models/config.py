@@ -5,8 +5,8 @@ Configuration models using Pydantic for validation and serialization.
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ChangePointDetectionConfig(BaseModel):
@@ -49,22 +49,19 @@ class ChangePointDetectionConfig(BaseModel):
 
     @field_validator("threshold")
     @classmethod
-    def validate_threshold(cls, v):
+    def validate_threshold(cls, v: float) -> float:
         if not 0 <= v <= 1:
             raise ValueError("Threshold must be between 0 and 1")
         return v
 
     @field_validator("min_time_elapsed")
     @classmethod
-    def validate_min_time_elapsed(cls, v):
+    def validate_min_time_elapsed(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("Minimum time elapsed must be positive")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
 
 class JitterAnalysisConfig(BaseModel):
@@ -99,14 +96,14 @@ class JitterAnalysisConfig(BaseModel):
 
     @field_validator("threshold")
     @classmethod
-    def validate_threshold(cls, v):
+    def validate_threshold(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("Threshold must be positive")
         return v
 
     @field_validator("moving_average_order")
     @classmethod
-    def validate_moving_average_order(cls, v):
+    def validate_moving_average_order(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("Moving average order must be positive")
         if v % 2 != 0:
@@ -115,22 +112,19 @@ class JitterAnalysisConfig(BaseModel):
 
     @field_validator("moving_iqr_order")
     @classmethod
-    def validate_moving_iqr_order(cls, v):
+    def validate_moving_iqr_order(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("Moving IQR order must be positive")
         return v
 
     @field_validator("significance_level")
     @classmethod
-    def validate_significance_level(cls, v):
+    def validate_significance_level(cls, v: float) -> float:
         if not 0 < v < 1:
             raise ValueError("Significance level must be between 0 and 1")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
 
 class LatencyJumpConfig(BaseModel):
@@ -147,15 +141,12 @@ class LatencyJumpConfig(BaseModel):
 
     @field_validator("threshold")
     @classmethod
-    def validate_threshold(cls, v):
+    def validate_threshold(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("Threshold must be positive")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
 
 class DataProcessingConfig(BaseModel):
@@ -189,29 +180,26 @@ class DataProcessingConfig(BaseModel):
 
     @field_validator("minimum_interval_minutes")
     @classmethod
-    def validate_minimum_interval_minutes(cls, v):
+    def validate_minimum_interval_minutes(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("Minimum interval minutes must be positive")
         return v
 
     @field_validator("min_samples_per_interval")
     @classmethod
-    def validate_min_samples_per_interval(cls, v):
+    def validate_min_samples_per_interval(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("Minimum samples per interval must be positive")
         return v
 
     @field_validator("outlier_threshold")
     @classmethod
-    def validate_outlier_threshold(cls, v):
+    def validate_outlier_threshold(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("Outlier threshold must be positive")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
 
 class JitterbugConfig(BaseSettings):
@@ -301,9 +289,6 @@ class JitterbugConfig(BaseSettings):
             else:
                 raise ValueError(f"Unsupported configuration file format: {config_path.suffix}")
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        env_prefix = "JITTERBUG_"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        validate_assignment=True, env_prefix="JITTERBUG_", case_sensitive=False
+    )
