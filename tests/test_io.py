@@ -114,7 +114,7 @@ class TestScamperJSON:
 class TestFormatInference:
     @pytest.mark.parametrize(
         ("name", "expected"),
-        [("a.csv", "csv"), ("a.json", "json"), ("a.jsonl", "json"), ("a.flux", "influx")],
+        [("a.csv", "csv"), ("a.json", "json"), ("a.jsonl", "json")],
     )
     def test_from_extension(self, loader: DataLoader, tmp_path: Path, name: str, expected: str):
         path = tmp_path / name
@@ -128,6 +128,12 @@ class TestFormatInference:
         csv = tmp_path / "data.dat"
         csv.write_text("epoch,values\n")
         assert loader._infer_format(csv) == "csv"
+
+    def test_unrecognisable_content_is_an_error(self, loader: DataLoader, tmp_path: Path):
+        path = tmp_path / "data.bin"
+        path.write_text("just some words\n")
+        with pytest.raises(ValueError, match="Cannot infer format"):
+            loader.load_from_file(path)
 
     def test_unknown_format_is_rejected(self, loader: DataLoader, tmp_path: Path) -> None:
         path = tmp_path / "data.csv"

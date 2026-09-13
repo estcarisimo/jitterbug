@@ -70,7 +70,7 @@ app = typer.Typer(
 @app.command()
 def analyze(
     input_file: Path = typer.Argument(
-        ..., help="Path to RTT data file (CSV, JSON, or InfluxDB export)", exists=True
+        ..., help="Path to RTT data file (CSV or scamper JSON)", exists=True
     ),
     output: Path | None = typer.Option(
         None, "--output", "-o", help="Output file path (default: stdout)"
@@ -82,7 +82,7 @@ def analyze(
         None,
         "--format",
         "-f",
-        help="Input file format (csv, json, influx). Auto-detected if not specified.",
+        help="Input file format (csv, json). Auto-detected if not specified.",
     ),
     output_format: str | None = typer.Option(
         None, "--output-format", help="Output format (json, csv, parquet) [default: json]"
@@ -226,7 +226,7 @@ def validate(
         None,
         "--format",
         "-f",
-        help="Input file format (csv, json, influx). Auto-detected if not specified.",
+        help="Input file format (csv, json). Auto-detected if not specified.",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ) -> None:
@@ -269,7 +269,7 @@ def validate(
 @app.command()
 def visualize(
     input_file: Path = typer.Argument(
-        ..., help="Path to RTT data file (CSV, JSON, or InfluxDB export)", exists=True
+        ..., help="Path to RTT data file (CSV or scamper JSON)", exists=True
     ),
     output_dir: Path = typer.Option(
         "visualization_output",
@@ -284,7 +284,7 @@ def visualize(
         None,
         "--format",
         "-f",
-        help="Input file format (csv, json, influx). Auto-detected if not specified.",
+        help="Input file format (csv, json). Auto-detected if not specified.",
     ),
     method: str | None = typer.Option(
         None,

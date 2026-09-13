@@ -60,6 +60,6 @@ Out of scope:
 
 ## Automated scanning
 
-CI runs `pip-audit` over the locked dependency set on every pull request, and GitHub
-CodeQL scans the code base. Dependency updates are handled by Dependabot. Secret
+CI runs `bandit` over the package and `pip-audit` over the locked dependency set on
+every pull request, and GitHub CodeQL scans the code base. Dependency updates are handled by Dependabot. Secret
 scanning with push protection is enabled on the repository.

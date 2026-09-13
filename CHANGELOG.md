@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Dependency floors raised to releases that support Python 3.10 (`numpy>=1.24`,
+  `pandas>=2.0`, `scipy>=1.10`, `pydantic>=2.5`, `typer>=0.12`, `rich>=13`); `click` and
+  `requests` were declared but never imported and are no longer dependencies.
+- `bandit` runs in the CI lint job (clean at the time of writing).
 - mypy passes with `disallow_untyped_defs` on the whole package and is now a blocking CI
   check. Pydantic models use `model_config = ConfigDict(...)` / `SettingsConfigDict`
   and `model_dump()` instead of the deprecated `class Config` / `.dict()`; the two
@@ -94,6 +98,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The `influx` *file* format: `--format influx` and `.flux`/`.influx` files were routed to
+  a placeholder that raised `NotImplementedError`. Loading from an InfluxDB server through
+  `DataLoader.load_from_influxdb()` is unchanged. Format inference now fails with a clear
+  message instead of guessing `influx` for anything it does not recognise.
 - Dead code in `analysis/`: `LatencyJumpAnalyzer.analyze_detailed`,
   `CongestionInferenceAnalyzer._apply_inference_logic` and `_post_process_inferences`
   implemented alternative rules that nothing called.

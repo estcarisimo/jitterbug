@@ -586,15 +586,6 @@ wheels = [
 ]
 
 [[package]]
-name = "click"
-version = "8.5.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c7/0e/7fa0ef50764b67090eca4114772a2abf8b6148198475e54c660b97caeee6/click-8.5.0.tar.gz", hash = "sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34", size = 382235, upload-time = "2026-08-26T13:33:14.56Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl", hash = "sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360", size = 125251, upload-time = "2026-08-26T13:33:12.928Z" },
-]
-
-[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -1441,7 +1432,6 @@ name = "jitterbug"
 version = "2.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "click" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -1450,7 +1440,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
-    { name = "requests" },
     { name = "rich" },
     { name = "ruptures" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -1509,7 +1498,6 @@ dev = [
 requires-dist = [
     { name = "bayesian-changepoint-detection", marker = "extra == 'all'", git = "https://github.com/estcarisimo/bayesian_changepoint_detection.git" },
     { name = "bayesian-changepoint-detection", marker = "extra == 'bcp'", git = "https://github.com/estcarisimo/bayesian_changepoint_detection.git" },
-    { name = "click", specifier = ">=8.0.0" },
     { name = "influxdb-client", marker = "extra == 'all'", specifier = ">=1.30.0" },
     { name = "influxdb-client", marker = "extra == 'influx'", specifier = ">=1.30.0" },
     { name = "ipykernel", marker = "extra == 'all'", specifier = ">=6.0.0" },
@@ -1519,20 +1507,19 @@ requires-dist = [
     { name = "jupyter", marker = "extra == 'jupyter'", specifier = ">=1.0.0" },
     { name = "matplotlib", marker = "extra == 'all'", specifier = ">=3.5.0" },
     { name = "matplotlib", marker = "extra == 'visualization'", specifier = ">=3.5.0" },
-    { name = "numpy", specifier = ">=1.21.0" },
-    { name = "pandas", specifier = ">=1.3.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pydantic-settings", specifier = ">=2.0.0" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pandas", specifier = ">=2.0" },
+    { name = "pydantic", specifier = ">=2.5" },
+    { name = "pydantic-settings", specifier = ">=2.1" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "requests", specifier = ">=2.25.0" },
-    { name = "rich", specifier = ">=12.0.0" },
-    { name = "ruptures", specifier = ">=1.1.0" },
-    { name = "scipy", specifier = ">=1.7.0" },
+    { name = "rich", specifier = ">=13.0" },
+    { name = "ruptures", specifier = ">=1.1.9" },
+    { name = "scipy", specifier = ">=1.10" },
     { name = "torch", marker = "sys_platform == 'linux' and extra == 'all'", specifier = ">=2.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torch", marker = "sys_platform == 'linux' and extra == 'bcp'", specifier = ">=2.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torch", marker = "sys_platform != 'linux' and extra == 'all'", specifier = ">=2.0" },
     { name = "torch", marker = "sys_platform != 'linux' and extra == 'bcp'", specifier = ">=2.0" },
-    { name = "typer", specifier = ">=0.9.0" },
+    { name = "typer", specifier = ">=0.12" },
 ]
 provides-extras = ["bcp", "bayesian", "influx", "visualization", "jupyter", "all"]
 
