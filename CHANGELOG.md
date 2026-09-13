@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `tests/test_paper_regression.py`: golden counts for both detectors on the PAM 2022
+  dataset (ruptures + jitter dispersion: 22 periods / 11 congested; BCP + KS test:
+  34 / 14) and overlap-based agreement with the paper's reference intervals (11/15 and
+  13/15 recovered, no spurious detections). A dedicated CI job runs the Bayesian half
+  with the `bcp` extra; Linux resolves torch from the CPU wheel index.
 - `tests/test_cli.py::test_visualize_writes_the_standard_plots`: first test of the
   visualization code path (headless, `MPLBACKEND=Agg`).
 - `bcp_device` option in `change_point_detection` (default `cpu`). The Bayesian library

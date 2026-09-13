@@ -6,7 +6,7 @@ This directory contains a comprehensive example of using Jitterbug for network c
 
 The dataset contains RTT (Round-Trip Time) measurements from a network monitoring experiment:
 
-- **`data/raw.csv`** - Raw RTT measurements (47,164 data points)
+- **`data/raw.csv`** - Raw RTT measurements (47,163 data points)
 - **`data/mins.csv`** - Minimum RTT values computed over 15-minute intervals
 - **`expected_results/`** - Expected inference results from the original research
 

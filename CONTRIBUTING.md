@@ -24,7 +24,8 @@ Run the same checks CI runs:
 uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format --check src/ tests/ examples/ tools/
 uv run mypy src/jitterbug            # blocking in CI
-uv run pytest                        # ~37 tests, a few seconds
+uv run pytest -m "not slow"          # a few seconds
+uv run pytest                        # + the Bayesian regression tests (~2 min, needs --extra bcp)
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/results.json
 uv build
 ```
@@ -48,8 +49,12 @@ uv build
   in CI.
 - Tests are plain pytest functions with fixtures and `parametrize`, one file per
   module (`tests/test_<module>.py`). Use small synthetic RTT series; the bundled
-  `examples/network_analysis/data/raw.csv` (47 164 rows, PAM 2022) is for smoke and
+  `examples/network_analysis/data/raw.csv` (47 163 rows, PAM 2022) is for smoke and
   regression tests only. Compare floats with `numpy.testing.assert_allclose`.
+- `tests/test_paper_regression.py` pins the current output on the bundled dataset
+  (golden counts) and checks agreement with the paper's reference intervals by overlap.
+  If you change the numbers on purpose, update the goldens and explain in the changelog.
+  The Bayesian half is marked `slow` and runs in its own CI job with the `bcp` extra.
 - Every behaviour change gets a test under `tests/` and a line in `CHANGELOG.md` under
   `[Unreleased]`.
 

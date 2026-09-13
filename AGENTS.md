@@ -32,8 +32,9 @@ src/jitterbug/
   io/                    data_loader.py (CSV, scamper JSON, InfluxDB), exporters.py
   cli/main.py            Typer CLI: `jitterbug analyze|validate|config|visualize|version`
   visualization/         plotter.py (JitterbugPlotter, matplotlib)
-tests/                   pytest; test_cli.py runs the CLI on the bundled dataset
-examples/network_analysis/data/raw.csv         PAM 2022 dataset (47 164 RTT samples)
+tests/                   pytest; test_cli.py runs the CLI on the bundled dataset;
+                         test_paper_regression.py pins the paper-dataset results
+examples/network_analysis/data/raw.csv         PAM 2022 dataset (47 163 RTT samples)
 examples/network_analysis/expected_results/    reference output of the paper (BCP + KS)
 docs/                    plain Markdown guides
 ```
@@ -47,7 +48,8 @@ uv run pre-commit install                  # once per clone
 uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format src/ tests/ examples/ tools/   # CI checks with --check
 uv run mypy src/jitterbug                  # blocking in CI (disallow_untyped_defs)
-uv run pytest                              # ~37 tests, seconds
+uv run pytest -m "not slow"                # seconds
+uv run pytest                              # + Bayesian regression (~2 min, needs --extra bcp)
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/r.json
 uv build                                   # sdist + wheel via uv_build
 ```
