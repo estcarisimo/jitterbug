@@ -75,7 +75,7 @@ The `expected_results/` directory contains reference outputs from the original r
 - **`jd_inferences.csv`** - Congestion inferences using jitter dispersion method
 - **`kstest_inferences.csv`** - Congestion inferences using Kolmogorov-Smirnov test
 
-These can be used to validate that Jitterbug 2.0 produces consistent results with the original implementation.
+These can be used to validate that Jitterbug 2.x produces consistent results with the original implementation.
 
 ## Python API Example
 

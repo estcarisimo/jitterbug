@@ -226,7 +226,7 @@ def main():
         f.write("# Jitterbug Algorithm Visualization Examples\n\n")
         f.write(
             "This directory contains visualization examples for all change point detection "
-            "algorithms in Jitterbug v2.0.\n\n"
+            "algorithms in Jitterbug.\n\n"
         )
         f.write("## Algorithm Performance Summary\n\n")
         f.write("| Algorithm | Detected Periods | Accuracy vs Expected (15) | Rating |\n")
