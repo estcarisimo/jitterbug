@@ -135,6 +135,13 @@ class TestFormatInference:
         with pytest.raises(ValueError, match="Cannot infer format"):
             loader.load_from_file(path)
 
+    def test_binary_content_is_an_error(self, loader: DataLoader, tmp_path: Path):
+        """A non-UTF-8 file must follow the same error path, not leak UnicodeDecodeError."""
+        path = tmp_path / "data.bin"
+        path.write_bytes(b"\xff\xfe\x00\x01binary")
+        with pytest.raises(ValueError, match="Cannot infer format"):
+            loader.load_from_file(path)
+
     def test_unknown_format_is_rejected(self, loader: DataLoader, tmp_path: Path) -> None:
         path = tmp_path / "data.csv"
         path.write_text("epoch,values\n1,2\n")

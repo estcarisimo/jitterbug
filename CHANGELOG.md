@@ -44,8 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Dependency floors raised to releases that support Python 3.10 (`numpy>=1.24`,
-  `pandas>=2.0`, `scipy>=1.10`, `pydantic>=2.5`, `typer>=0.12`, `rich>=13`); `click` and
-  `requests` were declared but never imported and are no longer dependencies.
+  `pandas>=2.0`, `scipy>=1.10`, `pydantic>=2.5`, `pydantic-settings>=2.1`,
+  `ruptures>=1.1.9`, `typer>=0.12`, `rich>=13`); `click` and `requests` were declared
+  but never imported and are no longer dependencies.
 - `bandit` runs in the CI lint job (clean at the time of writing).
 - mypy passes with `disallow_untyped_defs` on the whole package and is now a blocking CI
   check. Pydantic models use `model_config = ConfigDict(...)` / `SettingsConfigDict`
@@ -57,10 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instructions are gone; every command was run before being documented. The REST API,
   Docker and `visualize` command are not documented until they work (#6, #7).
 - **Python 3.10 or newer is required** (was 3.8). (#4)
-- All temporary ruff ignores are gone: `pathlib` everywhere (`Path.open`, `/`, `mkdir`,
-  `iterdir`), `raise ... from` inside every `except`, collapsed nested conditions, no line
-  over 100 characters. `tools/` scripts no longer patch `sys.path` to a directory that
-  does not exist. Behaviour unchanged (CLI output on the bundled dataset is identical).
+- All temporary ruff ignores are gone except `B008` (Typer's `Option(...)` defaults):
+  `pathlib` everywhere (`Path.open`, `/`, `mkdir`, `iterdir`), `raise ... from` inside
+  every `except`, collapsed nested conditions, no line over 100 characters. `tools/`
+  scripts no longer patch `sys.path` to a directory that does not exist. Behaviour
+  unchanged (CLI output on the bundled dataset is identical).
 - `pyproject.toml` is the single source of packaging metadata; `setup.py`,
   `requirements.txt`, `requirements-new.txt` and `install_dev.sh` are gone. The build
   backend is `uv_build`. Development tools live in the `dev` dependency group, so

@@ -93,7 +93,8 @@ class JitterbugAnalyzer:
         file_path : Union[str, Path]
             Path to the RTT data file.
         file_format : Optional[str]
-            Format of the file ('csv', 'json', 'influx'). If None, will be inferred.
+            Format of the file ('csv' or 'json'). If None, it is inferred from the
+            extension, then from the first line.
 
         Returns
         -------
