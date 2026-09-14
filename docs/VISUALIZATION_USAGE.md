@@ -119,7 +119,7 @@ which is a good starting point for custom layouts.
 ### Headless use
 
 Set `MPLBACKEND=Agg` (or `matplotlib.use("Agg")` before importing the plotter) on servers
-and in tests. The CLI test in `tests/test_cli.py` does exactly this.
+and in tests. The test suite does exactly this in `tests/conftest.py`.
 
 ## Comparing detectors
 

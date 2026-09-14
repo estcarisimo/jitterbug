@@ -75,6 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A file with an unknown extension whose content is not text raises the documented
+  `ValueError("Cannot infer format ...")` instead of leaking `UnicodeDecodeError`.
 - `load_from_influxdb` computed epochs as `astype(int) / 1e9`, which assumes nanosecond
   timestamps; pandas 3 parses `_time` at microsecond resolution, so every epoch was
   1000× too small. The conversion is now resolution-independent. Found by running the
