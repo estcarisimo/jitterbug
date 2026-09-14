@@ -82,3 +82,33 @@ def test_invalid_algorithm_flag_is_rejected():
     result = runner.invoke(app, ["analyze", str(EXAMPLE_CSV), "--algorithm", "nope"])
     assert result.exit_code != 0
     assert "algorithm" in result.output
+
+
+@pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
+def test_analyze_honours_a_config_file_end_to_end(tmp_path: Path):
+    """The file's `output_format` and `threshold` must reach the analyzer through the CLI."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "change_point_detection:\n  algorithm: ruptures\n  threshold: 0.9\n"
+        "jitter_analysis:\n  method: jitter_dispersion\noutput_format: csv\n"
+    )
+    out = tmp_path / "results.csv"
+    result = runner.invoke(
+        app, ["analyze", str(EXAMPLE_CSV), "--config", str(cfg), "--output", str(out)]
+    )
+    assert result.exit_code == 0, result.output
+    header = out.read_text().splitlines()[0]
+    assert header == "starts,ends,congestion", header  # the v1 CSV layout, not JSON
+
+
+def test_verbose_from_a_config_file_takes_effect(tmp_path: Path):
+    """Regression: the CLI installs a logging handler before reading the file, and a
+    second `basicConfig` is a no-op, so `verbose: true` never enabled debug output."""
+    import logging
+
+    logging.basicConfig(level=logging.INFO)  # what the CLI does before loading the config
+    from jitterbug.analyzer import JitterbugAnalyzer
+
+    JitterbugAnalyzer(JitterbugConfig(verbose=True))
+    assert logging.getLogger("jitterbug").isEnabledFor(logging.DEBUG)
+    logging.getLogger("jitterbug").setLevel(logging.NOTSET)  # do not leak into other tests

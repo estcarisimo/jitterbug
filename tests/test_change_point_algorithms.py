@@ -5,7 +5,7 @@ Comprehensive tests for all change point detection algorithms.
 import importlib.util
 import sys
 import types
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
@@ -135,6 +135,15 @@ class TestRupturesDetector:
 
             except ImportError:
                 pytest.skip(f"Ruptures library not available for model {model}")
+
+    def test_ruptures_timestamps_are_utc(self, three_segment_min_rtt: MinimumRTTDataset):
+        """Regression: change point timestamps used to be naive local time."""
+        detector = RupturesDetector(ChangePointDetectionConfig(algorithm="ruptures"))
+        change_points = detector.detect(three_segment_min_rtt)
+        assert change_points, "the three-segment series has two clear jumps"
+        for cp in change_points:
+            assert cp.timestamp.tzinfo == timezone.utc
+            assert cp.timestamp.timestamp() == cp.epoch
 
     def test_ruptures_penalty_effects(self):
         """Test that penalty parameter affects number of change points."""
@@ -273,7 +282,9 @@ class TestBayesianChangePointDetector:
         def offline_changepoint_detection(data, prior, likelihood, truncate, device):
             calls["detection_device"] = device
             calls["likelihood"] = likelihood
-            return None, None, np.full((2, len(data)), -np.inf)
+            log_pcp = np.full((2, len(data)), -np.inf)
+            log_pcp[0, 5] = 0.0  # probability 1 of a change point at index 5
+            return None, None, log_pcp
 
         class Priors:
             @staticmethod
@@ -297,7 +308,8 @@ class TestBayesianChangePointDetector:
         config = ChangePointDetectionConfig(algorithm="bcp", bcp_device=device)
         change_points = BayesianChangePointDetector(config).detect(three_segment_min_rtt)
 
-        assert change_points == []
+        assert [cp.epoch for cp in change_points] == [three_segment_min_rtt.measurements[5].epoch]
+        assert change_points[0].timestamp.tzinfo == timezone.utc
         assert calls["likelihood_device"] == device
         assert calls["detection_device"] == device
         assert isinstance(calls["likelihood"], StudentT)

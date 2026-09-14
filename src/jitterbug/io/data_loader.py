@@ -306,7 +306,11 @@ class DataLoader:
 
             # Map InfluxDB columns to expected format
             if "_time" in df.columns:
-                df["epoch"] = pd.to_datetime(df["_time"]).astype(int) / 1e9
+                # Seconds since the epoch regardless of the datetime resolution
+                # (pandas >= 3 parses to microseconds, so `.astype(int) / 1e9` was
+                # off by a factor of 1000).
+                times = pd.to_datetime(df["_time"], utc=True)
+                df["epoch"] = (times - pd.Timestamp(0, tz="UTC")) / pd.Timedelta(seconds=1)
 
             # Look for RTT value column
             rtt_column = None

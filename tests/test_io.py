@@ -1,6 +1,8 @@
 """Unit tests for ``jitterbug.io``: loaders, format inference, validation and exporters."""
 
 import json
+import sys
+import types
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -64,6 +66,7 @@ class TestCSV:
         assert ds.measurements[0].epoch == 1700000000.0
         assert ds.measurements[0].timestamp == datetime.fromtimestamp(1700000000, tz=timezone.utc)
         assert ds.metadata["source"] == "csv"
+        assert ds.metadata["file_path"] == str(csv_file)
 
     def test_explicit_format_wins_over_extension(self, loader: DataLoader, tmp_path: Path) -> None:
         path = tmp_path / "data.txt"
@@ -149,9 +152,25 @@ class TestFormatInference:
             loader.load_from_file(path, file_format="xml")
 
 
+@pytest.fixture
+def influxdb_client(monkeypatch: pytest.MonkeyPatch) -> types.ModuleType:
+    """The real package when installed, otherwise a stub so the loader's import succeeds.
+
+    The tests patch ``InfluxDBClient`` either way, so they exercise the loader's mapping
+    and clean-up logic even in CI, where the ``influx`` extra is not installed.
+    """
+    try:
+        import influxdb_client
+    except ImportError:
+        influxdb_client = types.ModuleType("influxdb_client")
+        influxdb_client.InfluxDBClient = MagicMock()  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "influxdb_client", influxdb_client)
+    return influxdb_client
+
+
+@pytest.mark.usefixtures("influxdb_client")
 class TestInfluxDB:
     def test_query_result_is_mapped_to_a_dataset(self, loader: DataLoader) -> None:
-        pytest.importorskip("influxdb_client")
         frame = pd.DataFrame(
             {
                 "_time": pd.to_datetime(["2024-01-01T00:00:00Z", "2024-01-01T00:01:00Z"]),
@@ -171,7 +190,6 @@ class TestInfluxDB:
         assert ds.measurements[0].epoch == datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp()
 
     def test_multiple_tables_are_concatenated(self, loader: DataLoader) -> None:
-        pytest.importorskip("influxdb_client")
         t1 = pd.DataFrame({"_time": pd.to_datetime(["2024-01-01T00:00:00Z"]), "_value": [1.0]})
         t2 = pd.DataFrame({"_time": pd.to_datetime(["2024-01-01T00:01:00Z"]), "_value": [2.0]})
         client = MagicMock()
@@ -181,7 +199,6 @@ class TestInfluxDB:
         assert len(ds) == 2
 
     def test_missing_value_column(self, loader: DataLoader) -> None:
-        pytest.importorskip("influxdb_client")
         frame = pd.DataFrame({"_time": pd.to_datetime(["2024-01-01T00:00:00Z"]), "x": [1.0]})
         client = MagicMock()
         client.query_api.return_value.query_data_frame.return_value = frame

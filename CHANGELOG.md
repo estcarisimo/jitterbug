@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_available_algorithms()` now reports only the detectors whose packages are
   installed (`importlib.util.find_spec`), with tests.
 - Continuous integration on GitHub Actions: ruff lint and format checks, mypy
-  (advisory), `pip-audit` over the locked dependency set, tests on Python 3.10–3.13
+  (blocking since #19), `pip-audit` over the locked dependency set, tests on Python 3.10–3.13
   (Ubuntu) and 3.12 (macOS) with a CLI smoke test on the bundled PAM 2022 dataset,
   and a build job that installs the wheel in a clean environment. (#4)
 - `tests/test_cli.py`: first tests for the command-line interface, run through Typer's
@@ -75,6 +75,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `load_from_influxdb` computed epochs as `astype(int) / 1e9`, which assumes nanosecond
+  timestamps; pandas 3 parses `_time` at microsecond resolution, so every epoch was
+  1000× too small. The conversion is now resolution-independent. Found by running the
+  mocked InfluxDB tests in CI, where the `influx` extra is absent (a stub module now
+  stands in for it).
+- `verbose: true` in a configuration file had no effect from the CLI: the command
+  installs a logging handler before reading the file, and the analyzer's second
+  `basicConfig` was a no-op. The analyzer now sets the `jitterbug` logger level.
 - The two analysis notebooks in `examples/` run again: they imported `requests` (no
   longer a dependency), read fields that do not exist on the result models
   (`start_time`, `confidence_score`, `jitter_ratio`, `ks_statistic`), and their "REST
