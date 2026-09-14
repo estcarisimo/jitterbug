@@ -74,9 +74,10 @@ class JitterbugAnalyzer:
             level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         # basicConfig is a no-op once a handler is installed (the CLI installs one before
-        # it reads the configuration file), so the package logger is set explicitly for
-        # ``verbose: true`` in a file to take effect.
-        logging.getLogger("jitterbug").setLevel(level)
+        # it reads the configuration file), so ``verbose: true`` raises the package logger
+        # explicitly. The non-verbose case leaves whatever the caller configured alone.
+        if self.config.verbose:
+            logging.getLogger("jitterbug").setLevel(logging.DEBUG)
 
     def _initialize_components(self) -> None:
         """Initialize all analysis components."""

@@ -106,9 +106,30 @@ def test_verbose_from_a_config_file_takes_effect(tmp_path: Path):
     second `basicConfig` is a no-op, so `verbose: true` never enabled debug output."""
     import logging
 
-    logging.basicConfig(level=logging.INFO)  # what the CLI does before loading the config
+    from jitterbug.analyzer import JitterbugAnalyzer
+    from jitterbug.cli.main import _apply_overrides
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("verbose: true\n")
+    package_logger = logging.getLogger("jitterbug")
+    try:
+        logging.basicConfig(level=logging.INFO)  # what the CLI does before loading the file
+        config = _apply_overrides(JitterbugConfig.from_file(cfg))  # the CLI's own wiring
+        JitterbugAnalyzer(config)
+        assert package_logger.isEnabledFor(logging.DEBUG)
+    finally:
+        package_logger.setLevel(logging.NOTSET)  # do not leak into other tests
+
+
+def test_analyzer_does_not_downgrade_an_explicit_logger_level():
+    import logging
+
     from jitterbug.analyzer import JitterbugAnalyzer
 
-    JitterbugAnalyzer(JitterbugConfig(verbose=True))
-    assert logging.getLogger("jitterbug").isEnabledFor(logging.DEBUG)
-    logging.getLogger("jitterbug").setLevel(logging.NOTSET)  # do not leak into other tests
+    package_logger = logging.getLogger("jitterbug")
+    try:
+        package_logger.setLevel(logging.DEBUG)
+        JitterbugAnalyzer(JitterbugConfig())  # verbose=False must leave it alone
+        assert package_logger.level == logging.DEBUG
+    finally:
+        package_logger.setLevel(logging.NOTSET)
