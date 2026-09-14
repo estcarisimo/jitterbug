@@ -73,6 +73,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The two analysis notebooks in `examples/` run again: they imported `requests` (no
+  longer a dependency), read fields that do not exist on the result models
+  (`start_time`, `confidence_score`, `jitter_ratio`, `ks_statistic`), and their "REST
+  API" sections exercised the server removed in this release. Executed end to end with
+  `nbconvert` before committing.
 - Change point timestamps are timezone-aware UTC, like the measurements they come from.
   They used to be naive local time, so `start_timestamp`/`end_timestamp` in results
   files and the CLI table depended on the machine's timezone (the epochs were always
