@@ -368,6 +368,16 @@ class JitterbugPlotter:
             confidences.append(inf.confidence)
             congestion_status.append(1 if inf.is_congested else 0)
 
+        if not times:
+            # Nothing to draw (insufficient data or no change points): keep the figure
+            # so `save_all_plots` still produces its full set of files.
+            ax.text(0.5, 0.5, "No inferences", ha="center", va="center", transform=ax.transAxes)
+            ax.set_axis_off()
+            ax.set_title(title)
+            if save_path:
+                fig.savefig(save_path, dpi=300, bbox_inches="tight")
+            return fig
+
         # Create heatmap data
         time_indices = np.arange(len(times))
         heatmap_data = np.array([confidences, congestion_status])

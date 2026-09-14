@@ -22,7 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   visualization code path (headless, `MPLBACKEND=Agg`).
 - `bcp_device` option in `change_point_detection` (default `cpu`). The Bayesian library
   picks a GPU when it sees one, and on Apple Silicon that made the paper's configuration
-  take over half an hour; on CPU it takes about two minutes.
+  take over half an hour; on CPU it takes about two minutes. The value is validated
+  (`cpu`, `cuda` or `mps`), and a test with a mocked backend checks that it reaches
+  both the likelihood and the detection call.
 - `get_available_algorithms()` now reports only the detectors whose packages are
   installed (`importlib.util.find_spec`), with tests.
 - Continuous integration on GitHub Actions: ruff lint and format checks, mypy
@@ -85,7 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `jitterbug visualize` works again: it now writes the five matplotlib figures through
   `JitterbugPlotter.save_all_plots` and prints the summary. It used to abort with
   `'CongestionInference' object has no attribute 'timestamp'` (#7). The
-  `--static-only`/`--interactive-only` flags are gone; `--prefix` is new.
+  `--static-only`/`--interactive-only` flags are gone; `--prefix` is new. When the
+  analysis yields no inferences the confidence heatmap is an empty placeholder instead
+  of an `imshow` error, so the command still writes its five files.
 - Time axes in every plot use matplotlib's automatic date locator and concise formatter
   instead of one labelled tick per hour, which produced an unreadable axis on multi-day
   series.

@@ -40,9 +40,8 @@ def test_analyze_example_dataset(tmp_path: Path):
 
 
 @pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
-def test_visualize_writes_the_standard_plots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_visualize_writes_the_standard_plots(tmp_path: Path):
     pytest.importorskip("matplotlib")
-    monkeypatch.setenv("MPLBACKEND", "Agg")
     out = tmp_path / "plots"
     result = runner.invoke(app, ["visualize", str(EXAMPLE_CSV), "--output-dir", str(out)])
     assert result.exit_code == 0, result.output

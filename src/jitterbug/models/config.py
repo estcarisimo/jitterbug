@@ -39,7 +39,7 @@ class ChangePointDetectionConfig(BaseModel):
     # Algorithm-specific parameters
     ruptures_model: str = Field(default="rbf", description="Ruptures model type")
     ruptures_penalty: float = Field(default=10.0, gt=0, description="Ruptures penalty parameter")
-    bcp_device: str = Field(
+    bcp_device: Literal["cpu", "cuda", "mps"] = Field(
         default="cpu",
         description=(
             "Torch device for the Bayesian detector (cpu, cuda, mps). CPU is the fastest "
