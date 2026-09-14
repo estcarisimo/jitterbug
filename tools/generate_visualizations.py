@@ -122,7 +122,7 @@ def generate_algorithm_visualization(algorithm_name, output_dir):
             f.write(f"Average confidence: {summary['average_confidence']:.3f}\n")
             f.write(f"Change points detected: {len(analyzer.change_points)}\n")
             f.write(f"Expected accuracy: {(summary['congested_periods'] / 15) * 100:.1f}%\n")
-            f.write("\nCongested periods:\n")
+            f.write("\nCongested periods (UTC):\n")
             for i, period in enumerate(congested_periods, 1):
                 f.write(f"{i:2d}. {period['start'].strftime('%Y-%m-%d %H:%M')} - ")
                 f.write(f"{period['end'].strftime('%H:%M')} ({period['duration']:.1f}h)\n")

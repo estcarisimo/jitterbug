@@ -6,7 +6,7 @@ Average confidence: 0.900
 Change points detected: 24
 Expected accuracy: 73.3%
 
-Congested periods:
+Congested periods (UTC):
  1. 2017-12-02 12:00 - 19:30 (7.5h)
  2. 2017-12-03 11:45 - 19:15 (7.5h)
  3. 2017-12-04 14:00 - 19:00 (5.0h)
