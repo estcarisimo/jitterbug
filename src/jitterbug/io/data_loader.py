@@ -310,7 +310,8 @@ class DataLoader:
                 # (pandas >= 3 parses to microseconds, so `.astype(int) / 1e9` was
                 # off by a factor of 1000).
                 times = pd.to_datetime(df["_time"], utc=True)
-                df["epoch"] = (times - pd.Timestamp(0, tz="UTC")) / pd.Timedelta(seconds=1)
+                micros = (times - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(microseconds=1)
+                df["epoch"] = micros / 1e6
 
             # Look for RTT value column
             rtt_column = None

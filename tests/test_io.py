@@ -189,6 +189,19 @@ class TestInfluxDB:
         assert [m.rtt_value for m in ds.measurements] == [30.0, 31.0]
         assert ds.measurements[0].epoch == datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp()
 
+    def test_epoch_is_exact_at_microsecond_resolution(self, loader: DataLoader) -> None:
+        """Regression: `astype(int) / 1e9` assumed nanoseconds and was 1000x off when
+        pandas parsed `_time` at microsecond resolution (the pandas 3 default)."""
+        times = pd.Series(pd.to_datetime(["2024-01-01T00:00:00.250Z"])).astype(
+            "datetime64[us, UTC]"
+        )
+        frame = pd.DataFrame({"_time": times, "_value": [1.0]})
+        client = MagicMock()
+        client.query_api.return_value.query_data_frame.return_value = frame
+        with patch("influxdb_client.InfluxDBClient", return_value=client):
+            ds = loader.load_from_influxdb(url="u", token="t", org="o", bucket="b", query="q")
+        assert ds.measurements[0].epoch == 1704067200.25
+
     def test_multiple_tables_are_concatenated(self, loader: DataLoader) -> None:
         t1 = pd.DataFrame({"_time": pd.to_datetime(["2024-01-01T00:00:00Z"]), "_value": [1.0]})
         t2 = pd.DataFrame({"_time": pd.to_datetime(["2024-01-01T00:01:00Z"]), "_value": [2.0]})
