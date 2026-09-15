@@ -130,7 +130,8 @@ class DataLoader:
 
     def _infer_format(self, file_path: Path) -> str:
         """
-        Infer file format from file extension.
+        Infer the file format: ``.csv``/``.json``/``.jsonl`` by extension, otherwise
+        from the first line (a JSON object or a comma-separated header).
 
         Parameters
         ----------
@@ -140,7 +141,12 @@ class DataLoader:
         Returns
         -------
         str
-            Inferred format.
+            ``"csv"`` or ``"json"``.
+
+        Raises
+        ------
+        ValueError
+            If the file cannot be read as text or its first line matches neither format.
         """
         extension = file_path.suffix.lower()
 
@@ -152,7 +158,7 @@ class DataLoader:
         try:
             with file_path.open() as f:
                 first_line = f.readline().strip()
-        except OSError as e:
+        except (OSError, UnicodeError) as e:
             raise ValueError(f"Cannot infer format for file: {file_path}") from e
         if first_line.startswith("{"):
             return "json"
@@ -300,7 +306,13 @@ class DataLoader:
 
             # Map InfluxDB columns to expected format
             if "_time" in df.columns:
-                df["epoch"] = pd.to_datetime(df["_time"]).astype(int) / 1e9
+                # Seconds since the epoch regardless of the datetime resolution
+                # (pandas >= 3 parses to microseconds, so `.astype(int) / 1e9` was
+                # off by a factor of 1000). Rounded to microseconds like
+                # `pd.Timestamp.timestamp()`: a float64 epoch cannot hold nanoseconds.
+                times = pd.to_datetime(df["_time"], utc=True)
+                nanos = (times - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(nanoseconds=1)
+                df["epoch"] = (nanos / 1e9).round(6)
 
             # Look for RTT value column
             rtt_column = None

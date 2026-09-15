@@ -40,9 +40,8 @@ def test_analyze_example_dataset(tmp_path: Path):
 
 
 @pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
-def test_visualize_writes_the_standard_plots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_visualize_writes_the_standard_plots(tmp_path: Path):
     pytest.importorskip("matplotlib")
-    monkeypatch.setenv("MPLBACKEND", "Agg")
     out = tmp_path / "plots"
     result = runner.invoke(app, ["visualize", str(EXAMPLE_CSV), "--output-dir", str(out)])
     assert result.exit_code == 0, result.output
@@ -83,3 +82,54 @@ def test_invalid_algorithm_flag_is_rejected():
     result = runner.invoke(app, ["analyze", str(EXAMPLE_CSV), "--algorithm", "nope"])
     assert result.exit_code != 0
     assert "algorithm" in result.output
+
+
+@pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
+def test_analyze_honours_a_config_file_end_to_end(tmp_path: Path):
+    """The file's `output_format` and `threshold` must reach the analyzer through the CLI."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "change_point_detection:\n  algorithm: ruptures\n  threshold: 0.9\n"
+        "jitter_analysis:\n  method: jitter_dispersion\noutput_format: csv\n"
+    )
+    out = tmp_path / "results.csv"
+    result = runner.invoke(
+        app, ["analyze", str(EXAMPLE_CSV), "--config", str(cfg), "--output", str(out)]
+    )
+    assert result.exit_code == 0, result.output
+    header = out.read_text().splitlines()[0]
+    assert header == "starts,ends,congestion", header  # the v1 CSV layout, not JSON
+
+
+def test_verbose_from_a_config_file_takes_effect(tmp_path: Path):
+    """Regression: the CLI installs a logging handler before reading the file, and a
+    second `basicConfig` is a no-op, so `verbose: true` never enabled debug output."""
+    import logging
+
+    from jitterbug.analyzer import JitterbugAnalyzer
+    from jitterbug.cli.main import _apply_overrides
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("verbose: true\n")
+    package_logger = logging.getLogger("jitterbug")
+    try:
+        logging.basicConfig(level=logging.INFO)  # what the CLI does before loading the file
+        config = _apply_overrides(JitterbugConfig.from_file(cfg))  # the CLI's own wiring
+        JitterbugAnalyzer(config)
+        assert package_logger.isEnabledFor(logging.DEBUG)
+    finally:
+        package_logger.setLevel(logging.NOTSET)  # do not leak into other tests
+
+
+def test_analyzer_does_not_downgrade_an_explicit_logger_level():
+    import logging
+
+    from jitterbug.analyzer import JitterbugAnalyzer
+
+    package_logger = logging.getLogger("jitterbug")
+    try:
+        package_logger.setLevel(logging.DEBUG)
+        JitterbugAnalyzer(JitterbugConfig())  # verbose=False must leave it alone
+        assert package_logger.level == logging.DEBUG
+    finally:
+        package_logger.setLevel(logging.NOTSET)

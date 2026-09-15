@@ -73,6 +73,11 @@ class JitterbugAnalyzer:
         logging.basicConfig(
             level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
+        # basicConfig is a no-op once a handler is installed (the CLI installs one before
+        # it reads the configuration file), so ``verbose: true`` raises the package logger
+        # explicitly. The non-verbose case leaves whatever the caller configured alone.
+        if self.config.verbose:
+            logging.getLogger("jitterbug").setLevel(logging.DEBUG)
 
     def _initialize_components(self) -> None:
         """Initialize all analysis components."""
@@ -93,7 +98,8 @@ class JitterbugAnalyzer:
         file_path : Union[str, Path]
             Path to the RTT data file.
         file_format : Optional[str]
-            Format of the file ('csv', 'json', 'influx'). If None, will be inferred.
+            Format of the file ('csv' or 'json'). If None, it is inferred from the
+            extension, then from the first line.
 
         Returns
         -------

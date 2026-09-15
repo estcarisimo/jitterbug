@@ -3,7 +3,9 @@ Comprehensive tests for all change point detection algorithms.
 """
 
 import importlib.util
-from datetime import datetime, timedelta
+import sys
+import types
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
@@ -134,6 +136,15 @@ class TestRupturesDetector:
             except ImportError:
                 pytest.skip(f"Ruptures library not available for model {model}")
 
+    def test_ruptures_timestamps_are_utc(self, three_segment_min_rtt: MinimumRTTDataset):
+        """Regression: change point timestamps used to be naive local time."""
+        detector = RupturesDetector(ChangePointDetectionConfig(algorithm="ruptures"))
+        change_points = detector.detect(three_segment_min_rtt)
+        assert change_points, "the three-segment series has two clear jumps"
+        for cp in change_points:
+            assert cp.timestamp.tzinfo == timezone.utc
+            assert cp.timestamp.timestamp() == cp.epoch
+
     def test_ruptures_penalty_effects(self):
         """Test that penalty parameter affects number of change points."""
         dataset = TestDataGenerator.generate_synthetic_data(60, [20, 40])
@@ -256,6 +267,56 @@ class TestBayesianChangePointDetector:
 
         except ImportError:
             pytest.skip("Bayesian change point detection library not available")
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda", "mps"])
+    def test_bcp_device_is_forwarded_to_the_backend(
+        self, device: str, monkeypatch: pytest.MonkeyPatch, three_segment_min_rtt: MinimumRTTDataset
+    ):
+        """`bcp_device` must reach both the likelihood and the detection call (mocked backend)."""
+        calls: dict[str, object] = {}
+
+        class StudentT:
+            def __init__(self, device: str = "cpu"):
+                calls["likelihood_device"] = device
+
+        def offline_changepoint_detection(data, prior, likelihood, truncate, device):
+            calls["detection_device"] = device
+            calls["likelihood"] = likelihood
+            log_pcp = np.full((2, len(data)), -np.inf)
+            log_pcp[0, 5] = 0.0  # probability 1 of a change point at index 5
+            return None, None, log_pcp
+
+        class Priors:
+            @staticmethod
+            def const_prior(x, p):
+                return p
+
+        pkg = "bayesian_changepoint_detection"
+        submodules = {
+            "bayesian_models": {"offline_changepoint_detection": offline_changepoint_detection},
+            "offline_likelihoods": {"StudentT": StudentT},
+            "priors": {"const_prior": Priors.const_prior},
+        }
+        package = types.ModuleType(pkg)
+        monkeypatch.setitem(sys.modules, pkg, package)
+        for name, attrs in submodules.items():
+            module = types.ModuleType(f"{pkg}.{name}")
+            module.__dict__.update(attrs)
+            setattr(package, name, module)
+            monkeypatch.setitem(sys.modules, f"{pkg}.{name}", module)
+
+        config = ChangePointDetectionConfig(algorithm="bcp", bcp_device=device)
+        change_points = BayesianChangePointDetector(config).detect(three_segment_min_rtt)
+
+        assert [cp.epoch for cp in change_points] == [three_segment_min_rtt.measurements[5].epoch]
+        assert change_points[0].timestamp.tzinfo == timezone.utc
+        assert calls["likelihood_device"] == device
+        assert calls["detection_device"] == device
+        assert isinstance(calls["likelihood"], StudentT)
+
+    def test_bcp_device_rejects_unknown_values(self):
+        with pytest.raises(ValidationError):
+            ChangePointDetectionConfig(algorithm="bcp", bcp_device="gpu")
 
 
 class TestChangePointDetectorInterface:

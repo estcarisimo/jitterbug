@@ -22,11 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   visualization code path (headless, `MPLBACKEND=Agg`).
 - `bcp_device` option in `change_point_detection` (default `cpu`). The Bayesian library
   picks a GPU when it sees one, and on Apple Silicon that made the paper's configuration
-  take over half an hour; on CPU it takes about two minutes.
+  take over half an hour; on CPU it takes about two minutes. The value is validated
+  (`cpu`, `cuda` or `mps`), and a test with a mocked backend checks that it reaches
+  both the likelihood and the detection call.
 - `get_available_algorithms()` now reports only the detectors whose packages are
   installed (`importlib.util.find_spec`), with tests.
 - Continuous integration on GitHub Actions: ruff lint and format checks, mypy
-  (advisory), `pip-audit` over the locked dependency set, tests on Python 3.10–3.13
+  (blocking since #19), `pip-audit` over the locked dependency set, tests on Python 3.10–3.13
   (Ubuntu) and 3.12 (macOS) with a CLI smoke test on the bundled PAM 2022 dataset,
   and a build job that installs the wheel in a clean environment. (#4)
 - `tests/test_cli.py`: first tests for the command-line interface, run through Typer's
@@ -42,8 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Dependency floors raised to releases that support Python 3.10 (`numpy>=1.24`,
-  `pandas>=2.0`, `scipy>=1.10`, `pydantic>=2.5`, `typer>=0.12`, `rich>=13`); `click` and
-  `requests` were declared but never imported and are no longer dependencies.
+  `pandas>=2.0`, `scipy>=1.10`, `pydantic>=2.5`, `pydantic-settings>=2.1`,
+  `ruptures>=1.1.9`, `typer>=0.12`, `rich>=13`); `click` and `requests` were declared
+  but never imported and are no longer dependencies.
 - `bandit` runs in the CI lint job (clean at the time of writing).
 - mypy passes with `disallow_untyped_defs` on the whole package and is now a blocking CI
   check. Pydantic models use `model_config = ConfigDict(...)` / `SettingsConfigDict`
@@ -55,10 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instructions are gone; every command was run before being documented. The REST API,
   Docker and `visualize` command are not documented until they work (#6, #7).
 - **Python 3.10 or newer is required** (was 3.8). (#4)
-- All temporary ruff ignores are gone: `pathlib` everywhere (`Path.open`, `/`, `mkdir`,
-  `iterdir`), `raise ... from` inside every `except`, collapsed nested conditions, no line
-  over 100 characters. `tools/` scripts no longer patch `sys.path` to a directory that
-  does not exist. Behaviour unchanged (CLI output on the bundled dataset is identical).
+- All temporary ruff ignores are gone except `B008` (Typer's `Option(...)` defaults):
+  `pathlib` everywhere (`Path.open`, `/`, `mkdir`, `iterdir`), `raise ... from` inside
+  every `except`, collapsed nested conditions, no line over 100 characters. `tools/`
+  scripts no longer patch `sys.path` to a directory that does not exist. Behaviour
+  unchanged (CLI output on the bundled dataset is identical).
 - `pyproject.toml` is the single source of packaging metadata; `setup.py`,
   `requirements.txt`, `requirements-new.txt` and `install_dev.sh` are gone. The build
   backend is `uv_build`. Development tools live in the `dev` dependency group, so
@@ -71,6 +75,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A file with an unknown extension whose content is not text raises the documented
+  `ValueError("Cannot infer format ...")` instead of leaking `UnicodeDecodeError`.
+- `load_from_influxdb` computed epochs as `astype(int) / 1e9`, which assumes nanosecond
+  timestamps; pandas 3 parses `_time` at microsecond resolution, so every epoch was
+  1000× too small. The conversion is now resolution-independent. Found by running the
+  mocked InfluxDB tests in CI, where the `influx` extra is absent (a stub module now
+  stands in for it).
+- `verbose: true` in a configuration file had no effect from the CLI: the command
+  installs a logging handler before reading the file, and the analyzer's second
+  `basicConfig` was a no-op. The analyzer now sets the `jitterbug` logger level.
+- The two analysis notebooks in `examples/` run again: they imported `requests` (no
+  longer a dependency), read fields that do not exist on the result models
+  (`start_time`, `confidence_score`, `jitter_ratio`, `ks_statistic`), and their "REST
+  API" sections exercised the server removed in this release. Executed end to end with
+  `nbconvert` before committing.
 - Change point timestamps are timezone-aware UTC, like the measurements they come from.
   They used to be naive local time, so `start_timestamp`/`end_timestamp` in results
   files and the CLI table depended on the machine's timezone (the epochs were always
@@ -85,7 +104,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `jitterbug visualize` works again: it now writes the five matplotlib figures through
   `JitterbugPlotter.save_all_plots` and prints the summary. It used to abort with
   `'CongestionInference' object has no attribute 'timestamp'` (#7). The
-  `--static-only`/`--interactive-only` flags are gone; `--prefix` is new.
+  `--static-only`/`--interactive-only` flags are gone; `--prefix` is new. When the
+  analysis yields no inferences the confidence heatmap is an empty placeholder instead
+  of an `imshow` error, so the command still writes its five files.
 - Time axes in every plot use matplotlib's automatic date locator and concise formatter
   instead of one labelled tick per hour, which produced an unreadable axis on multi-day
   series.

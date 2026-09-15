@@ -1,5 +1,6 @@
 """Shared fixtures: small synthetic RTT series with known structure."""
 
+import os
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -13,6 +14,11 @@ from jitterbug.models import (
     RTTDataset,
     RTTMeasurement,
 )
+
+# Headless backend for the visualization tests, forced (not `setdefault`) so a GUI backend
+# in the developer's environment cannot leak in. It has to be in place before any test
+# module imports `jitterbug.cli.main`, which imports matplotlib.pyplot at collection time.
+os.environ["MPLBACKEND"] = "Agg"
 
 T0 = datetime(2024, 1, 1, tzinfo=timezone.utc)
 
