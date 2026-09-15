@@ -308,10 +308,11 @@ class DataLoader:
             if "_time" in df.columns:
                 # Seconds since the epoch regardless of the datetime resolution
                 # (pandas >= 3 parses to microseconds, so `.astype(int) / 1e9` was
-                # off by a factor of 1000).
+                # off by a factor of 1000). Rounded to microseconds like
+                # `pd.Timestamp.timestamp()`: a float64 epoch cannot hold nanoseconds.
                 times = pd.to_datetime(df["_time"], utc=True)
-                micros = (times - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(microseconds=1)
-                df["epoch"] = micros / 1e6
+                nanos = (times - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(nanoseconds=1)
+                df["epoch"] = (nanos / 1e9).round(6)
 
             # Look for RTT value column
             rtt_column = None
