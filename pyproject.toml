@@ -104,15 +104,8 @@ extend-exclude = ["examples/*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "PTH"]
-# Temporary ignores, each tracked as a follow-up PR in the roadmap (Fase 1/4).
-# Remove an entry when its findings are fixed; do not add new ones.
 ignore = [
-    "B008",    # typer.Option(...) defaults are the documented Typer pattern
-    "B904",    # raise ... from err inside except: 15 sites, module by module
-    "E501",    # long lines: 69 sites, mostly docstrings and log strings
-    "PTH",     # pathlib migration: 31 sites (open(), os.path.join, ...)
-    "SIM102",  # collapsible if: 5 sites
-    "SIM108",  # if/else -> ternary: 3 sites
+    "B008",  # typer.Option(...) defaults are the documented Typer pattern
 ]
 
 [tool.ruff.lint.isort]

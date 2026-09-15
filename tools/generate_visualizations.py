@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
-
 from datetime import datetime
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -109,7 +105,7 @@ def generate_algorithm_visualization(algorithm_name, output_dir):
         plt.tight_layout()
 
         # Save the plot
-        output_path = os.path.join(output_dir, f"{algorithm_name}_congestion_analysis.png")
+        output_path = output_dir / f"{algorithm_name}_congestion_analysis.png"
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
         print(f"Saved: {output_path}")
 
@@ -117,8 +113,8 @@ def generate_algorithm_visualization(algorithm_name, output_dir):
         summary = analyzer.get_summary_statistics(results)
 
         # Save a text summary
-        summary_path = os.path.join(output_dir, f"{algorithm_name}_summary.txt")
-        with open(summary_path, "w") as f:
+        summary_path = output_dir / f"{algorithm_name}_summary.txt"
+        with summary_path.open("w") as f:
             f.write(f"Algorithm: {algorithm_name.upper()}\n")
             f.write(f"Total periods: {summary['total_periods']}\n")
             f.write(f"Congested periods: {summary['congested_periods']}\n")
@@ -200,7 +196,7 @@ def create_comparison_chart(results, output_dir):
     plt.tight_layout()
 
     # Save comparison chart
-    comparison_path = os.path.join(output_dir, "algorithm_comparison.png")
+    comparison_path = output_dir / "algorithm_comparison.png"
     plt.savefig(comparison_path, dpi=300, bbox_inches="tight")
     print(f"Saved comparison chart: {comparison_path}")
 
@@ -208,8 +204,8 @@ def create_comparison_chart(results, output_dir):
 
 
 def main():
-    output_dir = "examples/network_analysis/plots"
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = Path("examples/network_analysis/plots")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate visualizations for all algorithms
     algorithms = ["bcp", "ruptures", "torch", "rbeast", "adtk"]
@@ -225,11 +221,12 @@ def main():
     create_comparison_chart(results, output_dir)
 
     # Create a README for the plots
-    readme_path = os.path.join(output_dir, "README.md")
-    with open(readme_path, "w") as f:
+    readme_path = output_dir / "README.md"
+    with readme_path.open("w") as f:
         f.write("# Jitterbug Algorithm Visualization Examples\n\n")
         f.write(
-            "This directory contains visualization examples for all change point detection algorithms in Jitterbug v2.0.\n\n"
+            "This directory contains visualization examples for all change point detection "
+            "algorithms in Jitterbug v2.0.\n\n"
         )
         f.write("## Algorithm Performance Summary\n\n")
         f.write("| Algorithm | Detected Periods | Accuracy vs Expected (15) | Rating |\n")
@@ -264,7 +261,8 @@ def main():
 
         f.write("\n## Usage\n\n")
         f.write(
-            "These visualizations demonstrate the effectiveness of different change point detection algorithms "
+            "These visualizations demonstrate the effectiveness of different change point "
+            "detection algorithms "
         )
         f.write("for network congestion inference. Each algorithm has different strengths:\n\n")
         f.write("- **BCP**: Gold standard with statistical rigor\n")
@@ -276,8 +274,8 @@ def main():
 
     print(f"Generated visualization examples in: {output_dir}")
     print("\nFiles created:")
-    for file in os.listdir(output_dir):
-        print(f"  - {file}")
+    for file in sorted(output_dir.iterdir()):
+        print(f"  - {file.name}")
 
     print("\nSummary:")
     print("Expected congestion periods: 15")

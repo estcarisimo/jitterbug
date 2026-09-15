@@ -67,7 +67,8 @@ class CongestionInferenceAnalyzer:
 
             if corresponding_jitter is None:
                 logger.warning(
-                    f"No corresponding jitter analysis found for jump {jump.start_epoch}-{jump.end_epoch}"
+                    "No corresponding jitter analysis found for jump "
+                    f"{jump.start_epoch}-{jump.end_epoch}"
                 )
                 continue
 
@@ -174,9 +175,10 @@ class CongestionInferenceAnalyzer:
             if jitter.method == "ks_test" and jitter.p_value is not None:
                 if jitter.p_value < 0.001:  # Very significant
                     confidence += 0.3
-            elif jitter.method == "jitter_dispersion":
-                if jitter.jitter_metric > jitter.threshold * 2:
-                    confidence += 0.3
+            elif (
+                jitter.method == "jitter_dispersion" and jitter.jitter_metric > jitter.threshold * 2
+            ):
+                confidence += 0.3
 
             return True, confidence
 

@@ -69,7 +69,7 @@ def create_sample_data():
 1512144420.0,25.9
 """
 
-    with open(data_dir / "sample_rtts.csv", "w") as f:
+    with (data_dir / "sample_rtts.csv").open("w") as f:
         f.write(csv_data)
 
     print(f"✅ Sample data created in {data_dir}/sample_rtts.csv")

@@ -157,7 +157,7 @@ class JitterbugDashboard:
 
         # Save report metadata
         report_path = output_dir / "report.json"
-        with open(report_path, "w") as f:
+        with report_path.open("w") as f:
             json.dump(report, f, indent=2, default=str)
 
         # Generate HTML index
@@ -243,7 +243,7 @@ class JitterbugDashboard:
 
         # Save report
         report_path = output_dir / "comparison_report.json"
-        with open(report_path, "w") as f:
+        with report_path.open("w") as f:
             json.dump(report, f, indent=2, default=str)
 
         return report
@@ -342,6 +342,7 @@ class JitterbugDashboard:
 
     def _generate_html_index(self, report: dict[str, Any], output_dir: Path) -> None:
         """Generate HTML index file for the report."""
+        congestion_ratio = report["statistics"].get("congestion_ratio", 0)
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -351,7 +352,11 @@ class JitterbugDashboard:
                 body {{ font-family: Arial, sans-serif; margin: 20px; }}
                 .header {{ background-color: #f0f0f0; padding: 20px; border-radius: 5px; }}
                 .section {{ margin: 20px 0; }}
-                .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }}
+                .grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 20px;
+                }}
                 .card {{ border: 1px solid #ddd; padding: 15px; border-radius: 5px; }}
                 .metric {{ font-size: 24px; font-weight: bold; color: #2c3e50; }}
                 .label {{ font-size: 14px; color: #7f8c8d; }}
@@ -377,7 +382,7 @@ class JitterbugDashboard:
                         <div class="label">Congested Periods</div>
                     </div>
                     <div class="card">
-                        <div class="metric">{report["statistics"].get("congestion_ratio", 0):.1%}</div>
+                        <div class="metric">{congestion_ratio:.1%}</div>
                         <div class="label">Congestion Ratio</div>
                     </div>
                     <div class="card">
@@ -423,5 +428,5 @@ class JitterbugDashboard:
         </html>
         """
 
-        with open(output_dir / "index.html", "w") as f:
+        with (output_dir / "index.html").open("w") as f:
             f.write(html_content)

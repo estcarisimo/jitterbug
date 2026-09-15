@@ -161,12 +161,14 @@ class ChangePointDetector:
                         filtered_points[-1] = cp
 
         # Limit maximum number of change points
-        if self.config.max_change_points is not None:
-            if len(filtered_points) > self.config.max_change_points:
-                # Keep the ones with highest confidence
-                filtered_points.sort(key=lambda cp: cp.confidence, reverse=True)
-                filtered_points = filtered_points[: self.config.max_change_points]
-                # Re-sort by timestamp
-                filtered_points.sort(key=lambda cp: cp.epoch)
+        if (
+            self.config.max_change_points is not None
+            and len(filtered_points) > self.config.max_change_points
+        ):
+            # Keep the ones with highest confidence
+            filtered_points.sort(key=lambda cp: cp.confidence, reverse=True)
+            filtered_points = filtered_points[: self.config.max_change_points]
+            # Re-sort by timestamp
+            filtered_points.sort(key=lambda cp: cp.epoch)
 
         return filtered_points

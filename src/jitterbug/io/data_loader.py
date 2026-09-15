@@ -95,7 +95,8 @@ class DataLoader:
 
         if rtt_column is None:
             raise ValueError(
-                "DataFrame must contain RTT values column ('values', 'rtt_value', 'rtt', or 'latency')"
+                "DataFrame must contain RTT values column "
+                "('values', 'rtt_value', 'rtt', or 'latency')"
             )
 
         # Convert to RTT measurements
@@ -153,7 +154,7 @@ class DataLoader:
         else:
             # Try to infer from content
             try:
-                with open(file_path) as f:
+                with file_path.open() as f:
                     first_line = f.readline().strip()
                     if first_line.startswith("{"):
                         return "json"
@@ -161,8 +162,8 @@ class DataLoader:
                         return "csv"
                     else:
                         return "influx"
-            except Exception:
-                raise ValueError(f"Cannot infer format for file: {file_path}")
+            except Exception as e:
+                raise ValueError(f"Cannot infer format for file: {file_path}") from e
 
     def _load_from_csv(self, file_path: Path) -> RTTDataset:
         """
@@ -182,7 +183,7 @@ class DataLoader:
             df = pd.read_csv(file_path)
             return self.load_from_dataframe(df)
         except Exception as e:
-            raise ValueError(f"Failed to load CSV file {file_path}: {e}")
+            raise ValueError(f"Failed to load CSV file {file_path}: {e}") from e
 
     def _load_from_json(self, file_path: Path) -> RTTDataset:
         """
@@ -201,7 +202,7 @@ class DataLoader:
         measurements = []
 
         try:
-            with open(file_path) as f:
+            with file_path.open() as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -239,7 +240,7 @@ class DataLoader:
                         continue
 
         except Exception as e:
-            raise ValueError(f"Failed to load JSON file {file_path}: {e}")
+            raise ValueError(f"Failed to load JSON file {file_path}: {e}") from e
 
         if not measurements:
             raise ValueError(f"No valid RTT measurements found in JSON file {file_path}")
@@ -302,8 +303,8 @@ class DataLoader:
         """
         try:
             from influxdb_client import InfluxDBClient
-        except ImportError:
-            raise ImportError("influxdb-client package is required for InfluxDB support")
+        except ImportError as e:
+            raise ImportError("influxdb-client package is required for InfluxDB support") from e
 
         client = InfluxDBClient(url=url, token=token, org=org)
         query_api = client.query_api()
@@ -313,11 +314,8 @@ class DataLoader:
             result = query_api.query_data_frame(query)
 
             # Convert to RTTDataset
-            if isinstance(result, list):
-                # Multiple tables returned
-                df = pd.concat(result, ignore_index=True)
-            else:
-                df = result
+            # A list means multiple tables were returned
+            df = pd.concat(result, ignore_index=True) if isinstance(result, list) else result
 
             # Map InfluxDB columns to expected format
             if "_time" in df.columns:

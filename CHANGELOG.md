@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instructions are gone; every command was run before being documented. The REST API,
   Docker and `visualize` command are not documented until they work (#6, #7).
 - **Python 3.10 or newer is required** (was 3.8). (#4)
+- All temporary ruff ignores are gone: `pathlib` everywhere (`Path.open`, `/`, `mkdir`,
+  `iterdir`), `raise ... from` inside every `except`, collapsed nested conditions, no line
+  over 100 characters. `tools/` scripts no longer patch `sys.path` to a directory that
+  does not exist. Behaviour unchanged (CLI output on the bundled dataset is identical).
 - `pyproject.toml` is the single source of packaging metadata; `setup.py`,
   `requirements.txt`, `requirements-new.txt` and `install_dev.sh` are gone. The build
   backend is `uv_build`. Development tools live in the `dev` dependency group, so
