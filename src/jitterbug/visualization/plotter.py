@@ -72,6 +72,13 @@ class JitterbugPlotter:
         plt.rcParams["grid.alpha"] = 0.3
         plt.rcParams["font.size"] = 10
 
+    @staticmethod
+    def _format_time_axis(ax: "plt.Axes") -> None:
+        """Pick tick spacing and labels from the plotted time span (hours to weeks)."""
+        locator = mdates.AutoDateLocator()
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+
     def plot_rtt_timeseries(
         self,
         datasets: dict[str, RTTDataset],
@@ -124,9 +131,7 @@ class JitterbugPlotter:
         ax.grid(True, alpha=0.3)
 
         # Format x-axis
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
-        ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
+        self._format_time_axis(ax)
 
         plt.tight_layout()
 
@@ -245,9 +250,7 @@ class JitterbugPlotter:
             ax.tick_params(labelsize=12)
 
         # Format x-axis
-        axes[2].xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-        axes[2].xaxis.set_major_locator(mdates.HourLocator(interval=1))
-        plt.setp(axes[2].xaxis.get_majorticklabels(), rotation=45)
+        self._format_time_axis(axes[2])
 
         plt.suptitle(title, fontsize=16)
         plt.tight_layout()
@@ -322,8 +325,7 @@ class JitterbugPlotter:
         ax.grid(True, alpha=0.3)
 
         # Format x-axis
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
+        self._format_time_axis(ax)
 
         plt.tight_layout()
 
@@ -467,8 +469,7 @@ class JitterbugPlotter:
 
         # Format x-axis for bottom subplot
         axes[-1].set_xlabel("Time")
-        axes[-1].xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-        plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45)
+        self._format_time_axis(axes[-1])
 
         plt.suptitle(title, fontsize=16)
         plt.tight_layout()

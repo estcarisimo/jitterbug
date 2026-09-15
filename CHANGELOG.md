@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `tests/test_cli.py::test_visualize_writes_the_standard_plots`: first test of the
+  visualization code path (headless, `MPLBACKEND=Agg`).
 - `bcp_device` option in `change_point_detection` (default `cpu`). The Bayesian library
   picks a GPU when it sees one, and on Apple Silicon that made the paper's configuration
   take over half an hour; on CPU it takes about two minutes.
@@ -52,6 +54,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `jitterbug visualize` works again: it now writes the five matplotlib figures through
+  `JitterbugPlotter.save_all_plots` and prints the summary. It used to abort with
+  `'CongestionInference' object has no attribute 'timestamp'` (#7). The
+  `--static-only`/`--interactive-only` flags are gone; `--prefix` is new.
+- Time axes in every plot use matplotlib's automatic date locator and concise formatter
+  instead of one labelled tick per hour, which produced an unreadable axis on multi-day
+  series.
 - The Bayesian detector no longer swallows exceptions and returns "no change points";
   a failure is raised as `RuntimeError` with the cause attached.
 - `JitterbugAnalyzer.analyze()` returns the same `metadata` keys (`total_measurements`,
@@ -61,6 +70,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The plotly dashboard and interactive modules** (`visualization/dashboard.py`,
+  `visualization/interactive.py`), the `plotly` dependency, `examples/visualization_demo.py`
+  and the generated `interactive_bcp_ks/timeline.html`. They had no tests, the dashboard
+  crashed on every real result (#7), and the demo called a method that does not exist.
+  `docs/VERSION_COMPARISON.md`, a 1.x-versus-2.x page that described all of the removed
+  components as features, is gone too.
 - **The experimental `torch`, `rbeast` and `adtk` detectors** and their extras. None of
   them was evaluated in the paper; `torch` was a heuristic rather than a trained model,
   and `rbeast`/`adtk` silently fell back to an internal statistical method when their

@@ -31,7 +31,7 @@ src/jitterbug/
                          congestion_inference_analyzer.py
   io/                    data_loader.py (CSV, scamper JSON, InfluxDB), exporters.py
   cli/main.py            Typer CLI: `jitterbug analyze|validate|config|visualize|version`
-  visualization/         plotter.py (matplotlib), dashboard.py + interactive.py (plotly)
+  visualization/         plotter.py (JitterbugPlotter, matplotlib)
 tests/                   pytest; test_cli.py runs the CLI on the bundled dataset
 examples/network_analysis/data/raw.csv         PAM 2022 dataset (47 164 RTT samples)
 examples/network_analysis/expected_results/    reference output of the paper (BCP + KS)
@@ -77,16 +77,17 @@ uv build                                   # sdist + wheel via uv_build
   experimental `torch`, `rbeast` and `adtk` detectors were removed in 2.1; do not
   reintroduce silent fallbacks. `get_available_algorithms()` checks with
   `importlib.util.find_spec`, so it only lists what can run.
-- `visualization/dashboard.py` has known runtime errors (issue #7) and, with
-  `interactive.py`, is a removal candidate. `plotter.py` (matplotlib) is the one to keep.
+- Plotting is matplotlib only (`JitterbugPlotter`). The plotly dashboard and
+  interactive modules were removed in 2.1; do not add plotly back without an explicit
+  request for interactivity.
 - The ruptures detector retries with a lower penalty and tags those results
   `ruptures_<model>_lowpen`.
 - The `bcp` extra is a git dependency (`bayesian_changepoint_detection`), so a wheel
   carrying it cannot be uploaded to PyPI. `all` includes it on purpose for now.
 - Ruff 0.16 formats fenced Python blocks inside Markdown files in the paths it is
   given; `README.md` is deliberately not in the CI paths yet.
-- `examples/visualization_demo.py` calls `analyzer.analyze_dataset`, which does not
-  exist; the examples directory is not tested.
+- The `examples/` scripts and notebooks are not run in CI; `tests/test_cli.py` is the
+  only thing that exercises the bundled dataset end to end.
 
 ## Pull request workflow (required)
 
