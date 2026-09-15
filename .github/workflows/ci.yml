@@ -37,6 +37,9 @@ jobs:
       - name: mypy
         run: uv run mypy src/jitterbug
 
+      - name: bandit (static security scan of the package)
+        run: uvx bandit -r src/jitterbug -q
+
       - name: pip-audit (audits the locked dependency set)
         run: |
           uv export --no-emit-project --no-hashes --extra visualization \

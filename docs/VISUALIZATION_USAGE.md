@@ -44,7 +44,7 @@ Options:
 | `--method, -m` | `jitter_dispersion` (default) or `ks_test` |
 | `--threshold, -t` | Change point detection threshold |
 | `--config, -c` | YAML/JSON configuration file, as for `analyze` |
-| `--format, -f` | Input format (`csv`, `json`, `influx`); auto-detected if omitted |
+| `--format, -f` | Input format (`csv`, `json`); auto-detected if omitted |
 
 Example with the paper's configuration:
 

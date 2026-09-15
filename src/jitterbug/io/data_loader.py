@@ -39,7 +39,8 @@ class DataLoader:
         file_path : Union[str, Path]
             Path to the data file.
         file_format : Optional[str]
-            Format of the file ('csv', 'json', 'influx'). If None, will be inferred.
+            Format of the file ('csv' or 'json'). If None, it is inferred from the
+            extension, then from the first line.
 
         Returns
         -------
@@ -61,8 +62,6 @@ class DataLoader:
             return self._load_from_csv(file_path)
         elif file_format == "json":
             return self._load_from_json(file_path)
-        elif file_format == "influx":
-            return self._load_from_influx_export(file_path)
         else:
             raise ValueError(f"Unsupported file format: {file_format}")
 
@@ -149,21 +148,20 @@ class DataLoader:
             return "csv"
         elif extension in [".json", ".jsonl"]:
             return "json"
-        elif extension in [".influx", ".flux"]:
-            return "influx"
-        else:
-            # Try to infer from content
-            try:
-                with file_path.open() as f:
-                    first_line = f.readline().strip()
-                    if first_line.startswith("{"):
-                        return "json"
-                    elif "," in first_line:
-                        return "csv"
-                    else:
-                        return "influx"
-            except Exception as e:
-                raise ValueError(f"Cannot infer format for file: {file_path}") from e
+        # Unknown extension: look at the first line
+        try:
+            with file_path.open() as f:
+                first_line = f.readline().strip()
+        except OSError as e:
+            raise ValueError(f"Cannot infer format for file: {file_path}") from e
+        if first_line.startswith("{"):
+            return "json"
+        if "," in first_line:
+            return "csv"
+        raise ValueError(
+            f"Cannot infer format for file: {file_path} (expected a CSV header or a JSON "
+            "object on the first line; pass file_format explicitly)"
+        )
 
     def _load_from_csv(self, file_path: Path) -> RTTDataset:
         """
@@ -238,7 +236,7 @@ class DataLoader:
                                         )
 
                     except json.JSONDecodeError:
-                        logger.warning(f"Skipping invalid JSON line: {line}")
+                        logger.warning(f"Skipping invalid JSON line: {line[:120]!r}")
                         continue
 
         except Exception as e:
@@ -259,25 +257,6 @@ class DataLoader:
                 "total_measurements": len(measurements),
             },
         )
-
-    def _load_from_influx_export(self, file_path: Path) -> RTTDataset:
-        """
-        Load RTT data from InfluxDB export file.
-
-        Parameters
-        ----------
-        file_path : Path
-            Path to the InfluxDB export file.
-
-        Returns
-        -------
-        RTTDataset
-            Loaded RTT dataset.
-        """
-        # This is a placeholder implementation
-        # In a real implementation, you would parse the InfluxDB line protocol
-        # or CSV export format
-        raise NotImplementedError("InfluxDB export loading not yet implemented")
 
     def load_from_influxdb(
         self, url: str, token: str, org: str, bucket: str, query: str
