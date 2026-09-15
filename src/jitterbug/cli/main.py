@@ -6,6 +6,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -15,7 +16,7 @@ from rich.table import Table
 
 from ..analyzer import JitterbugAnalyzer
 from ..io import DataLoader
-from ..models import JitterbugConfig
+from ..models import CongestionInferenceResult, JitterbugConfig
 
 # matplotlib is an optional dependency; the visualize command checks for it at run time.
 try:
@@ -26,6 +27,36 @@ except ImportError:  # pragma: no cover - only if the package itself is broken
 
 # Initialize Rich console
 console = Console()
+
+
+def _apply_overrides(
+    base: JitterbugConfig,
+    *,
+    method: str | None = None,
+    algorithm: str | None = None,
+    threshold: float | None = None,
+    output_format: str | None = None,
+    verbose: bool = False,
+) -> JitterbugConfig:
+    """
+    Return a copy of ``base`` with the command-line overrides that were actually given.
+
+    Values are re-validated by Pydantic, so an unknown method or algorithm name is
+    rejected with the same message as in a configuration file.
+    """
+    data = base.model_dump()
+    if method is not None:
+        data["jitter_analysis"]["method"] = method
+    if algorithm is not None:
+        data["change_point_detection"]["algorithm"] = algorithm
+    if threshold is not None:
+        data["change_point_detection"]["threshold"] = threshold
+    if output_format is not None:
+        data["output_format"] = output_format
+    if verbose:
+        data["verbose"] = True
+    return JitterbugConfig.model_validate(data)
+
 
 # Create Typer app
 app = typer.Typer(
@@ -54,25 +85,28 @@ def analyze(
         help="Input file format (csv, json, influx). Auto-detected if not specified.",
     ),
     output_format: str | None = typer.Option(
-        "json", "--output-format", help="Output format (json, csv, parquet)"
+        None, "--output-format", help="Output format (json, csv, parquet) [default: json]"
     ),
     method: str | None = typer.Option(
-        "jitter_dispersion",
+        None,
         "--method",
         "-m",
-        help="Jitter analysis method (jitter_dispersion, ks_test)",
+        help="Jitter analysis method (jitter_dispersion, ks_test) [default: jitter_dispersion]",
     ),
     algorithm: str | None = typer.Option(
-        "ruptures", "--algorithm", "-a", help="Change point detection algorithm (ruptures, bcp)"
+        None,
+        "--algorithm",
+        "-a",
+        help="Change point detection algorithm (ruptures, bcp) [default: ruptures]",
     ),
     threshold: float | None = typer.Option(
-        0.25, "--threshold", "-t", help="Change point detection threshold"
+        None, "--threshold", "-t", help="Change point detection threshold [default: 0.25]"
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
     summary_only: bool = typer.Option(
         False, "--summary-only", help="Show only summary statistics (no detailed periods)"
     ),
-):
+) -> None:
     """
     Analyze RTT data for network congestion inference.
 
@@ -97,12 +131,15 @@ def analyze(
         # Load configuration
         jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
 
-        # Override config with command-line arguments
-        jitterbug_config.jitter_analysis.method = method
-        jitterbug_config.change_point_detection.algorithm = algorithm
-        jitterbug_config.change_point_detection.threshold = threshold
-        jitterbug_config.verbose = verbose
-        jitterbug_config.output_format = output_format
+        # Command-line flags override the file only when given explicitly
+        jitterbug_config = _apply_overrides(
+            jitterbug_config,
+            method=method,
+            algorithm=algorithm,
+            threshold=threshold,
+            output_format=output_format,
+            verbose=verbose,
+        )
 
         # Create analyzer
         analyzer = JitterbugAnalyzer(jitterbug_config)
@@ -121,7 +158,7 @@ def analyze(
             # Save results
             if output:
                 progress.update(task, description="Saving results...")
-                analyzer.save_results(results, output, output_format)
+                analyzer.save_results(results, output, jitterbug_config.output_format)
 
             progress.update(task, description="Analysis complete!", total=1, completed=1)
 
@@ -135,7 +172,8 @@ def analyze(
             # Suggest saving results
             console.print(
                 f"\n💡 [dim]Tip: To save full results, use --output flag:[/dim]\n"
-                f"   [cyan]jitterbug analyze {input_file} --output results.{output_format}[/cyan]"
+                f"   [cyan]jitterbug analyze {input_file} "
+                f"--output results.{jitterbug_config.output_format}[/cyan]"
             )
 
     except Exception as e:
@@ -150,7 +188,7 @@ def config(
         None, "--output", "-o", help="Output file path for configuration template"
     ),
     format: str = typer.Option("yaml", "--format", "-f", help="Configuration format (yaml, json)"),
-):
+) -> None:
     """
     Manage Jitterbug configuration.
 
@@ -174,9 +212,9 @@ def config(
             if format == "yaml":
                 import yaml
 
-                print(yaml.dump(default_config.dict(), default_flow_style=False))
+                print(yaml.dump(default_config.model_dump(), default_flow_style=False))
             else:
-                print(json.dumps(default_config.dict(), indent=2))
+                print(json.dumps(default_config.model_dump(), indent=2))
     else:
         console.print("Use --template to generate a configuration template")
 
@@ -191,7 +229,7 @@ def validate(
         help="Input file format (csv, json, influx). Auto-detected if not specified.",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
-):
+) -> None:
     """
     Validate RTT data file format and quality.
 
@@ -249,25 +287,25 @@ def visualize(
         help="Input file format (csv, json, influx). Auto-detected if not specified.",
     ),
     method: str | None = typer.Option(
-        "jitter_dispersion",
+        None,
         "--method",
         "-m",
-        help="Jitter analysis method (jitter_dispersion, ks_test)",
+        help="Jitter analysis method (jitter_dispersion, ks_test) [default: jitter_dispersion]",
     ),
     algorithm: str | None = typer.Option(
-        "ruptures",
+        None,
         "--algorithm",
         "-a",
-        help="Change point detection algorithm (ruptures, bcp)",
+        help="Change point detection algorithm (ruptures, bcp) [default: ruptures]",
     ),
     threshold: float | None = typer.Option(
-        0.25, "--threshold", "-t", help="Change point detection threshold"
+        None, "--threshold", "-t", help="Change point detection threshold [default: 0.25]"
     ),
     prefix: str = typer.Option(
         "jitterbug", "--prefix", help="Filename prefix for the generated PNG files"
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
-):
+) -> None:
     """
     Run the analysis and save the standard set of plots as PNG files.
 
@@ -300,11 +338,14 @@ def visualize(
         # Load configuration
         jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
 
-        # Override config with command-line arguments
-        jitterbug_config.jitter_analysis.method = method
-        jitterbug_config.change_point_detection.algorithm = algorithm
-        jitterbug_config.change_point_detection.threshold = threshold
-        jitterbug_config.verbose = verbose
+        # Command-line flags override the file only when given explicitly
+        jitterbug_config = _apply_overrides(
+            jitterbug_config,
+            method=method,
+            algorithm=algorithm,
+            threshold=threshold,
+            verbose=verbose,
+        )
 
         # Create analyzer
         analyzer = JitterbugAnalyzer(jitterbug_config)
@@ -321,6 +362,8 @@ def visualize(
             results = analyzer.analyze_from_file(input_file, format)
 
             progress.update(task, description="Generating plots...")
+            if analyzer.raw_data is None or analyzer.min_rtt_data is None:
+                raise RuntimeError("analysis produced no data to plot")
             saved = JitterbugPlotter().save_all_plots(
                 raw_data=analyzer.raw_data,
                 min_rtt_data=analyzer.min_rtt_data,
@@ -352,7 +395,7 @@ def visualize(
 
 
 @app.command()
-def version():
+def version() -> None:
     """Show Jitterbug version information."""
     from .. import __author__, __email__, __version__
 
@@ -368,7 +411,9 @@ def version():
     )
 
 
-def _display_results(results, analyzer, summary_only=False):
+def _display_results(
+    results: CongestionInferenceResult, analyzer: JitterbugAnalyzer, summary_only: bool = False
+) -> None:
     """Display analysis results in a formatted table."""
     if not results.inferences:
         console.print("🔍 No congestion periods detected", style="yellow")
@@ -431,7 +476,7 @@ def _display_results(results, analyzer, summary_only=False):
             console.print("No congestion periods found", style="yellow")
 
 
-def _display_validation_results(results, verbose=False):
+def _display_validation_results(results: dict[str, Any], verbose: bool = False) -> None:
     """Display data validation results."""
     if not results["valid"]:
         console.print(f"❌ [bold red]Validation Failed[/bold red]: {results['error']}")
@@ -482,7 +527,7 @@ def _display_validation_results(results, verbose=False):
         )
 
 
-def main():
+def main() -> None:
     """Main entry point for the CLI."""
     try:
         app()

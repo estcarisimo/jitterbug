@@ -15,7 +15,7 @@ A Python framework for inferring Internet path congestion from Round-Trip Time (
 - 📁 **Multiple input formats**: CSV, scamper JSON, and InfluxDB queries
 - 📊 **Rich terminal output**: summary and per-period tables, plus JSON or CSV results files
 - ⚙️ **Typed configuration**: Pydantic models, YAML/JSON config files, `JITTERBUG_*` environment variables
-- 🧪 **Reproducible**: the PAM 2022 dataset (47 164 measurements) and its reference results are bundled
+- 🧪 **Reproducible**: the PAM 2022 dataset (47 163 measurements) and its reference results are bundled
 - 🐍 **Library and CLI**: use `jitterbug analyze` or call `JitterbugAnalyzer` from your own code
 
 ## 🚀 Quick Start
@@ -268,7 +268,7 @@ uv run ruff format src/ tests/ examples/ tools/
 uv run mypy src/jitterbug
 ```
 
-`ruff check` and `ruff format` are enforced in CI. `mypy` is **advisory**: there is a backlog of pre-existing type errors, so the CI step does not fail on them. Please don't add new ones. See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull request workflow.
+`ruff check`, `ruff format --check` and `mypy` are all enforced in CI. See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull request workflow.
 
 ### Building
 

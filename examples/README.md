@@ -8,7 +8,7 @@ This directory contains comprehensive examples demonstrating how to use Jitterbu
 
 A complete example using real network measurement data:
 
-- **Dataset**: 47,164 RTT measurements from network monitoring
+- **Dataset**: 47,163 RTT measurements from network monitoring
 - **Format**: CSV with epoch timestamps and RTT values
 - **Use cases**: Basic analysis, visualization, library usage
 - **Expected results**: Reference outputs from original research
@@ -113,7 +113,7 @@ Where:
 ## Performance Expectations
 
 For the network analysis example:
-- **Dataset size**: 47,164 measurements
+- **Dataset size**: 47,163 measurements
 - **Analysis time**: 10-30 seconds
 - **Memory usage**: ~100MB
 - **Visualization time**: 1-2 minutes (if enabled)

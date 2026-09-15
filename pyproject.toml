@@ -49,7 +49,10 @@ dependencies = [
 # Change point detection back ends. `ruptures` is a core dependency; `bcp` is opt-in.
 # `bcp` is a git dependency until bayesian_changepoint_detection is published on PyPI,
 # which also means a wheel with this extra cannot be uploaded to PyPI yet.
-bcp = ["bayesian_changepoint_detection @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git"]
+bcp = [
+    "bayesian_changepoint_detection @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git",
+    "torch>=2.0",  # listed explicitly so the [tool.uv.sources] CPU-index rule applies to it
+]
 bayesian = ["jitterbug[bcp]"]  # deprecated alias for the old extra name; remove in 3.0
 # Data sources and outputs
 influx = ["influxdb-client>=1.30.0"]
@@ -60,6 +63,7 @@ jupyter = ["ipykernel>=6.0.0", "jupyter>=1.0.0"]
 # dependencies, so drop it from `all` (or wait for a bcp release) before publishing there.
 all = [
     "bayesian_changepoint_detection @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git",
+    "torch>=2.0",
     "influxdb-client>=1.30.0",
     "matplotlib>=3.5.0",
     "ipykernel>=6.0.0",
@@ -102,7 +106,9 @@ ignore = [
 known-first-party = ["jitterbug"]
 
 [tool.mypy]
-python_version = "3.10"
+# 3.12 so mypy can parse numpy 2.5's stubs (they use the `type` statement); the 3.10
+# language floor is enforced by ruff (target-version = "py310").
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -119,6 +125,7 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = [
     "ruptures.*",
+    "scipy.*",
     "bayesian_changepoint_detection.*",
     "influxdb_client.*",
     "matplotlib.*",
@@ -157,3 +164,13 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+
+[[tool.uv.index]]
+# torch is only pulled in by the `bcp` extra. On Linux the default index resolves to the
+# CUDA build (about 2 GB); the CPU wheels are a tenth of that and all the detector needs.
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]

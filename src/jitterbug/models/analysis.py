@@ -3,9 +3,10 @@ Analysis result models using Pydantic for validation and serialization.
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class ChangePoint(BaseModel):
@@ -31,16 +32,12 @@ class ChangePoint(BaseModel):
 
     @field_validator("confidence")
     @classmethod
-    def validate_confidence(cls, v):
+    def validate_confidence(cls, v: float) -> float:
         if not 0 <= v <= 1:
             raise ValueError("Confidence must be between 0 and 1")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
 
 class LatencyJump(BaseModel):
@@ -75,23 +72,20 @@ class LatencyJump(BaseModel):
 
     @field_validator("end_epoch")
     @classmethod
-    def validate_time_order(cls, v, info):
-        if info.data.get("start_epoch") and v <= info.data.get("start_epoch"):
+    def validate_time_order(cls, v: float, info: ValidationInfo) -> float:
+        start = info.data.get("start_epoch")
+        if start is not None and v <= start:
             raise ValueError("End epoch must be after start epoch")
         return v
 
     @field_validator("threshold")
     @classmethod
-    def validate_threshold(cls, v):
+    def validate_threshold(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("Threshold must be positive")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
 
 class JitterAnalysis(BaseModel):
@@ -128,34 +122,33 @@ class JitterAnalysis(BaseModel):
     jitter_metric: float
     method: Literal["jitter_dispersion", "ks_test"]
     threshold: float = Field(gt=0, description="Threshold for significance")
-    p_value: float | None = Field(None, ge=0, le=1, description="P-value if statistical test used")
+    p_value: float | None = Field(
+        default=None, ge=0, le=1, description="P-value if statistical test used"
+    )
 
     @field_validator("end_epoch")
     @classmethod
-    def validate_time_order(cls, v, info):
-        if info.data.get("start_epoch") and v <= info.data.get("start_epoch"):
+    def validate_time_order(cls, v: float, info: ValidationInfo) -> float:
+        start = info.data.get("start_epoch")
+        if start is not None and v <= start:
             raise ValueError("End epoch must be after start epoch")
         return v
 
     @field_validator("threshold")
     @classmethod
-    def validate_threshold(cls, v):
+    def validate_threshold(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("Threshold must be positive")
         return v
 
     @field_validator("p_value")
     @classmethod
-    def validate_p_value(cls, v):
+    def validate_p_value(cls, v: float | None) -> float | None:
         if v is not None and not 0 <= v <= 1:
             raise ValueError("P-value must be between 0 and 1")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
 
 class CongestionInference(BaseModel):
@@ -193,19 +186,20 @@ class CongestionInference(BaseModel):
 
     @field_validator("end_epoch")
     @classmethod
-    def validate_time_order(cls, v, info):
-        if info.data.get("start_epoch") and v <= info.data.get("start_epoch"):
+    def validate_time_order(cls, v: float, info: ValidationInfo) -> float:
+        start = info.data.get("start_epoch")
+        if start is not None and v <= start:
             raise ValueError("End epoch must be after start epoch")
         return v
 
     @field_validator("confidence")
     @classmethod
-    def validate_confidence(cls, v):
+    def validate_confidence(cls, v: float) -> float:
         if not 0 <= v <= 1:
             raise ValueError("Confidence must be between 0 and 1")
         return v
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, float | bool]:
         """
         Convert to dictionary for backward compatibility.
 
@@ -216,11 +210,7 @@ class CongestionInference(BaseModel):
         """
         return {"starts": self.start_epoch, "ends": self.end_epoch, "congestion": self.is_congested}
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
 
 class CongestionInferenceResult(BaseModel):
@@ -236,9 +226,9 @@ class CongestionInferenceResult(BaseModel):
     """
 
     inferences: list[CongestionInference]
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
-    def to_dataframe(self):
+    def to_dataframe(self) -> pd.DataFrame:
         """
         Convert to pandas DataFrame for backward compatibility.
 
@@ -247,8 +237,6 @@ class CongestionInferenceResult(BaseModel):
         pd.DataFrame
             DataFrame with columns: starts, ends, congestion.
         """
-        import pandas as pd
-
         data = []
         for inference in self.inferences:
             data.append(inference.to_dict())
@@ -281,8 +269,4 @@ class CongestionInferenceResult(BaseModel):
                 total_duration += inference.end_epoch - inference.start_epoch
         return total_duration
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)

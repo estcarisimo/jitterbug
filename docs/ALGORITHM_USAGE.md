@@ -6,7 +6,7 @@ This guide demonstrates all available ways to run change point detection algorit
 
 All examples use the comprehensive network analysis dataset:
 - **File**: `examples/network_analysis/data/raw.csv`
-- **Size**: 47,164 RTT measurements
+- **Size**: 47,163 RTT measurements
 - **Format**: CSV with epoch timestamps and RTT values
 
 ## Available Algorithms

@@ -5,7 +5,7 @@ Main change point detection interface.
 import logging
 
 from ..models import ChangePoint, ChangePointDetectionConfig, MinimumRTTDataset
-from .algorithms import RupturesDetector
+from .algorithms import BaseChangePointDetector, RupturesDetector
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class ChangePointDetector:
         self.config = config
         self.algorithm = self._create_algorithm()
 
-    def _create_algorithm(self):
+    def _create_algorithm(self) -> BaseChangePointDetector:
         """
         Create the appropriate change point detection algorithm.
 
@@ -116,7 +116,7 @@ class ChangePointDetector:
         change_points.sort(key=lambda cp: cp.epoch)
 
         # Filter by minimum time elapsed
-        filtered_points = []
+        filtered_points: list[ChangePoint] = []
 
         for cp in change_points:
             if not filtered_points:

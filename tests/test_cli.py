@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 import jitterbug
 from jitterbug.cli.main import app
+from jitterbug.models import JitterbugConfig
 
 EXAMPLE_CSV = (
     Path(__file__).resolve().parents[1] / "examples" / "network_analysis" / "data" / "raw.csv"
@@ -54,3 +55,31 @@ def test_visualize_writes_the_standard_plots(tmp_path: Path, monkeypatch: pytest
         "jitterbug_summary_stats.png",
     ]
     assert all((out / p).stat().st_size > 10_000 for p in pngs)
+
+
+def test_config_file_values_survive_when_flags_are_omitted(tmp_path: Path):
+    """Regression: the CLI used to overwrite --config values with its own defaults."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "change_point_detection:\n  algorithm: bcp\n  threshold: 0.4\n"
+        "jitter_analysis:\n  method: ks_test\noutput_format: csv\n"
+    )
+    from jitterbug.cli.main import _apply_overrides
+
+    loaded = JitterbugConfig.from_file(cfg)
+    untouched = _apply_overrides(loaded)
+    assert untouched.change_point_detection.algorithm == "bcp"
+    assert untouched.change_point_detection.threshold == 0.4
+    assert untouched.jitter_analysis.method == "ks_test"
+    assert untouched.output_format == "csv"
+
+    overridden = _apply_overrides(loaded, algorithm="ruptures", threshold=0.1)
+    assert overridden.change_point_detection.algorithm == "ruptures"
+    assert overridden.change_point_detection.threshold == 0.1
+    assert overridden.jitter_analysis.method == "ks_test"  # not touched
+
+
+def test_invalid_algorithm_flag_is_rejected():
+    result = runner.invoke(app, ["analyze", str(EXAMPLE_CSV), "--algorithm", "nope"])
+    assert result.exit_code != 0
+    assert "algorithm" in result.output

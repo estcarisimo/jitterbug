@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -26,9 +27,8 @@ class DataLoader:
     - Pandas DataFrames
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the data loader."""
-        pass
 
     def load_from_file(self, file_path: str | Path, file_format: str | None = None) -> RTTDataset:
         """
@@ -338,7 +338,7 @@ class DataLoader:
         finally:
             client.close()
 
-    def validate_data(self, dataset: RTTDataset) -> dict[str, any]:
+    def validate_data(self, dataset: RTTDataset) -> dict[str, Any]:
         """
         Validate RTT dataset and return quality metrics.
 

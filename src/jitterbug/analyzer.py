@@ -11,8 +11,10 @@ from .analysis import CongestionInferenceAnalyzer, JitterAnalyzer, LatencyJumpAn
 from .detection import ChangePointDetector
 from .io import DataLoader
 from .models import (
+    ChangePoint,
     CongestionInferenceResult,
     JitterbugConfig,
+    MinimumRTTDataset,
     RTTDataset,
 )
 
@@ -61,9 +63,9 @@ class JitterbugAnalyzer:
         self._initialize_components()
 
         # Store analysis results for access after analysis
-        self.raw_data = None
-        self.min_rtt_data = None
-        self.change_points = None
+        self.raw_data: RTTDataset | None = None
+        self.min_rtt_data: MinimumRTTDataset | None = None
+        self.change_points: list[ChangePoint] | None = None
 
     def _setup_logging(self) -> None:
         """Set up logging based on configuration."""
@@ -168,7 +170,7 @@ class JitterbugAnalyzer:
                     "total_measurements": len(rtt_data),
                     "min_intervals": len(min_rtt_data),
                     "change_points": 0,
-                    "config": self.config.dict(),
+                    "config": self.config.model_dump(),
                 },
             )
 
@@ -187,7 +189,7 @@ class JitterbugAnalyzer:
                     "total_measurements": len(rtt_data),
                     "min_intervals": len(min_rtt_data),
                     "change_points": 0,
-                    "config": self.config.dict(),
+                    "config": self.config.model_dump(),
                 },
             )
 
@@ -222,7 +224,7 @@ class JitterbugAnalyzer:
                 "latency_jumps": len(latency_jumps),
                 "jitter_analyses": len(jitter_results),
                 "congestion_periods": len([ci for ci in congestion_inferences if ci.is_congested]),
-                "config": self.config.dict(),
+                "config": self.config.model_dump(),
             },
         )
 
@@ -255,7 +257,7 @@ class JitterbugAnalyzer:
             import json
 
             with output_path.open("w") as f:
-                json.dump(results.dict(), f, indent=2, default=str)
+                json.dump(results.model_dump(), f, indent=2, default=str)
 
         elif format == "csv":
             df = results.to_dataframe()

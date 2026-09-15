@@ -6,7 +6,7 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RTTMeasurement(BaseModel):
@@ -35,7 +35,7 @@ class RTTMeasurement(BaseModel):
 
     @field_validator("rtt_value")
     @classmethod
-    def validate_rtt_value(cls, v):
+    def validate_rtt_value(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("RTT value must be positive")
         if v > 10000:  # 10 seconds seems unreasonably high
@@ -45,11 +45,7 @@ class RTTMeasurement(BaseModel):
     # Note: Timestamp-epoch consistency validation removed to avoid timezone/precision issues
     # The analysis algorithms primarily use epoch values, so this validation is not critical
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
 
 class RTTDataset(BaseModel):
@@ -69,14 +65,14 @@ class RTTDataset(BaseModel):
 
     @field_validator("measurements")
     @classmethod
-    def validate_measurements_not_empty(cls, v):
+    def validate_measurements_not_empty(cls, v: list[RTTMeasurement]) -> list[RTTMeasurement]:
         if not v:
             raise ValueError("Dataset must contain at least one measurement")
         return v
 
     @field_validator("measurements")
     @classmethod
-    def validate_measurements_sorted(cls, v):
+    def validate_measurements_sorted(cls, v: list[RTTMeasurement]) -> list[RTTMeasurement]:
         """Ensure measurements are sorted by timestamp."""
         if len(v) > 1:
             epochs = [m.epoch for m in v]
@@ -180,11 +176,7 @@ class RTTDataset(BaseModel):
         """Return number of measurements."""
         return len(self.measurements)
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
 
 class MinimumRTTDataset(RTTDataset):
@@ -203,15 +195,11 @@ class MinimumRTTDataset(RTTDataset):
 
     @field_validator("interval_minutes")
     @classmethod
-    def validate_interval_minutes(cls, v):
+    def validate_interval_minutes(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("Interval minutes must be positive")
         if v > 1440:  # More than 24 hours seems unreasonable
             raise ValueError("Interval minutes seems unreasonably large (>24h)")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
