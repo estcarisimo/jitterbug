@@ -234,8 +234,7 @@ src/jitterbug/
 │   └── congestion_inference_analyzer.py
 ├── io/                     # DataLoader (CSV, scamper JSON, InfluxDB) and exporters
 ├── cli/main.py             # Typer CLI: analyze, validate, config, version
-├── visualization/          # matplotlib plotter (plotly modules are experimental)
-└── api/                    # optional FastAPI server (experimental, extra `api`)
+└── visualization/          # matplotlib plotter (plotly modules are experimental)
 ```
 
 Bundled data: `examples/network_analysis/data/raw.csv` is the PAM 2022 dataset, and `examples/network_analysis/expected_results/` holds the paper's reference output for both jitter methods.

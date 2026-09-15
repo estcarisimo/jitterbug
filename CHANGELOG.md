@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The REST API server and the Docker image.** `jitterbug.api`, the `api` extra, the
+  `Dockerfile`, `docker-compose.yml`, the entrypoint script, `docs/DOCKER.md` and the two
+  related examples are gone. The server had not been able to start since the 2.0
+  rewrite (`create_app()` raised on import and `/analyze` called a method that did not
+  exist, #6), had no tests, and the Docker image's only entrypoint was that server.
+  Jitterbug is a library and a CLI; wrap it in your own service if you need HTTP.
 - The DockerHub push, PyPI publish and Codecov upload jobs from CI; none of them had
   working credentials. (#4)
 - The `print`-based smoke scripts `test_algorithms.py` and

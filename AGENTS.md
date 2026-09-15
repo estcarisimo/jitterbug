@@ -32,7 +32,6 @@ src/jitterbug/
   io/                    data_loader.py (CSV, scamper JSON, InfluxDB), exporters.py
   cli/main.py            Typer CLI: `jitterbug analyze|validate|config|visualize|version`
   visualization/         plotter.py (matplotlib), dashboard.py + interactive.py (plotly)
-  api/                   FastAPI server (optional extra `api`)
 tests/                   pytest; test_cli.py runs the CLI on the bundled dataset
 examples/network_analysis/data/raw.csv         PAM 2022 dataset (47 164 RTT samples)
 examples/network_analysis/expected_results/    reference output of the paper (BCP + KS)
@@ -78,8 +77,6 @@ uv build                                   # sdist + wheel via uv_build
   missing; `rbeast` and `adtk` silently fall back to an internal statistical method
   and label the output as if the real back end had run. Do not rely on the label to
   know which algorithm ran until this is fixed (roadmap, Fase 4).
-- The REST API (`api/`) does not start: `create_app()` raises on import (issue #6).
-  Its future (fix, trim, or remove) is an open maintainer decision; do not build on it.
 - `visualization/dashboard.py` has known runtime errors (issue #7) and, with
   `interactive.py`, is a removal candidate. `plotter.py` (matplotlib) is the one to keep.
 - The ruptures detector retries with a lower penalty and tags those results
