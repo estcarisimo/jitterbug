@@ -144,24 +144,6 @@ jitterbug visualize examples/network_analysis/data/raw.csv \
 #### 5. Different Change Point Detection Algorithms
 
 ```bash
-# Use PyTorch neural network algorithm
-jitterbug visualize examples/network_analysis/data/raw.csv \
-  --algorithm torch \
-  --title "PyTorch Deep Learning Analysis" \
-  --output-dir pytorch_analysis
-
-# Use Rbeast seasonal pattern detection
-jitterbug visualize examples/network_analysis/data/raw.csv \
-  --algorithm rbeast \
-  --title "Seasonal Pattern Analysis" \
-  --output-dir rbeast_analysis
-
-# Use ADTK anomaly detection
-jitterbug visualize examples/network_analysis/data/raw.csv \
-  --algorithm adtk \
-  --title "Anomaly Detection Analysis" \
-  --output-dir adtk_analysis
-
 # Use Ruptures (default, fast)
 jitterbug visualize examples/network_analysis/data/raw.csv \
   --algorithm ruptures \
@@ -359,7 +341,7 @@ dashboard = JitterbugDashboard(
 
 ```bash
 # Compare different algorithms
-for algo in ruptures bcp torch; do
+for algo in ruptures bcp; do
     jitterbug visualize data.csv \
       --algorithm $algo \
       --output-dir comparison/$algo
@@ -506,8 +488,8 @@ jitterbug visualize examples/network_analysis/data/raw.csv \
 ### Example 2: Multi-Algorithm Comparison
 
 ```bash
-# Compare all algorithms
-for algo in ruptures bcp torch; do
+# Compare both algorithms
+for algo in ruptures bcp; do
     echo "Processing with $algo..."
     jitterbug visualize examples/network_analysis/data/raw.csv \
       --algorithm $algo \

@@ -3,7 +3,7 @@
 
 # Change Point Detection Configuration
 change_point_detection:
-  algorithm: "ruptures"  # Options: "ruptures", "bcp", "torch"
+  algorithm: "ruptures"  # Options: "ruptures", "bcp"
   threshold: 0.25  # Detection sensitivity (0-1)
   min_time_elapsed: 1800  # Minimum time between change points (seconds)
   max_change_points: null  # Maximum number of change points (null for unlimited)

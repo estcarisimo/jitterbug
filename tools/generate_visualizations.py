@@ -208,7 +208,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate visualizations for all algorithms
-    algorithms = ["bcp", "ruptures", "torch", "rbeast", "adtk"]
+    algorithms = ["bcp", "ruptures"]
     results = {}
 
     print("Generating algorithm visualization examples...")
@@ -234,11 +234,8 @@ def main():
 
         # Add ratings based on performance
         ratings = {
-            "bcp": "⭐⭐⭐⭐⭐ (Gold Standard)",
-            "ruptures": "⭐⭐⭐⭐ (Very Good)",
-            "torch": "⭐⭐⭐⭐⭐ (Excellent)",
-            "rbeast": "⭐⭐⭐ (Good)",
-            "adtk": "⭐⭐ (Fair)",
+            "bcp": "⭐⭐⭐⭐⭐ (the paper's detector)",
+            "ruptures": "⭐⭐⭐⭐ (fast default)",
         }
 
         for algo in algorithms:
@@ -265,11 +262,8 @@ def main():
             "detection algorithms "
         )
         f.write("for network congestion inference. Each algorithm has different strengths:\n\n")
-        f.write("- **BCP**: Gold standard with statistical rigor\n")
-        f.write("- **Ruptures**: Fast and reliable\n")
-        f.write("- **PyTorch**: Advanced pattern recognition\n")
-        f.write("- **Rbeast**: Seasonal pattern detection\n")
-        f.write("- **ADTK**: Simple anomaly detection\n")
+        f.write("- **BCP**: the Bayesian detector evaluated in the PAM 2022 paper\n")
+        f.write("- **Ruptures**: fast, no optional dependency, the default\n")
         f.write("\nAll visualizations use the same example dataset for fair comparison.\n")
 
     print(f"Generated visualization examples in: {output_dir}")

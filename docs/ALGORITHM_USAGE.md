@@ -14,10 +14,7 @@ All examples use the comprehensive network analysis dataset:
 Jitterbug supports multiple change point detection algorithms:
 
 1. **Ruptures** (`ruptures`) - Fast and accurate using various models *(included by default)*
-2. **Bayesian Change Point** (`bcp`) - Classical Bayesian approach *(requires optional dependency)*
-3. **PyTorch Neural Network** (`torch`) - Deep learning-based detection *(requires optional dependency)*
-4. **Rbeast** (`rbeast`) - Seasonal pattern detection and change point analysis *(requires optional dependency)*
-5. **ADTK** (`adtk`) - Anomaly Detection Toolkit with level shift detection *(requires optional dependency)*
+2. **Bayesian Change Point** (`bcp`) - The Bayesian detector evaluated in the PAM 2022 paper *(requires the `bcp` extra)*
 
 ### Installing Algorithm Dependencies
 
@@ -29,19 +26,6 @@ uv pip install jitterbug
 uv pip install jitterbug[bcp]
 # OR install directly:
 uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
-
-# For PyTorch neural network detection
-uv pip install jitterbug[torch]
-
-# For Rbeast seasonal pattern detection
-uv pip install jitterbug[rbeast]
-# OR install directly:
-uv pip install Rbeast
-
-# For ADTK anomaly detection
-uv pip install jitterbug[adtk]
-# OR install directly:
-uv pip install adtk
 
 # For all algorithms
 uv pip install jitterbug[all]
@@ -132,87 +116,6 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
     --method jitter_dispersion
 ```
 
-### PyTorch Neural Network Algorithm *(Requires: uv pip install jitterbug[torch])*
-
-```bash
-# First install the dependency:
-uv pip install jitterbug[torch]
-
-# Basic PyTorch detection
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm torch
-
-# PyTorch with jitter dispersion
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm torch \
-    --method jitter_dispersion
-
-# PyTorch with Kolmogorov-Smirnov test
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm torch \
-    --method ks_test
-
-# PyTorch with custom threshold
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm torch \
-    --threshold 0.3
-```
-
-### Rbeast Algorithm *(Requires: uv pip install jitterbug[rbeast])*
-
-```bash
-# First install the dependency:
-uv pip install jitterbug[rbeast]
-
-# OR install the rbeast dependency directly:
-uv pip install Rbeast
-
-# Basic Rbeast seasonal pattern detection
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm rbeast
-
-# Rbeast with jitter dispersion
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm rbeast \
-    --method jitter_dispersion
-
-# Rbeast with Kolmogorov-Smirnov test
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm rbeast \
-    --method ks_test
-
-# Rbeast with custom threshold
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm rbeast \
-    --threshold 0.2
-```
-
-### ADTK Algorithm *(Requires: uv pip install jitterbug[adtk])*
-
-```bash
-# First install the dependency:
-uv pip install jitterbug[adtk]
-
-# OR install the ADTK dependency directly:
-uv pip install adtk
-
-# Basic ADTK anomaly detection
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm adtk
-
-# ADTK with jitter dispersion
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm adtk \
-    --method jitter_dispersion
-
-# ADTK with Kolmogorov-Smirnov test
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm adtk \
-    --method ks_test
-
-# ADTK with custom threshold
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm adtk \
-    --threshold 0.3
-```
-
 ### All Combinations
 
 ```bash
@@ -232,29 +135,6 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 jitterbug analyze examples/network_analysis/data/raw.csv \
     --algorithm bcp --method ks_test
 
-# PyTorch + Jitter Dispersion
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm torch --method jitter_dispersion
-
-# PyTorch + KS Test
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm torch --method ks_test
-
-# Rbeast + Jitter Dispersion
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm rbeast --method jitter_dispersion
-
-# Rbeast + KS Test
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm rbeast --method ks_test
-
-# ADTK + Jitter Dispersion
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm adtk --method jitter_dispersion
-
-# ADTK + KS Test
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm adtk --method ks_test
 ```
 
 ---
@@ -307,55 +187,6 @@ output_format: "json"
 verbose: true
 ```
 
-#### PyTorch Configuration
-```yaml
-# torch_config.yaml
-change_point_detection:
-  algorithm: "torch"
-  threshold: 0.3
-  min_time_elapsed: 1800
-
-jitter_analysis:
-  method: "jitter_dispersion"
-  threshold: 0.25
-
-output_format: "json"
-verbose: true
-```
-
-#### Rbeast Configuration
-```yaml
-# rbeast_config.yaml
-change_point_detection:
-  algorithm: "rbeast"
-  threshold: 0.2
-  min_time_elapsed: 1800
-
-jitter_analysis:
-  method: "ks_test"
-  threshold: 0.25
-  significance_level: 0.05
-
-output_format: "json"
-verbose: true
-```
-
-#### ADTK Configuration
-```yaml
-# adtk_config.yaml
-change_point_detection:
-  algorithm: "adtk"
-  threshold: 0.3
-  min_time_elapsed: 1800
-
-jitter_analysis:
-  method: "jitter_dispersion"
-  threshold: 0.25
-
-output_format: "json"
-verbose: true
-```
-
 ### Using Configuration Files
 
 ```bash
@@ -367,17 +198,6 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 jitterbug analyze examples/network_analysis/data/raw.csv \
     --config bayesian_config.yaml
 
-# Use PyTorch configuration
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --config torch_config.yaml
-
-# Use Rbeast configuration
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --config rbeast_config.yaml
-
-# Use ADTK configuration
-jitterbug analyze examples/network_analysis/data/raw.csv \
-    --config adtk_config.yaml
 ```
 
 ---
@@ -435,63 +255,6 @@ analyzer = JitterbugAnalyzer(config)
 results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
 ```
 
-### PyTorch Algorithm
-
-```python
-# PyTorch with jitter dispersion
-config = JitterbugConfig(
-    change_point_detection=ChangePointDetectionConfig(
-        algorithm="torch",
-        threshold=0.3
-    ),
-    jitter_analysis=JitterAnalysisConfig(
-        method="jitter_dispersion",
-        threshold=0.25
-    )
-)
-
-analyzer = JitterbugAnalyzer(config)
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
-```
-
-### Rbeast Algorithm
-
-```python
-# Rbeast with KS test
-config = JitterbugConfig(
-    change_point_detection=ChangePointDetectionConfig(
-        algorithm="rbeast",
-        threshold=0.2
-    ),
-    jitter_analysis=JitterAnalysisConfig(
-        method="ks_test",
-        significance_level=0.05
-    )
-)
-
-analyzer = JitterbugAnalyzer(config)
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
-```
-
-### ADTK Algorithm
-
-```python
-# ADTK with jitter dispersion
-config = JitterbugConfig(
-    change_point_detection=ChangePointDetectionConfig(
-        algorithm="adtk",
-        threshold=0.3
-    ),
-    jitter_analysis=JitterAnalysisConfig(
-        method="jitter_dispersion",
-        threshold=0.25
-    )
-)
-
-analyzer = JitterbugAnalyzer(config)
-results = analyzer.analyze_from_file('examples/network_analysis/data/raw.csv')
-```
-
 ### Algorithm Comparison
 
 ```python
@@ -499,7 +262,7 @@ from jitterbug import JitterbugAnalyzer, JitterbugConfig
 from jitterbug.models import ChangePointDetectionConfig, JitterAnalysisConfig
 
 # Test all algorithms
-algorithms = ['ruptures', 'bcp', 'torch', 'rbeast', 'adtk']
+algorithms = ['ruptures', 'bcp']
 methods = ['jitter_dispersion', 'ks_test']
 
 results = {}
@@ -548,7 +311,7 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 
 # Save as Parquet
 jitterbug analyze examples/network_analysis/data/raw.csv \
-    --algorithm torch --output results.parquet
+    --algorithm bcp --output results.parquet
 ```
 
 ### Verbose Output
@@ -575,12 +338,6 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 | Ruptures | KS Test | 15-25s | ~100MB | 10-20 |
 | Bayesian | Jitter Dispersion | 20-40s | ~150MB | 5-15 |
 | Bayesian | KS Test | 25-45s | ~150MB | 8-18 |
-| PyTorch | Jitter Dispersion | 30-60s | ~200MB | 10-30 |
-| PyTorch | KS Test | 35-65s | ~200MB | 12-25 |
-| Rbeast | Jitter Dispersion | 25-40s | ~150MB | 8-15 |
-| Rbeast | KS Test | 30-45s | ~150MB | 10-18 |
-| ADTK | Jitter Dispersion | 15-25s | ~120MB | 5-12 |
-| ADTK | KS Test | 20-30s | ~120MB | 8-15 |
 
 *Performance may vary based on system specifications and dataset characteristics.*
 
@@ -601,24 +358,6 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 - **Pros**: Provides uncertainty estimates, theoretically grounded
 - **Cons**: Slower execution, requires more memory
 - **Use when**: You need statistical rigor and uncertainty quantification
-
-#### PyTorch Neural Network
-- **Best for**: Complex patterns and subtle changes
-- **Pros**: Can detect complex patterns, learns from data
-- **Cons**: Requires more computational resources, needs training
-- **Use when**: You have complex time series with subtle patterns
-
-#### Rbeast
-- **Best for**: Seasonal pattern detection and trend analysis
-- **Pros**: Handles seasonal data well, robust to outliers
-- **Cons**: May overfit to patterns, moderate computational cost
-- **Use when**: Your data has seasonal components or trends
-
-#### ADTK (Anomaly Detection Toolkit)
-- **Best for**: General anomaly detection with level shifts
-- **Pros**: Fast execution, simple implementation, good for basic detection
-- **Cons**: Limited sensitivity, may miss subtle changes
-- **Use when**: You need fast, basic anomaly detection
 
 ### Method Selection Guide
 
@@ -642,17 +381,10 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 
 1. **Algorithm not found**: Install required dependencies
    ```bash
-   uv pip install jitterbug[torch]  # For PyTorch
    uv pip install jitterbug[bcp]  # For Bayesian
-   uv pip install jitterbug[rbeast]  # For Rbeast
-   uv pip install jitterbug[adtk]  # For ADTK
 
    # If bayesian installation fails, try direct installation:
    uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
-
-   # If other installations fail, try direct installation:
-   uv pip install Rbeast  # For Rbeast
-   uv pip install adtk  # For ADTK
    ```
 
 2. **Memory issues**: Reduce dataset size or use different algorithm

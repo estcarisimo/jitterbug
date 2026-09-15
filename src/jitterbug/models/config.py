@@ -15,7 +15,7 @@ class ChangePointDetectionConfig(BaseModel):
 
     Attributes
     ----------
-    algorithm : Literal['bcp', 'ruptures', 'torch']
+    algorithm : Literal['bcp', 'ruptures']
         Algorithm to use for change point detection.
     threshold : float
         Threshold for change point detection sensitivity.
@@ -25,7 +25,7 @@ class ChangePointDetectionConfig(BaseModel):
         Maximum number of change points to detect.
     """
 
-    algorithm: Literal["bcp", "ruptures", "torch", "rbeast", "adtk"] = Field(
+    algorithm: Literal["bcp", "ruptures"] = Field(
         default="ruptures", description="Change point detection algorithm"
     )
     threshold: float = Field(default=0.25, ge=0, le=1, description="Detection threshold (0-1)")
@@ -39,6 +39,13 @@ class ChangePointDetectionConfig(BaseModel):
     # Algorithm-specific parameters
     ruptures_model: str = Field(default="rbf", description="Ruptures model type")
     ruptures_penalty: float = Field(default=10.0, gt=0, description="Ruptures penalty parameter")
+    bcp_device: str = Field(
+        default="cpu",
+        description=(
+            "Torch device for the Bayesian detector (cpu, cuda, mps). CPU is the fastest "
+            "choice for series of a few thousand points; GPUs only pay off for much longer ones."
+        ),
+    )
 
     @field_validator("threshold")
     @classmethod

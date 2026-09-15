@@ -51,9 +51,6 @@ pip install -e .
 | Extra | Installs | Use it for |
 | --- | --- | --- |
 | `bcp` | [bayesian_changepoint_detection](https://github.com/estcarisimo/bayesian_changepoint_detection) (git) | The Bayesian detector used in the paper |
-| `torch` | PyTorch | Experimental neural change point detector |
-| `rbeast` | Rbeast | Experimental seasonal/trend detector |
-| `adtk` | ADTK | Experimental level-shift detector |
 | `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
 | `visualization` | matplotlib, plotly | Plotting helpers |
 | `all` | everything above | |
@@ -174,7 +171,7 @@ Every option lives in a Pydantic model and can be set from a YAML/JSON file or f
 
 ```yaml
 change_point_detection:
-  algorithm: ruptures          # ruptures | bcp | torch | rbeast | adtk
+  algorithm: ruptures          # ruptures | bcp
   threshold: 0.25
   min_time_elapsed: 1800       # seconds between change points
   ruptures_model: rbf
@@ -214,7 +211,7 @@ export JITTERBUG_OUTPUT_FORMAT=csv
 4. **Jitter test**: jitter dispersion (variance of the filtered jitter series) or a KS test of the RTT distributions on both sides of the change point.
 5. **Congestion inference**: a period is congested when both tests agree; each result carries a confidence and the evidence behind it.
 
-The detectors `ruptures` and `bcp` are the two evaluated in the paper. `torch`, `rbeast` and `adtk` are experimental; see [docs/ALGORITHM_SELECTION_GUIDE.md](docs/ALGORITHM_SELECTION_GUIDE.md).
+`ruptures` and `bcp` are the two detectors evaluated in the paper; see [docs/ALGORITHM_SELECTION_GUIDE.md](docs/ALGORITHM_SELECTION_GUIDE.md) for when to use which.
 
 ## 🏗️ Architecture
 
@@ -227,7 +224,7 @@ src/jitterbug/
 │   └── config.py           #   JitterbugConfig and the per-stage configs (BaseSettings)
 ├── detection/              # Change point detection
 │   ├── change_point_detector.py   # dispatch on config.algorithm
-│   └── algorithms.py       #   Ruptures, Bayesian (bcp), Torch, Rbeast, ADTK
+│   └── algorithms.py       #   RupturesDetector, BayesianChangePointDetector (bcp)
 ├── analysis/               # Period classification
 │   ├── latency_jump_analyzer.py
 │   ├── jitter_analyzer.py  #   jitter dispersion and KS test

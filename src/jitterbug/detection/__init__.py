@@ -2,55 +2,37 @@
 Change point detection algorithms for Jitterbug.
 """
 
-from .algorithms import RupturesDetector
+from importlib.util import find_spec
+
+from .algorithms import BayesianChangePointDetector, RupturesDetector
 from .change_point_detector import ChangePointDetector
 
-# Make optional algorithms available but don't fail if dependencies are missing
-try:
-    from .algorithms import BayesianChangePointDetector
-except ImportError:
-    BayesianChangePointDetector = None
-
-try:
-    from .algorithms import TorchChangePointDetector
-except ImportError:
-    TorchChangePointDetector = None
-
-try:
-    from .algorithms import RbeastDetector
-except ImportError:
-    RbeastDetector = None
-
-try:
-    from .algorithms import ADTKDetector
-except ImportError:
-    ADTKDetector = None
-
 __all__ = [
+    "BayesianChangePointDetector",
     "ChangePointDetector",
     "RupturesDetector",
+    "get_available_algorithms",
 ]
 
-# Add optional algorithms to __all__ if available
-if BayesianChangePointDetector is not None:
-    __all__.append("BayesianChangePointDetector")
-if TorchChangePointDetector is not None:
-    __all__.append("TorchChangePointDetector")
-if RbeastDetector is not None:
-    __all__.append("RbeastDetector")
-if ADTKDetector is not None:
-    __all__.append("ADTKDetector")
+# Algorithm name -> the importable package it needs (None when it is a core dependency).
+_ALGORITHM_REQUIREMENTS: dict[str, str | None] = {
+    "ruptures": None,
+    "bcp": "bayesian_changepoint_detection",
+}
 
 
-def get_available_algorithms():
-    """Get list of available change point detection algorithms."""
-    algorithms = ["ruptures"]
-    if BayesianChangePointDetector is not None:
-        algorithms.append("bcp")
-    if TorchChangePointDetector is not None:
-        algorithms.append("torch")
-    if RbeastDetector is not None:
-        algorithms.append("rbeast")
-    if ADTKDetector is not None:
-        algorithms.append("adtk")
-    return algorithms
+def get_available_algorithms() -> list[str]:
+    """
+    Return the change point detection algorithms whose dependencies are installed.
+
+    Returns
+    -------
+    list[str]
+        Algorithm names accepted by ``ChangePointDetectionConfig.algorithm`` that can
+        actually run in this environment.
+    """
+    return [
+        name
+        for name, package in _ALGORITHM_REQUIREMENTS.items()
+        if package is None or find_spec(package) is not None
+    ]

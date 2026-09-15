@@ -50,18 +50,6 @@ uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection
 - Classical statistical approach with uncertainty quantification
 - Better handling of noise and uncertainty
 
-### PyTorch Neural Network Detection
-
-```bash
-# Install PyTorch dependencies
-uv pip install jitterbug[torch]
-```
-
-**What this enables:**
-- PyTorch-based neural network detection (`--algorithm torch`)
-- Deep learning approach for complex pattern detection
-- Better performance on subtle changes
-
 ### Visualization Support
 
 ```bash
@@ -141,11 +129,8 @@ jitterbug analyze examples/network_analysis/data/raw.csv
 # Test ruptures (should always work)
 jitterbug analyze examples/network_analysis/data/raw.csv --algorithm ruptures
 
-# Test Bayesian (requires bayesian extra)
+# Test Bayesian (requires the bcp extra)
 jitterbug analyze examples/network_analysis/data/raw.csv --algorithm bcp
-
-# Test PyTorch (requires torch extra)
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm torch
 ```
 
 ### Test Visualization
@@ -172,23 +157,7 @@ ERROR: Could not find a version that satisfies the requirement bayesian_changepo
 pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
 ```
 
-#### 2. PyTorch Installation Issues
-
-**Problem:**
-```
-ERROR: Could not find a version that satisfies the requirement torch
-```
-
-**Solution:**
-```bash
-# Install PyTorch separately first
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-
-# Then install jitterbug
-pip install jitterbug[torch]
-```
-
-#### 3. Visualization Dependencies Fail
+#### 2. Visualization Dependencies Fail
 
 **Problem:**
 ```

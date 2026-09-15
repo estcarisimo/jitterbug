@@ -46,7 +46,7 @@ def analyze_algorithm(algorithm_name):
 
 def main():
     # Compare all algorithms
-    algorithms = ["bcp", "ruptures", "torch", "rbeast", "adtk"]
+    algorithms = ["bcp", "ruptures"]
     results = {}
 
     for algo in algorithms:

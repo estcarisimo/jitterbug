@@ -63,34 +63,6 @@ class ChangePointDetector:
                     "bayesian_changepoint_detection package is required for BCP detection. "
                     "Install it with: pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git"
                 ) from e
-        elif self.config.algorithm == "torch":
-            try:
-                from .algorithms import TorchChangePointDetector
-
-                return TorchChangePointDetector(self.config)
-            except ImportError as e:
-                raise ImportError(
-                    "PyTorch is required for neural network detection. "
-                    "Install it with: pip install jitterbug[torch]"
-                ) from e
-        elif self.config.algorithm == "rbeast":
-            try:
-                from .algorithms import RbeastDetector
-
-                return RbeastDetector(self.config)
-            except ImportError as e:
-                raise ImportError(
-                    "Rbeast is required for Rbeast detection. Install it with: pip install Rbeast"
-                ) from e
-        elif self.config.algorithm == "adtk":
-            try:
-                from .algorithms import ADTKDetector
-
-                return ADTKDetector(self.config)
-            except ImportError as e:
-                raise ImportError(
-                    "ADTK is required for ADTK detection. Install it with: pip install adtk"
-                ) from e
         else:
             raise ValueError(f"Unknown change point detection algorithm: {self.config.algorithm}")
 
