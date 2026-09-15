@@ -68,7 +68,7 @@ jobs:
         run: uv sync --locked --extra visualization
 
       - name: Run tests
-        run: uv run pytest tests/ -m "not slow" --cov=jitterbug --cov-report=term-missing --cov-report=xml
+        run: uv run pytest tests/ -m "not slow" --cov=jitterbug --cov-report=term-missing --cov-report=xml --cov-fail-under=75
 
       - name: CLI smoke test
         run: uv run jitterbug analyze examples/network_analysis/data/raw.csv --output results.json

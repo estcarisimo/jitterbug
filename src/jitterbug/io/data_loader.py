@@ -147,7 +147,7 @@ class DataLoader:
 
         if extension == ".csv":
             return "csv"
-        elif extension == ".json":
+        elif extension in [".json", ".jsonl"]:
             return "json"
         elif extension in [".influx", ".flux"]:
             return "influx"
@@ -181,9 +181,11 @@ class DataLoader:
         """
         try:
             df = pd.read_csv(file_path)
-            return self.load_from_dataframe(df)
+            dataset = self.load_from_dataframe(df)
         except Exception as e:
             raise ValueError(f"Failed to load CSV file {file_path}: {e}") from e
+        dataset.metadata.update({"source": "csv", "file_path": str(file_path)})
+        return dataset
 
     def _load_from_json(self, file_path: Path) -> RTTDataset:
         """
@@ -357,11 +359,11 @@ class DataLoader:
 
         epochs, rtt_values = dataset.to_arrays()
 
-        # Check for time ordering
-        time_ordered = np.all(epochs[:-1] <= epochs[1:])
+        # Check for time ordering (plain bools: the report is meant to be JSON-serialisable)
+        time_ordered = bool(np.all(epochs[:-1] <= epochs[1:]))
 
         # Check for duplicates
-        unique_epochs = len(np.unique(epochs))
+        unique_epochs = int(len(np.unique(epochs)))
         has_duplicates = unique_epochs < len(epochs)
 
         # Check for outliers (simple z-score method)
@@ -375,11 +377,11 @@ class DataLoader:
 
         # RTT statistics
         rtt_stats = {
-            "min": np.min(rtt_values),
-            "max": np.max(rtt_values),
-            "mean": np.mean(rtt_values),
-            "median": np.median(rtt_values),
-            "std": np.std(rtt_values),
+            "min": float(np.min(rtt_values)),
+            "max": float(np.max(rtt_values)),
+            "mean": float(np.mean(rtt_values)),
+            "median": float(np.median(rtt_values)),
+            "std": float(np.std(rtt_values)),
             "outliers": int(outliers),
         }
 
@@ -393,9 +395,9 @@ class DataLoader:
                 "unique_timestamps": unique_epochs,
                 "time_ordered": time_ordered,
                 "has_duplicates": has_duplicates,
-                "duration_seconds": duration,
-                "average_interval_seconds": avg_interval,
-                "max_gap_seconds": max_gap,
+                "duration_seconds": float(duration),
+                "average_interval_seconds": float(avg_interval),
+                "max_gap_seconds": float(max_gap),
                 "rtt_statistics": rtt_stats,
                 "time_range": {
                     "start": time_range[0].isoformat(),

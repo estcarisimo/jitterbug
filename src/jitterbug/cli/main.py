@@ -446,8 +446,8 @@ def _display_results(
         congested_periods = results.get_congested_periods()
         if congested_periods:
             detail_table = Table()
-            detail_table.add_column("Start Time", style="cyan")
-            detail_table.add_column("End Time", style="cyan")
+            detail_table.add_column("Start (UTC)", style="cyan")
+            detail_table.add_column("End (UTC)", style="cyan")
             detail_table.add_column("Duration", style="yellow")
             detail_table.add_column("Confidence", style="green")
             detail_table.add_column("Latency Jump", style="red")

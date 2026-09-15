@@ -189,7 +189,7 @@ class JitterAnalyzer:
                             )
                         )
 
-                    except Exception as e:
+                    except ValueError as e:  # scipy: degenerate or empty samples
                         logger.warning(f"KS test failed for period {i}: {e}")
                         continue
 

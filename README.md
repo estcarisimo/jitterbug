@@ -258,7 +258,7 @@ uv run pytest --cov=jitterbug --cov-report=term-missing
 uv run pytest tests/test_cli.py -v
 ```
 
-Tests run in a few seconds and need no network. Coverage is about 23 %, concentrated in `models/`; `analysis/`, `io/` and `visualization/` are the areas where contributions are most welcome.
+The fast suite runs in about twenty seconds and needs no network; the Bayesian regression tests (`-m slow`) take a couple of minutes and need the `bcp` extra. Coverage is about 84 % and CI fails below 75 %.
 
 ### Code quality
 
@@ -295,14 +295,14 @@ uv pip install dist/*.whl
 🔍 Congestion Periods
 ┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
 ┃             ┃             ┃          ┃            ┃ Latency    ┃ Jitter      ┃
-┃ Start Time  ┃ End Time    ┃ Duration ┃ Confidence ┃ Jump       ┃ Change      ┃
+┃ Start (UTC) ┃ End (UTC)   ┃ Duration ┃ Confidence ┃ Jump       ┃ Change      ┃
 ┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
 │ 2017-12-02  │ 2017-12-02  │ 27000.0s │ 0.90       │ ✓          │ ✓           │
-│ 06:00:10    │ 13:30:10    │          │            │            │             │
+│ 12:00:10    │ 19:30:10    │          │            │            │             │
 │ 2017-12-03  │ 2017-12-03  │ 27000.0s │ 0.90       │ ✓          │ ✓           │
-│ 05:45:09    │ 13:15:09    │          │            │            │             │
+│ 11:45:09    │ 19:15:09    │          │            │            │             │
 │ 2017-12-04  │ 2017-12-04  │ 18000.0s │ 0.90       │ ✓          │ ✓           │
-│ 08:00:10    │ 13:00:10    │          │            │            │             │
+│ 14:00:10    │ 19:00:10    │          │            │            │             │
 │ ...         │ ...         │          │            │            │             │
 └─────────────┴─────────────┴──────────┴────────────┴────────────┴─────────────┘
 ```
@@ -315,8 +315,8 @@ Each entry in `results.json` carries the period, the verdict, and the evidence:
 
 ```json
 {
-  "start_timestamp": "2017-12-02 06:00:10",
-  "end_timestamp": "2017-12-02 13:30:10",
+  "start_timestamp": "2017-12-02 12:00:10+00:00",
+  "end_timestamp": "2017-12-02 19:30:10+00:00",
   "is_congested": true,
   "confidence": 0.9,
   "latency_jump": {"has_jump": true, "magnitude": 20.62, "threshold": 0.5},

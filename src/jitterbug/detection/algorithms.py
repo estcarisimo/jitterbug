@@ -4,7 +4,7 @@ Change point detection algorithm implementations.
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -130,7 +130,7 @@ class RupturesDetector(BaseChangePointDetector):
 
                 # Apply minimum time elapsed constraint
                 if epoch - last_change_time >= self.config.min_time_elapsed:
-                    timestamp = datetime.fromtimestamp(epoch)
+                    timestamp = datetime.fromtimestamp(epoch, tz=timezone.utc)
 
                     # Calculate confidence based on signal variance around the change point
                     confidence = self._calculate_confidence(signal, idx)
@@ -163,7 +163,7 @@ class RupturesDetector(BaseChangePointDetector):
 
                     # Apply minimum time elapsed constraint
                     if epoch - last_change_time >= self.config.min_time_elapsed:
-                        timestamp = datetime.fromtimestamp(epoch)
+                        timestamp = datetime.fromtimestamp(epoch, tz=timezone.utc)
                         confidence = self._calculate_confidence(signal, idx)
 
                         change_points.append(
@@ -308,7 +308,7 @@ class BayesianChangePointDetector(BaseChangePointDetector):
             for idx in significant_indices:
                 if idx < len(epochs):
                     epoch = epochs[idx]
-                    timestamp = datetime.fromtimestamp(epoch)
+                    timestamp = datetime.fromtimestamp(epoch, tz=timezone.utc)
                     confidence = float(change_point_probs[idx])
 
                     change_points.append(
