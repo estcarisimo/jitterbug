@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CLI tests for `validate` (metrics table, `--verbose`, contract violations, missing
+  file), `config --template` (YAML/JSON to stdout and round trip through a file) and the
+  error paths of `analyze` (bad input, unknown method), completing the CLI coverage item
+  of the roadmap.
+
 - Unit tests for `analysis/` (latency jumps, jitter dispersion, KS test, the congestion
   state machine) and `io/` (CSV, DataFrame, scamper JSON, format inference, mocked
   InfluxDB, validation, the JSON/CSV/summary exporters) on small synthetic series.

@@ -133,3 +133,97 @@ def test_analyzer_does_not_downgrade_an_explicit_logger_level():
         assert package_logger.level == logging.DEBUG
     finally:
         package_logger.setLevel(logging.NOTSET)
+
+
+# --- validate
+
+
+@pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
+def test_validate_reports_quality_metrics():
+    result = runner.invoke(app, ["validate", str(EXAMPLE_CSV)])
+    assert result.exit_code == 0, result.output
+    assert "Data validation passed" in result.output
+    assert "47163" in result.output  # total measurements
+    assert "RTT Statistics" not in result.output  # only with --verbose
+
+
+@pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
+def test_validate_verbose_adds_rtt_statistics():
+    result = runner.invoke(app, ["validate", str(EXAMPLE_CSV), "--verbose"])
+    assert result.exit_code == 0, result.output
+    assert "RTT Statistics" in result.output
+    assert "Outliers" in result.output
+
+
+def test_validate_small_csv(tmp_path: Path):
+    csv = tmp_path / "rtts.csv"
+    csv.write_text("epoch,values\n1.0,10.0\n2.0,11.0\n2.0,12.0\n")
+    result = runner.invoke(app, ["validate", str(csv)])
+    assert result.exit_code == 0, result.output
+    assert "Has Duplicates" in result.output and "✓" in result.output
+
+
+def test_validate_rejects_a_file_that_does_not_follow_the_contract(tmp_path: Path):
+    csv = tmp_path / "rtts.csv"
+    csv.write_text("time,ms\n1.0,10.0\n")
+    result = runner.invoke(app, ["validate", str(csv)])
+    assert result.exit_code == 1
+    assert "Validation failed" in result.output and "'epoch' column" in result.output
+
+
+def test_validate_missing_file_is_a_usage_error(tmp_path: Path):
+    result = runner.invoke(app, ["validate", str(tmp_path / "nope.csv")])
+    assert result.exit_code == 2  # Typer's `exists=True` check
+    assert "does not exist" in result.output
+
+
+# --- config
+
+
+def test_config_template_to_stdout_is_valid_yaml():
+    import yaml
+
+    result = runner.invoke(app, ["config", "--template"])
+    assert result.exit_code == 0, result.output
+    data = yaml.safe_load(result.output)
+    assert data == JitterbugConfig().model_dump()
+
+
+def test_config_template_json_to_stdout():
+    result = runner.invoke(app, ["config", "--template", "--format", "json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == JitterbugConfig().model_dump()
+
+
+@pytest.mark.parametrize("name", ["config.yaml", "config.yml", "config.json"])
+def test_config_template_round_trips_through_a_file(tmp_path: Path, name: str):
+    out = tmp_path / name
+    result = runner.invoke(app, ["config", "--template", "--output", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "saved to" in result.output and name in result.output  # Rich wraps the path
+    assert JitterbugConfig.from_file(out) == JitterbugConfig()
+
+
+def test_config_without_template_prints_a_hint():
+    result = runner.invoke(app, ["config"])
+    assert result.exit_code == 0
+    assert "--template" in result.output
+
+
+# --- analyze error paths
+
+
+def test_analyze_bad_input_exits_non_zero(tmp_path: Path):
+    csv = tmp_path / "rtts.csv"
+    csv.write_text("epoch,values\n1.0,ten\n")
+    result = runner.invoke(app, ["analyze", str(csv)])
+    assert result.exit_code == 1
+    assert "Error" in result.output and "'ten'" in result.output
+
+
+def test_analyze_rejects_unknown_method(tmp_path: Path):
+    csv = tmp_path / "rtts.csv"
+    csv.write_text("epoch,values\n1.0,10.0\n")
+    result = runner.invoke(app, ["analyze", str(csv), "--method", "magic"])
+    assert result.exit_code == 1
+    assert "jitter_dispersion" in result.output  # Pydantic lists the allowed values
