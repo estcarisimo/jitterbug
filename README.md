@@ -136,6 +136,8 @@ print(
 
 ### Input formats
 
+The contract (columns, units, ordering, what is dropped) is in [docs/INPUT_FORMATS.md](docs/INPUT_FORMATS.md).
+
 **CSV**: one RTT sample per row, epoch seconds and milliseconds.
 
 ```csv
@@ -344,6 +346,7 @@ Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md) 
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting, and what data this tool handles |
 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
 | [docs/INSTALLATION.md](docs/INSTALLATION.md) | Installation details and troubleshooting |
+| [docs/INPUT_FORMATS.md](docs/INPUT_FORMATS.md) | Input contract: CSV, scamper JSON, DataFrame, InfluxDB |
 | [docs/ALGORITHM_SELECTION_GUIDE.md](docs/ALGORITHM_SELECTION_GUIDE.md) | Choosing a change point detector |
 | [docs/ALGORITHM_USAGE.md](docs/ALGORITHM_USAGE.md) | Per-detector options and examples |
 | [examples/README.md](examples/README.md) | Scripts and notebooks |
