@@ -161,3 +161,10 @@ cython_debug/
 .vscode/
 requirements-audit.txt
 results.json
+
+# Written by examples/network_analysis/basic_analysis.py
+examples/network_analysis/results/
+
+# Written by examples/algorithm_benchmark.py
+examples/benchmark_results.csv
+examples/benchmark_report.html

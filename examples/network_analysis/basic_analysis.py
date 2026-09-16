@@ -9,9 +9,6 @@ using the Jitterbug framework with the provided example dataset.
 import sys
 from pathlib import Path
 
-# Add src to path for local development
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-
 from jitterbug import JitterbugAnalyzer, JitterbugConfig
 from jitterbug.models import ChangePointDetectionConfig, JitterAnalysisConfig
 

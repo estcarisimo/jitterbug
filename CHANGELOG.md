@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `examples/README.md` and `examples/network_analysis/README.md` rewritten to match the
+  directory: setup with `uv sync --extra ...`, the script and the notebooks as the two
+  entry points, the dataset described (dates, sizes, what the paper found and what
+  Jitterbug recovers), and the reference CSV layout explained. The example scripts no
+  longer patch `sys.path`; `results/` and the benchmark outputs are ignored by git.
+
 - Dependency floors raised to releases that support Python 3.10 (`numpy>=1.24`,
   `pandas>=2.0`, `scipy>=1.10`, `pydantic>=2.5`, `pydantic-settings>=2.1`,
   `ruptures>=1.1.9`, `typer>=0.12`, `rich>=13`); `click` and `requests` were declared
@@ -118,6 +124,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failed during the last fifteen minutes of every hour. (#3)
 
 ### Removed
+
+- `examples/basic_analysis.py` (synthetic two-hour series on which nothing is detected)
+  and `examples/output_formats_demo.py` (600 lines, crashed on a PyYAML argument, still
+  used Pydantic v1 `.dict()`). `examples/network_analysis/basic_analysis.py` is the
+  script example.
 
 - The `influx` *file* format: `--format influx` and `.flux`/`.influx` files were routed to
   a placeholder that raised `NotImplementedError`. Loading from an InfluxDB server through

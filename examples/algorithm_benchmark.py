@@ -16,9 +16,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-# Add the src directory to the path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from jitterbug.detection import ChangePointDetector
 from jitterbug.models import ChangePointDetectionConfig, MinimumRTTDataset, RTTMeasurement
 
