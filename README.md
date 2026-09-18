@@ -92,6 +92,16 @@ jitterbug analyze rtts.csv --output results.csv --output-format csv
 jitterbug validate rtts.csv --verbose
 ```
 
+### Plot the analysis
+
+```bash
+# Five PNG figures (raw RTT, minimum RTT, change points, verdicts, confidence) at 300 dpi;
+# needs `uv sync --extra visualization`
+jitterbug visualize examples/network_analysis/data/raw.csv --output-dir plots
+```
+
+The figures are described in [docs/VISUALIZATION_USAGE.md](docs/VISUALIZATION_USAGE.md), together with the `JitterbugPlotter` API for your own scripts.
+
 ### Configuration files
 
 ```bash
@@ -260,7 +270,7 @@ uv run pytest --cov=jitterbug --cov-report=term-missing
 uv run pytest tests/test_cli.py -v
 ```
 
-The fast suite runs in about twenty seconds and needs no network; the Bayesian regression tests (`-m slow`) take a couple of minutes and need the `bcp` extra. Coverage is about 84 % and CI fails below 75 %.
+The fast suite runs in about twenty seconds and needs no network; the Bayesian regression tests (`-m slow`) take a couple of minutes and need the `bcp` extra. Coverage is about 90 % and CI fails below 75 %.
 
 ### Code quality
 
@@ -349,6 +359,7 @@ Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md) 
 | [docs/INPUT_FORMATS.md](docs/INPUT_FORMATS.md) | Input contract: CSV, scamper JSON, DataFrame, InfluxDB |
 | [docs/ALGORITHM_SELECTION_GUIDE.md](docs/ALGORITHM_SELECTION_GUIDE.md) | Choosing a change point detector |
 | [docs/ALGORITHM_USAGE.md](docs/ALGORITHM_USAGE.md) | Per-detector options and examples |
+| [docs/VISUALIZATION_USAGE.md](docs/VISUALIZATION_USAGE.md) | `jitterbug visualize`, the five figures, `JitterbugPlotter` |
 | [examples/README.md](examples/README.md) | Scripts and notebooks |
 
 ## 📄 License

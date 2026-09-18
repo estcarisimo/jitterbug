@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- README: `jitterbug visualize` is back in *Usage* (it was left out while broken, #7)
+  and `docs/VISUALIZATION_USAGE.md` is in the documentation table; coverage figure
+  refreshed.
 - Build backend requirement raised to `uv_build>=0.12.14,<0.13` (Dependabot). Building
   from source with an older `uv` CLI still works: it fetches the backend from PyPI.
 - `examples/README.md` and `examples/network_analysis/README.md` rewritten to match the
