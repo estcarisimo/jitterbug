@@ -11,9 +11,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..models import RTTDataset, RTTMeasurement
+from ..models import MAX_RTT_MS, RTTDataset, RTTMeasurement
 
 logger = logging.getLogger(__name__)
+
+EPOCH_COLUMN = "epoch"
+RTT_COLUMNS = ("values", "rtt_value", "rtt", "latency")
+"""Accepted names for the RTT column, in order of preference. Values are milliseconds."""
 
 
 class DataLoader:
@@ -69,64 +73,121 @@ class DataLoader:
         """
         Load RTT data from a pandas DataFrame.
 
+        The input contract (see ``docs/INPUT_FORMATS.md``): an ``epoch`` column with Unix
+        seconds (UTC) and one RTT column named ``values``, ``rtt_value``, ``rtt`` or
+        ``latency`` holding milliseconds; ``source`` and ``destination`` are optional.
+        Validation happens here, once, on the whole frame:
+
+        - a missing column or a non-numeric value raises ``ValueError``;
+        - rows with a missing epoch or RTT, a non-positive RTT, or an RTT above
+          ``MAX_RTT_MS`` are dropped with a warning and counted in
+          ``metadata["dropped_rows"]``;
+        - rows are sorted by epoch (stable) if they are not already; duplicate epochs
+          are kept (``validate_data`` reports them).
+
         Parameters
         ----------
         df : pd.DataFrame
-            DataFrame containing RTT data. Expected columns: 'epoch', 'values' or 'rtt_value'.
+            DataFrame containing RTT data.
 
         Returns
         -------
         RTTDataset
             Loaded RTT dataset.
+
+        Raises
+        ------
+        ValueError
+            If a required column is missing, a value is not numeric, or no valid rows
+            remain.
         """
         logger.info(f"Loading data from DataFrame with {len(df)} rows")
 
-        # Validate required columns
-        if "epoch" not in df.columns:
-            raise ValueError("DataFrame must contain 'epoch' column")
-
-        # Handle different RTT value column names
-        rtt_column = None
-        for col in ["values", "rtt_value", "rtt", "latency"]:
-            if col in df.columns:
-                rtt_column = col
-                break
-
+        if EPOCH_COLUMN not in df.columns:
+            raise ValueError(f"DataFrame must contain an '{EPOCH_COLUMN}' column")
+        rtt_column = next((c for c in RTT_COLUMNS if c in df.columns), None)
         if rtt_column is None:
             raise ValueError(
-                "DataFrame must contain RTT values column "
-                "('values', 'rtt_value', 'rtt', or 'latency')"
+                "DataFrame must contain an RTT column named one of "
+                + ", ".join(f"'{c}'" for c in RTT_COLUMNS)
             )
 
-        # Convert to RTT measurements
-        measurements = []
-        for _, row in df.iterrows():
-            epoch = float(row["epoch"])
-            rtt_value = float(row[rtt_column])
-            timestamp = datetime.fromtimestamp(epoch, tz=timezone.utc)
+        epochs = self._numeric_column(df, EPOCH_COLUMN)
+        rtts = self._numeric_column(df, rtt_column)
 
-            # Extract additional columns if available
-            source = row.get("source", None)
-            destination = row.get("destination", None)
+        # Row filters, applied together so the counts refer to the original frame
+        missing = epochs.isna() | rtts.isna()
+        non_positive = ~missing & (rtts <= 0)
+        too_large = ~missing & (rtts > MAX_RTT_MS)
+        dropped = {
+            "missing": int(missing.sum()),
+            "non_positive": int(non_positive.sum()),
+            "too_large": int(too_large.sum()),
+        }
+        keep = ~(missing | non_positive | too_large)
+        for reason, count in dropped.items():
+            if count:
+                logger.warning(f"Dropping {count} row(s) with {reason.replace('_', '-')} RTT")
+        if not keep.any():
+            raise ValueError("No valid RTT rows: every row was missing, non-positive or too large")
 
-            measurements.append(
-                RTTMeasurement(
-                    timestamp=timestamp,
-                    epoch=epoch,
-                    rtt_value=rtt_value,
-                    source=source,
-                    destination=destination,
-                )
+        frame = df.loc[keep]
+        epoch_values = epochs[keep].to_numpy(dtype=float)
+        rtt_values = rtts[keep].to_numpy(dtype=float)
+        needs_sort = bool(np.any(epoch_values[:-1] > epoch_values[1:]))
+        if needs_sort:
+            logger.warning("Rows are not in time order; sorting by epoch")
+            order = np.argsort(epoch_values, kind="stable")
+            frame = frame.iloc[order]
+            epoch_values, rtt_values = epoch_values[order], rtt_values[order]
+
+        sources = self._optional_column(frame, "source")
+        destinations = self._optional_column(frame, "destination")
+        measurements = [
+            RTTMeasurement(
+                timestamp=datetime.fromtimestamp(epoch, tz=timezone.utc),
+                epoch=epoch,
+                rtt_value=rtt,
+                source=src,
+                destination=dst,
             )
+            for epoch, rtt, src, dst in zip(
+                epoch_values.tolist(), rtt_values.tolist(), sources, destinations, strict=True
+            )
+        ]
 
         return RTTDataset(
             measurements=measurements,
             metadata={
                 "source": "dataframe",
                 "original_columns": list(df.columns),
+                "rtt_column": rtt_column,
                 "total_rows": len(df),
+                "dropped_rows": dropped,
+                "sorted_on_load": needs_sort,
             },
         )
+
+    @staticmethod
+    def _numeric_column(df: pd.DataFrame, column: str) -> pd.Series:
+        """Return ``column`` as floats; NaN and empty strings become NaN, anything else
+        non-numeric is an error."""
+        values = pd.to_numeric(df[column], errors="coerce")
+        blank = df[column].map(lambda v: isinstance(v, str) and v.strip() == "")
+        bad = values.isna() & df[column].notna() & ~blank
+        if bad.any():
+            example = df.loc[bad, column].iloc[0]
+            raise ValueError(
+                f"Column '{column}' has {int(bad.sum())} non-numeric value(s), e.g. {example!r}"
+            )
+        return values.astype(float)
+
+    @staticmethod
+    def _optional_column(df: pd.DataFrame, column: str) -> list[str | None]:
+        """Per-row values of an optional string column, ``None`` where absent or missing."""
+        if column not in df.columns:
+            return [None] * len(df)
+        return [None if pd.isna(v) else str(v) for v in df[column].tolist()]
 
     def _infer_format(self, file_path: Path) -> str:
         """
@@ -206,6 +267,7 @@ class DataLoader:
             Loaded RTT dataset.
         """
         measurements = []
+        out_of_range = 0
 
         try:
             with file_path.open() as f:
@@ -229,7 +291,11 @@ class DataLoader:
                                     if "sec" in tx_time and "usec" in tx_time:
                                         epoch = tx_time["sec"] + tx_time["usec"] / 1e6
                                         timestamp = datetime.fromtimestamp(epoch, tz=timezone.utc)
-                                        rtt_value = response["rtt"]
+                                        rtt_value = float(response["rtt"])
+                                        # Same bounds as the DataFrame contract
+                                        if not 0 < rtt_value <= MAX_RTT_MS:
+                                            out_of_range += 1
+                                            continue
 
                                         measurements.append(
                                             RTTMeasurement(
@@ -248,6 +314,8 @@ class DataLoader:
         except Exception as e:
             raise ValueError(f"Failed to load JSON file {file_path}: {e}") from e
 
+        if out_of_range:
+            logger.warning(f"Dropping {out_of_range} response(s) with a non-positive or >10 s RTT")
         if not measurements:
             raise ValueError(f"No valid RTT measurements found in JSON file {file_path}")
 
@@ -261,6 +329,7 @@ class DataLoader:
                 "file_path": str(file_path),
                 "format": "scamper_warts",
                 "total_measurements": len(measurements),
+                "dropped_responses": out_of_range,
             },
         )
 
