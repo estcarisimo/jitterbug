@@ -8,6 +8,9 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+MAX_RTT_MS = 10_000.0
+"""Largest RTT accepted, in milliseconds (10 s); larger values are treated as bad samples."""
+
 
 class RTTMeasurement(BaseModel):
     """
@@ -38,8 +41,8 @@ class RTTMeasurement(BaseModel):
     def validate_rtt_value(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("RTT value must be positive")
-        if v > 10000:  # 10 seconds seems unreasonably high
-            raise ValueError("RTT value seems unreasonably high (>10s)")
+        if v > MAX_RTT_MS:
+            raise ValueError(f"RTT value seems unreasonably high (>{MAX_RTT_MS / 1000:g}s)")
         return v
 
     # Note: Timestamp-epoch consistency validation removed to avoid timezone/precision issues

@@ -16,9 +16,10 @@ from .config import (
     JitterbugConfig,
     LatencyJumpConfig,
 )
-from .rtt_data import MinimumRTTDataset, RTTDataset, RTTMeasurement
+from .rtt_data import MAX_RTT_MS, MinimumRTTDataset, RTTDataset, RTTMeasurement
 
 __all__ = [
+    "MAX_RTT_MS",
     "RTTMeasurement",
     "RTTDataset",
     "MinimumRTTDataset",

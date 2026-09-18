@@ -8,7 +8,7 @@ reference input for the tests (`tests/test_paper_regression.py`) and for every e
 
 | File | Content |
 | --- | --- |
-| `data/raw.csv` | 47 163 RTT samples over 15 days (1 – 16 December 2017), `epoch,values`, one sample every few seconds with a daily congestion episode. Follows [docs/INPUT_FORMATS.md](../../docs/INPUT_FORMATS.md). |
+| `data/raw.csv` | 47 163 RTT samples over 15 days (1 – 16 December 2017), `epoch,values`, bursty sampling (27.5 s on average, gaps up to 197 s; see `jitterbug validate --verbose`) with a daily congestion episode. Follows [docs/INPUT_FORMATS.md](../../docs/INPUT_FORMATS.md). |
 | `data/mins.csv` | Minimum RTT per 15-minute interval, as computed by the 1.x scripts. Kept for reference and for the notebooks' plots; Jitterbug recomputes it from `raw.csv`. |
 | `expected_results/jd_inferences.csv` | The paper's periods with the jitter-dispersion method: `starts,ends,congestion` (epoch seconds, 1 = congested). 29 periods, 15 congested. |
 | `expected_results/kstest_inferences.csv` | Same with the KS test. 29 periods, 15 congested. |
