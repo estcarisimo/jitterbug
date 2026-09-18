@@ -143,7 +143,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `examples/output_formats_demo.py` (600 lines, crashed on a PyYAML argument, still
   used Pydantic v1 `.dict()`). `examples/network_analysis/basic_analysis.py` is the
   script example.
-
 - The `influx` *file* format: `--format influx` and `.flux`/`.influx` files were routed to
   a placeholder that raised `NotImplementedError`. Loading from an InfluxDB server through
   `DataLoader.load_from_influxdb()` is unchanged. Format inference now fails with a clear

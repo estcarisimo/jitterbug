@@ -54,6 +54,11 @@ timestamps. Timestamps in the output are UTC.
 `expected_results/*.csv` use the same `starts,ends,congestion` layout as
 `jitterbug analyze --output-format csv`, so the two can be joined on time:
 
+```bash
+uv run jitterbug analyze examples/network_analysis/data/raw.csv \
+    --algorithm bcp --method ks_test --output results.csv --output-format csv
+```
+
 ```python
 import pandas as pd
 
