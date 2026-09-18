@@ -113,20 +113,25 @@ The loop:
    `gh api repos/estcarisimo/jitterbug/actions/jobs/<job-id>/logs`), fix locally,
    push, wait again.
 3. Start a fresh reviewer session with `.github/REVIEW.md` and the PR number. Wait for
-   its verdict.
+   its verdict, then **post the verdict in full as a PR comment**
+   (`gh pr comment <n> --body-file <verdict.md>`, prefixed with the round number and
+   the commit reviewed). The verdict lives on the PR, not in a session transcript.
 4. For each finding either **fix it** (commit + push) or **rebut it with evidence** (a
-   passing CI log, a `ruff rule` lookup, a reproduction on `main`) in the PR description
-   or a PR comment. Reviewers do produce false positives. Pre-existing bugs outside the
-   PR's scope go to a GitHub issue, linked from the PR.
+   passing CI log, a `ruff rule` lookup, a reproduction on `main`) in a PR comment.
+   Reviewers do produce false positives. Pre-existing bugs outside the PR's scope go
+   to a GitHub issue, linked from the PR.
 5. After any push, start **another** fresh reviewer (never reuse the previous session).
-   Repeat 2–5 until CI is green **and** the latest push has `VERDICT: APPROVE`.
+   It reads the earlier rounds (`gh pr view <n> --comments`) and reports any finding
+   that was neither fixed nor validly rebutted. Repeat 2–5 until CI is green **and** the
+   latest push has `VERDICT: APPROVE`.
 6. Only then merge: `gh pr merge <n> --squash`. Never merge red, never merge without an
-   `APPROVE` on the final commit. Record the verdict (session, commit) in a PR comment.
+   `APPROVE` on the final commit.
 7. Stacked PRs: merge the bottom one **without** `--delete-branch`; GitHub retargets
    the next PR to `main` automatically. If the next PR shows `DIRTY` because the squash
-   touched files it deletes, update it with `git merge -s ours origin/main` on the
-   branch after checking `git rev-parse origin/main^{tree}` equals the previous branch
-   tip's tree, and the merge result's tree equals the branch's own tree.
+   touched files it deletes, first check that `git rev-parse origin/main^{tree}` equals
+   the tree of the previous branch's tip (i.e. `main` now contains exactly what the
+   branch was built on); only then update the branch with
+   `git merge -s ours origin/main`, push, and let CI run.
 8. Do not use the admin bypass. If a human explicitly asks for it in an emergency,
    note it in the PR description.
 

@@ -78,14 +78,15 @@ final commit is not merged.
 
    ```bash
    gh pr checks <n> --watch          # wait for CI
-   gh pr view <n> --comments         # the verdicts are recorded as PR comments
+   gh pr view <n> --comments         # every round's verdict is posted here in full
    ```
 
 5. Merge (squash) once both are green. The branch is deleted automatically.
 
    Stacked PRs: merge the bottom of the stack **without** `--delete-branch`; GitHub
    then retargets the next PR to `main` on its own. Deleting the base branch first
-   closes the stacked PR.
+   closes the stacked PR. If the retargeted PR shows as `DIRTY`, see the stacked-PR
+   step in `AGENTS.md` for the safe way to update it.
 
 Repository admins can technically bypass the ruleset. Treat that as an emergency-only
 escape hatch and say so in the PR when it is used.

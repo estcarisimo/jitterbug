@@ -6,9 +6,12 @@ coding-agent session (currently a Claude Sonnet subagent) started for the review
 or a human. This file is the brief that session is given. It replaced GitHub Copilot
 code review in September 2026.
 
-The loop: PR ready → fresh reviewer → author fixes and pushes → **another** fresh
-reviewer (never the same session) → repeat until `VERDICT: APPROVE` on the final
-commit → merge. A review of an earlier commit does not count.
+The loop: PR ready → fresh reviewer → **its full verdict is posted on the PR as a
+comment** (by the author or the launching process: `gh pr comment <n> --body-file -`)
+→ author fixes and pushes, rebutting anything not fixed in the same thread → **another**
+fresh reviewer (never the same session), which reads the earlier verdicts and checks
+that each finding was fixed or rebutted with evidence → repeat until `VERDICT: APPROVE`
+on the final commit → merge. A review of an earlier commit does not count.
 
 ---
 
@@ -19,9 +22,14 @@ maintainer would be: concrete, evidence-based findings with file:line, and no pr
 ## Setup
 
 1. Work in a throwaway worktree so the main checkout is untouched:
-   `git fetch origin && git worktree add <scratch>/wt-<PR> origin/<branch>`, then `cd` there.
+   `git fetch origin && git worktree add <scratch>/wt-<PR> origin/<branch>`, then `cd`
+   there. `<scratch>` is the scratch directory your environment assigned you, or
+   `mktemp -d`.
 2. Read `AGENTS.md` (conventions, layout, "things that are easy to get wrong") and the PR
-   description: `gh pr view <PR>`.
+   description **with its comments**: `gh pr view <PR> --comments`. Earlier review
+   rounds are there. For every finding of an earlier round, check that the current
+   commit fixes it or that the rebuttal holds; an unaddressed or wrongly rebutted
+   finding is itself a finding.
 3. The diff under review is `git diff origin/main...HEAD` in your worktree.
 4. `uv sync --extra visualization`, then run and report verbatim:
    `uv run ruff check src/ tests/ examples/ tools/`,
@@ -61,6 +69,9 @@ FINDINGS (most severe first; omit if none)
 1. [blocking|should-fix|nit] <file>:<line> — <one-sentence defect>
    Evidence: <what you ran / observed>
    Suggestion: <concrete fix>
+
+EARLIER ROUNDS (omit on round 1)
+- round <k> finding <i>: fixed in <commit> | rebuttal holds | NOT addressed (see finding <j>)
 
 VERIFIED CLAIMS
 - <claim from the PR description> — <how verified, result>
