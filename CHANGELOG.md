@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Build backend requirement raised to `uv_build>=0.12.14,<0.13` (Dependabot). Building
+  from source with an older `uv` CLI still works: it fetches the backend from PyPI.
 - Code review policy: PRs are reviewed by an independent, fresh-context session
   following `.github/REVIEW.md` (today a Claude Sonnet subagent) instead of GitHub
   Copilot; merge requires `APPROVE` on the final commit. `AGENTS.md`, `CONTRIBUTING.md`
