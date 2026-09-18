@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Build backend requirement raised to `uv_build>=0.12.14,<0.13` (Dependabot). Building
   from source with an older `uv` CLI still works: it fetches the backend from PyPI.
+- `examples/README.md` and `examples/network_analysis/README.md` rewritten to match the
+  directory: setup with `uv sync --extra ...`, the script and the notebooks as the two
+  entry points, the dataset described (dates, sizes, what the paper found and what
+  Jitterbug recovers), and the reference CSV layout explained. The example scripts no
+  longer patch `sys.path`; `results/` and the benchmark outputs are ignored by git.
 - Code review policy: PRs are reviewed by an independent, fresh-context session
   following `.github/REVIEW.md` (today a Claude Sonnet subagent) instead of GitHub
   Copilot; merge requires `APPROVE` on the final commit. `AGENTS.md`, `CONTRIBUTING.md`
@@ -143,6 +148,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `examples/basic_analysis.py` (synthetic two-hour series on which nothing is detected)
+  and `examples/output_formats_demo.py` (600 lines, crashed on a PyYAML argument, still
+  used Pydantic v1 `.dict()`). `examples/network_analysis/basic_analysis.py` is the
+  script example.
 - The `influx` *file* format: `--format influx` and `.flux`/`.influx` files were routed to
   a placeholder that raised `NotImplementedError`. Loading from an InfluxDB server through
   `DataLoader.load_from_influxdb()` is unchanged. Format inference now fails with a clear
