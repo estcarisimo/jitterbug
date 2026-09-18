@@ -155,12 +155,17 @@ def test_validate_verbose_adds_rtt_statistics():
     assert "Outliers" in result.output
 
 
-def test_validate_small_csv(tmp_path: Path):
+@pytest.mark.parametrize(
+    ("rows", "expected"),
+    [("1.0,10.0\n2.0,11.0\n2.0,12.0\n", "✓"), ("1.0,10.0\n2.0,11.0\n3.0,12.0\n", "✗")],
+)
+def test_validate_reports_duplicates(tmp_path: Path, rows: str, expected: str):
     csv = tmp_path / "rtts.csv"
-    csv.write_text("epoch,values\n1.0,10.0\n2.0,11.0\n2.0,12.0\n")
+    csv.write_text("epoch,values\n" + rows)
     result = runner.invoke(app, ["validate", str(csv)])
     assert result.exit_code == 0, result.output
-    assert "Has Duplicates" in result.output and "✓" in result.output
+    row = next(line for line in result.output.splitlines() if "Has Duplicates" in line)
+    assert expected in row and ("✓" if expected == "✗" else "✗") not in row
 
 
 def test_validate_rejects_a_file_that_does_not_follow_the_contract(tmp_path: Path):
@@ -173,8 +178,8 @@ def test_validate_rejects_a_file_that_does_not_follow_the_contract(tmp_path: Pat
 
 def test_validate_missing_file_is_a_usage_error(tmp_path: Path):
     result = runner.invoke(app, ["validate", str(tmp_path / "nope.csv")])
-    assert result.exit_code == 2  # Typer's `exists=True` check
-    assert "does not exist" in result.output
+    assert result.exit_code == 2  # Typer's `exists=True` check, before our code runs
+    assert "nope.csv" in result.output  # a token Click's wrapping cannot split
 
 
 # --- config
