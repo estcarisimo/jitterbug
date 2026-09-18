@@ -3,7 +3,7 @@ requires = ["uv_build>=0.12.14,<0.13"]
 build-backend = "uv_build"
 
 [project]
-name = "jitterbug"
+name = "jitterbug-inference"
 version = "2.0.0"
 description = "Framework for jitter-based network congestion inference"
 readme = "README.md"
@@ -53,7 +53,7 @@ bcp = [
     "bayesian_changepoint_detection @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git",
     "torch>=2.0",  # listed explicitly so the [tool.uv.sources] CPU-index rule applies to it
 ]
-bayesian = ["jitterbug[bcp]"]  # deprecated alias for the old extra name; remove in 3.0
+bayesian = ["jitterbug-inference[bcp]"]  # deprecated alias for the old extra name; remove in 3.0
 # Data sources and outputs
 influx = ["influxdb-client>=1.30.0"]
 visualization = ["matplotlib>=3.5.0"]
@@ -171,6 +171,9 @@ exclude_lines = [
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+[tool.uv.build-backend]
+module-name = "jitterbug"  # the distribution is jitterbug-inference, the import package is jitterbug
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]

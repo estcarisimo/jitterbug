@@ -49,6 +49,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The distribution is now named **`jitterbug-inference`** (`[project] name`); the
+  import package and the `jitterbug` command are unchanged. `jitterbug` on PyPI belongs
+  to an unrelated project, so this is the name a future PyPI release will use.
+  `jitterbug.__version__` reads the metadata of the new distribution name.
+- `docs/INSTALLATION.md` rewritten: install from a clone with uv or pip, or directly
+  from GitHub with `pip install "jitterbug-inference[...] @ git+..."`; the extras table;
+  notes on the `bcp` extra; verification commands; a troubleshooting table of symptoms
+  that actually occur. It and `docs/ALGORITHM_USAGE.md` said `pip install jitterbug[...]`,
+  which installs the unrelated project.
+
 - README: `jitterbug visualize` is back in *Usage* (it was left out while broken, #7)
   and `docs/VISUALIZATION_USAGE.md` is in the documentation table; coverage figure
   refreshed.

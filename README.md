@@ -43,8 +43,11 @@ cd jitterbug
 pip install -e .
 ```
 
-> **Note:** this package is not published to PyPI (the `jitterbug` name there belongs to
-> an unrelated project). Install from a clone, as shown above.
+> **Note:** this package is not on PyPI yet (the `jitterbug` name there belongs to an
+> unrelated project; this distribution is named `jitterbug-inference`). Install from a
+> clone as shown above, or straight from GitHub:
+> `pip install "jitterbug-inference @ git+https://github.com/estcarisimo/jitterbug.git"`.
+> See [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ### Optional back ends
 

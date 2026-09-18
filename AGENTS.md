@@ -12,8 +12,10 @@ jumps and either jitter dispersion or a Kolmogorov–Smirnov test. It implements
 method from *Jitterbug: A New Framework for Jitter-Based Congestion Inference*
 (PAM 2022). Version 2.x is a rewrite of the original 1.x scripts.
 
-It is **not** published on PyPI (the name belongs to an unrelated project); install
-from GitHub. Do not add `pip install jitterbug` or a PyPI badge anywhere.
+The distribution is named `jitterbug-inference` (`jitterbug` on PyPI belongs to an
+unrelated project); the import package and the CLI are still `jitterbug`. It is **not**
+published on PyPI yet (planned once the Bayesian back end is on PyPI); install from
+GitHub. Never write `pip install jitterbug`, and no PyPI badge until the first upload.
 
 ## Layout
 

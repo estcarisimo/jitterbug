@@ -1428,7 +1428,7 @@ wheels = [
 ]
 
 [[package]]
-name = "jitterbug"
+name = "jitterbug-inference"
 version = "2.0.0"
 source = { editable = "." }
 dependencies = [
@@ -1502,7 +1502,7 @@ requires-dist = [
     { name = "influxdb-client", marker = "extra == 'influx'", specifier = ">=1.30.0" },
     { name = "ipykernel", marker = "extra == 'all'", specifier = ">=6.0.0" },
     { name = "ipykernel", marker = "extra == 'jupyter'", specifier = ">=6.0.0" },
-    { name = "jitterbug", extras = ["bcp"], marker = "extra == 'bayesian'" },
+    { name = "jitterbug-inference", extras = ["bcp"], marker = "extra == 'bayesian'" },
     { name = "jupyter", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "jupyter", marker = "extra == 'jupyter'", specifier = ">=1.0.0" },
     { name = "matplotlib", marker = "extra == 'all'", specifier = ">=3.5.0" },
