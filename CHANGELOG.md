@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CLI tests for `validate` (metrics table, `--verbose`, contract violations, missing
+  file), `config --template` (YAML/JSON to stdout and round trip through a file) and the
+  error paths of `analyze` (bad input, unknown method), completing the CLI coverage item
+  of the roadmap.
 - `docs/INPUT_FORMATS.md`: the input contract (columns, units, ordering, what is dropped
   and why) for CSV, scamper JSON, DataFrames and InfluxDB, linked from the README.
-
 - Unit tests for `analysis/` (latency jumps, jitter dispersion, KS test, the congestion
   state machine) and `io/` (CSV, DataFrame, scamper JSON, format inference, mocked
   InfluxDB, validation, the JSON/CSV/summary exporters) on small synthetic series.
@@ -51,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entry points, the dataset described (dates, sizes, what the paper found and what
   Jitterbug recovers), and the reference CSV layout explained. The example scripts no
   longer patch `sys.path`; `results/` and the benchmark outputs are ignored by git.
+- Code review policy: PRs are reviewed by an independent, fresh-context session
+  following `.github/REVIEW.md` (today a Claude Sonnet subagent) instead of GitHub
+  Copilot; merge requires `APPROVE` on the final commit. `AGENTS.md`, `CONTRIBUTING.md`
+  and the PR template updated.
 - Input validation happens once, at the edge, in `DataLoader.load_from_dataframe`
   (CSV and InfluxDB go through it too): rows with a missing epoch or RTT, a non-positive
   RTT, or an RTT above `MAX_RTT_MS` (10 s) are dropped with a warning and counted in
