@@ -43,6 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Code review policy: PRs are reviewed by an independent, fresh-context session
+  following `.github/REVIEW.md` (today a Claude Sonnet subagent) instead of GitHub
+  Copilot; merge requires `APPROVE` on the final commit. `AGENTS.md`, `CONTRIBUTING.md`
+  and the PR template updated.
+
 - Dependency floors raised to releases that support Python 3.10 (`numpy>=1.24`,
   `pandas>=2.0`, `scipy>=1.10`, `pydantic>=2.5`, `pydantic-settings>=2.1`,
   `ruptures>=1.1.9`, `typer>=0.12`, `rich>=13`); `click` and `requests` were declared

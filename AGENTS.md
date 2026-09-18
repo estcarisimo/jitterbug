@@ -1,6 +1,6 @@
 # AGENTS.md — Jitterbug
 
-Instructions for AI coding agents (Claude Code, Copilot, Codex, Cursor, ...) working in
+Instructions for AI coding agents (Claude Code, Codex, Cursor, ...) working in
 this repository. `CLAUDE.md` includes this file. Humans: see `CONTRIBUTING.md`.
 
 ## What this project is
@@ -94,37 +94,17 @@ uv build                                   # sdist + wheel via uv_build
 ## Pull request workflow (required)
 
 `main` is protected by the `protect-main` ruleset: no direct pushes, PR required, the
-`lint`, `test (...)` and `build` checks required, Copilot code review requested
-automatically, review threads must be resolved.
+`lint`, `test (...)` and `build` checks required, review threads must be resolved.
 
-**Repository policy: every PR must get a Copilot code review, and no PR is merged until
-CI is green and Copilot has no unresolved findings.** The ruleset requests the review
-on PRs whose base is `main`; stacked PRs need a manual request, and so does every
-re-review after a push:
+**Repository policy: every PR gets an independent code review from a fresh session, and
+no PR is merged until CI is green and that review returns `APPROVE` on the final
+commit.** "Fresh" means a reviewer with no context from the session that wrote the
+change: a new AI agent session started for the review alone (a Claude Sonnet subagent
+today), or a human. The brief the reviewer follows is `.github/REVIEW.md`; give it the
+PR number and branch and nothing else. This replaced GitHub Copilot review in
+September 2026 (cost); the Copilot-specific steps are gone.
 
-```bash
-gh api -X POST repos/estcarisimo/jitterbug/pulls/<n>/requested_reviewers \
-  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-```
-
-The review lands as a *Comment* review a few minutes later (Copilot never approves or
-blocks). Read it:
-
-```bash
-gh api repos/estcarisimo/jitterbug/pulls/<n>/reviews --jq '.[-1].body'
-gh api repos/estcarisimo/jitterbug/pulls/<n>/comments \
-  --jq '.[] | select(.in_reply_to_id == null) | {id, path, line, body}'
-```
-
-For each comment either **fix it** (commit + push, then re-request the review) or
-**reply with the reason it does not apply** (with evidence: a passing CI log, a `ruff
-rule` lookup, a reproduction on `main`) and resolve the thread via GraphQL
-`resolveReviewThread`. Never resolve a thread without a fix or a written justification.
-Copilot does produce false positives; it also reviews a stack one commit at a time, so
-check whether a later commit already fixes what it flags. Pre-existing bugs it finds
-that are outside the PR's scope go to a GitHub issue, linked from the reply.
-
-Concretely:
+The loop:
 
 1. Branch from `main` (`feat/…`, `fix/…`, `docs/…`, `chore/…`), commit, push, open the
    PR with `gh pr create`. Fill the PR template checklist honestly.
@@ -132,17 +112,22 @@ Concretely:
    (`gh run view <run-id> --log-failed`, or the raw job log via
    `gh api repos/estcarisimo/jitterbug/actions/jobs/<job-id>/logs`), fix locally,
    push, wait again.
-3. Make sure a Copilot review is requested and wait for it. Address every comment as
-   above.
-4. Repeat 2–3 until CI is green **and** Copilot has reviewed the latest push with no
-   unresolved threads.
-5. Only then merge: `gh pr merge <n> --squash`. Never merge red, never merge without a
-   Copilot review.
-6. Stacked PRs: merge the bottom one **without** `--delete-branch`; GitHub retargets
-   the next PR to `main` automatically. Deleting the base branch first closes the
-   stacked PR (it can be recovered: push the old tip back to the branch name,
-   `gh pr reopen`, `gh pr edit --base main`, then delete).
-7. Do not use the admin bypass. If a human explicitly asks for it in an emergency,
+3. Start a fresh reviewer session with `.github/REVIEW.md` and the PR number. Wait for
+   its verdict.
+4. For each finding either **fix it** (commit + push) or **rebut it with evidence** (a
+   passing CI log, a `ruff rule` lookup, a reproduction on `main`) in the PR description
+   or a PR comment. Reviewers do produce false positives. Pre-existing bugs outside the
+   PR's scope go to a GitHub issue, linked from the PR.
+5. After any push, start **another** fresh reviewer (never reuse the previous session).
+   Repeat 2–5 until CI is green **and** the latest push has `VERDICT: APPROVE`.
+6. Only then merge: `gh pr merge <n> --squash`. Never merge red, never merge without an
+   `APPROVE` on the final commit. Record the verdict (session, commit) in a PR comment.
+7. Stacked PRs: merge the bottom one **without** `--delete-branch`; GitHub retargets
+   the next PR to `main` automatically. If the next PR shows `DIRTY` because the squash
+   touched files it deletes, update it with `git merge -s ours origin/main` on the
+   branch after checking `git rev-parse origin/main^{tree}` equals the previous branch
+   tip's tree, and the merge result's tree equals the branch's own tree.
+8. Do not use the admin bypass. If a human explicitly asks for it in an emergency,
    note it in the PR description.
 
 Never push directly to `main`, never force-push a shared branch, never disable or

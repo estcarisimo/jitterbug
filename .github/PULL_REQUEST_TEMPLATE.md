@@ -5,7 +5,7 @@
 ## Checklist
 
 - [ ] CI is green (lint, tests on all Python versions, build)
-- [ ] Copilot code review requested (automatic on PRs to `main`; otherwise the Reviewers gear or the API), re-requested after the last push, and every comment addressed (fixed, or answered and resolved). **Required before merge.**
+- [ ] Independent review (`.github/REVIEW.md`, fresh session) returned `APPROVE` on the latest push; every earlier finding fixed or rebutted with evidence. **Required before merge.**
 - [ ] Tests added or updated for behaviour changes
 - [ ] Docs updated (`README.md`, `docs/`, `examples/`) when user-facing behaviour changed
 - [ ] `CHANGELOG.md` has an entry under `[Unreleased]`
