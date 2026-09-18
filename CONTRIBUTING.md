@@ -61,8 +61,9 @@ uv build
 ## Making a change
 
 `main` is protected. Nobody pushes to it directly; every change lands through a pull
-request that has passed CI **and** a Copilot code review. This is repository policy: a
-PR without a Copilot review is not merged.
+request that has passed CI **and** an independent code review from a fresh session
+(see `.github/REVIEW.md`). This is repository policy: a PR without an `APPROVE` on its
+final commit is not merged.
 
 1. Create a branch from `main`: `git switch -c <type>/<short-name>` (`feat/`, `fix/`,
    `docs/`, `chore/`).
@@ -70,25 +71,22 @@ PR without a Copilot review is not merged.
 3. Push and open a PR: `gh pr create --fill`. The PR template has a checklist.
 4. **Iterate until green.** Two things must be true before merging:
    - CI is green: `lint`, every `test (...)` matrix leg, and `build`.
-   - A Copilot code review has run on the latest push and **every comment has been
-     addressed**: either fix it and push, or reply explaining why it is not applicable
-     and resolve the thread. Do not merge with unresolved review threads.
-
-   The ruleset requests Copilot automatically on PRs targeting `main`. For stacked PRs
-   or if no request appears, request it yourself and re-request it after each push:
+   - A reviewer with no context from your session — a new AI agent session given only
+     `.github/REVIEW.md` and the PR number, or a human — has returned `VERDICT: APPROVE`
+     for the **latest** push. Every finding before that is either fixed or rebutted with
+     evidence in the PR; after each push, start a new reviewer session (never reuse one).
 
    ```bash
-   gh api -X POST repos/estcarisimo/jitterbug/pulls/<n>/requested_reviewers \
-     -f 'reviewers[]=copilot-pull-request-reviewer[bot]'   # or the Reviewers gear in the sidebar
-   gh pr checks <n> --watch                                 # wait for CI
-   gh pr view <n> --comments                                # read review comments
+   gh pr checks <n> --watch          # wait for CI
+   gh pr view <n> --comments         # every round's verdict is posted here in full
    ```
 
 5. Merge (squash) once both are green. The branch is deleted automatically.
 
    Stacked PRs: merge the bottom of the stack **without** `--delete-branch`; GitHub
    then retargets the next PR to `main` on its own. Deleting the base branch first
-   closes the stacked PR.
+   closes the stacked PR. If the retargeted PR shows as `DIRTY`, see the stacked-PR
+   step in `AGENTS.md` for the safe way to update it.
 
 Repository admins can technically bypass the ruleset. Treat that as an emergency-only
 escape hatch and say so in the PR when it is used.

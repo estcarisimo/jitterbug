@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Code review policy: PRs are reviewed by an independent, fresh-context session
+  following `.github/REVIEW.md` (today a Claude Sonnet subagent) instead of GitHub
+  Copilot; merge requires `APPROVE` on the final commit. `AGENTS.md`, `CONTRIBUTING.md`
+  and the PR template updated.
 - Input validation happens once, at the edge, in `DataLoader.load_from_dataframe`
   (CSV and InfluxDB go through it too): rows with a missing epoch or RTT, a non-positive
   RTT, or an RTT above `MAX_RTT_MS` (10 s) are dropped with a warning and counted in
