@@ -19,7 +19,7 @@ runner = CliRunner()
 
 
 def test_version_is_derived_from_package_metadata():
-    assert jitterbug.__version__ == importlib.metadata.version("jitterbug")
+    assert jitterbug.__version__ == importlib.metadata.version("jitterbug-inference")
 
 
 def test_version_command():

@@ -102,9 +102,11 @@ escape hatch and say so in the PR when it is used.
 4. Tag and publish a GitHub release: `git tag vX.Y.Z && git push origin vX.Y.Z`, then
    `gh release create vX.Y.Z --generate-notes`.
 
-Jitterbug is not published on PyPI at the moment (the `jitterbug` name there belongs to
-an unrelated project); installation is from GitHub. A PyPI release under a new name is
-a separate, later decision.
+Jitterbug is not published on PyPI yet: the `jitterbug` name there belongs to an
+unrelated project, so the distribution is named `jitterbug-inference` (the import
+package and the command stay `jitterbug`). The first PyPI upload waits until the
+Bayesian back end (`bcp` extra, today a git dependency) is itself on PyPI; until then
+installation is from GitHub.
 
 ## Reporting issues
 

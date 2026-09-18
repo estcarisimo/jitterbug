@@ -19,16 +19,10 @@ Jitterbug supports multiple change point detection algorithms:
 ### Installing Algorithm Dependencies
 
 ```bash
-# For basic analysis (ruptures only) - no additional dependencies needed
-uv pip install jitterbug
-
-# For Bayesian change point detection
-uv pip install jitterbug[bcp]
-# OR install directly:
-uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
-
-# For all algorithms
-uv pip install jitterbug[all]
+# From a clone (see docs/INSTALLATION.md)
+uv sync                    # ruptures only
+uv sync --extra bcp        # + the Bayesian detector (git dependency, pulls in torch)
+uv sync --extra all        # every optional back end
 ```
 
 ## Available Jitter Analysis Methods
@@ -82,14 +76,11 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
     --method ks_test
 ```
 
-### Bayesian Change Point Algorithm *(Requires: uv pip install jitterbug[bcp])*
+### Bayesian Change Point Algorithm *(requires the `bcp` extra)*
 
 ```bash
-# First install the dependency:
-uv pip install jitterbug[bcp]
-
-# OR install the bayesian dependency directly:
-uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
+# First install the extra (from a clone):
+uv sync --extra bcp
 
 # Basic Bayesian change point detection
 jitterbug analyze examples/network_analysis/data/raw.csv --algorithm bcp
@@ -381,10 +372,7 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 
 1. **Algorithm not found**: Install required dependencies
    ```bash
-   uv pip install jitterbug[bcp]  # For Bayesian
-
-   # If bayesian installation fails, try direct installation:
-   uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
+   uv sync --extra bcp   # the Bayesian detector; needs `git` on PATH
    ```
 
 2. **Memory issues**: Reduce dataset size or use different algorithm

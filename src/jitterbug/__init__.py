@@ -50,7 +50,7 @@ from .models import (
 )
 
 try:
-    __version__ = _pkg_version("jitterbug")
+    __version__ = _pkg_version("jitterbug-inference")  # the distribution, not the package
 except PackageNotFoundError:  # running from a source tree without an install
     __version__ = "0.0.0+unknown"
 __author__ = "Esteban Carisimo"

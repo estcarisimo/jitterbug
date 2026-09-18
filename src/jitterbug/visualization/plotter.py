@@ -42,8 +42,7 @@ class JitterbugPlotter:
         """
         if not MATPLOTLIB_AVAILABLE:
             raise ImportError(
-                "matplotlib is required for plotting. "
-                "Install with: pip install jitterbug[visualization]"
+                "matplotlib is required for plotting. Install with: uv sync --extra visualization"
             )
 
         self.style = style

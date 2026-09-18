@@ -1,252 +1,94 @@
-# Jitterbug Installation Guide
+# Installation
 
-This guide covers installing Jitterbug and its optional dependencies for different algorithms. We recommend using `uv` for faster dependency resolution and installation.
+Jitterbug is installed from this repository. The distribution is named
+`jitterbug-inference` (the name `jitterbug` on PyPI belongs to an unrelated project);
+the import stays `import jitterbug` and the command stays `jitterbug`. A PyPI release
+is planned once the Bayesian back end is itself on PyPI; until then every command below
+works from a clone or a git URL.
 
-## Installing uv (Recommended)
+Requirements: Python 3.10 or newer, `git` on `PATH` for the `bcp` extra.
 
-```bash
-# Install uv - a fast Python package installer
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Or with pip
-pip install uv
-
-# Or with homebrew (macOS)
-brew install uv
-```
-
-## Basic Installation
-
-### Core Package (Ruptures algorithm only)
+## From a clone with uv (recommended)
 
 ```bash
-# Install base package with ruptures algorithm (using uv for faster installation)
-uv pip install jitterbug
-
-# Or with traditional pip
-pip install jitterbug
-```
-
-This installs:
-- Core analysis framework
-- Ruptures change point detection algorithm
-- Jitter dispersion and KS-test methods
-- Command line interface
-
-## Optional Dependencies
-
-### Bayesian Change Point Detection
-
-```bash
-# Method 1: Install via extra
-uv pip install jitterbug[bcp]
-
-# Method 2: Install dependency directly (if Method 1 fails)
-uv pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
-```
-
-**What this enables:**
-- Bayesian change point detection algorithm (`--algorithm bcp`)
-- Classical statistical approach with uncertainty quantification
-- Better handling of noise and uncertainty
-
-### Visualization Support
-
-```bash
-# Install visualization dependencies
-uv pip install jitterbug[visualization]
-```
-
-**What this enables:**
-- `jitterbug visualize` command
-- `JitterbugPlotter` (matplotlib figures)
-
-### InfluxDB Support
-
-```bash
-# Install InfluxDB client
-uv pip install jitterbug[influx]
-```
-
-**What this enables:**
-- Direct InfluxDB data loading
-- Time series database integration
-- Real-time analysis capabilities
-
-### Jupyter Notebook Support
-
-```bash
-# Install Jupyter dependencies
-uv pip install jitterbug[jupyter]
-```
-
-**What this enables:**
-- Jupyter notebook integration
-- Interactive analysis environments
-- Rich display capabilities
-
-## Complete Installation
-
-### Install Everything
-
-```bash
-# Install all optional dependencies
-pip install jitterbug[all]
-```
-
-This includes all algorithms, visualization, and data source support.
-
-### Development Installation
-
-```bash
-# Clone repository
+curl -LsSf https://astral.sh/uv/install.sh | sh      # once, if you do not have uv
 git clone https://github.com/estcarisimo/jitterbug.git
 cd jitterbug
+uv sync                                               # core: ruptures detector, CLI, library
+uv run jitterbug version
+```
 
-# Create the environment, install the package in editable mode with every optional
-# back end, and the development tools (the `dev` dependency group is installed by default)
+`uv sync` creates `.venv`, installs the package in editable mode and the `dev`
+dependency group (pytest, ruff, mypy). Add extras as needed:
+
+| Extra | Installs | Enables |
+| --- | --- | --- |
+| `bcp` | [bayesian_changepoint_detection](https://github.com/estcarisimo/bayesian_changepoint_detection) (git) + torch | `--algorithm bcp`, the paper's detector |
+| `visualization` | matplotlib | `jitterbug visualize`, `JitterbugPlotter` |
+| `influx` | influxdb-client | `DataLoader.load_from_influxdb` |
+| `jupyter` | JupyterLab, ipykernel | the notebooks in `examples/` |
+| `all` | all of the above | |
+
+```bash
+uv sync --extra bcp --extra visualization    # the paper's setup plus figures
 uv sync --extra all
-source .venv/bin/activate  # or prefix each command below with `uv run`
 ```
 
-## Installation Verification
+Either activate the environment (`source .venv/bin/activate`) or prefix commands with
+`uv run`.
 
-### Test Basic Installation
+## From a clone with pip
 
 ```bash
-# Test CLI is working
-jitterbug --help
-
-# Test basic analysis (uses ruptures)
-jitterbug analyze examples/network_analysis/data/raw.csv
+git clone https://github.com/estcarisimo/jitterbug.git
+cd jitterbug
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[visualization]"        # extras in brackets, as usual
 ```
 
-### Test Algorithm Availability
+## Directly from GitHub, no clone
 
 ```bash
-# Test ruptures (should always work)
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm ruptures
-
-# Test Bayesian (requires the bcp extra)
-jitterbug analyze examples/network_analysis/data/raw.csv --algorithm bcp
+pip install "jitterbug-inference[visualization] @ git+https://github.com/estcarisimo/jitterbug.git"
 ```
 
-### Test Visualization
+Pin a tag once releases exist: `...jitterbug.git@v2.1.0`.
+
+## Notes on the `bcp` extra
+
+- It is a git dependency, so `git` must be on `PATH`; pip and uv fetch the repository
+  and build it. On Linux, uv resolves `torch` from the CPU-only index configured in
+  `pyproject.toml` (`[tool.uv.sources]`), which avoids a multi-gigabyte CUDA download.
+- The detector runs on CPU by default (`change_point_detection.bcp_device: cpu`). On
+  Apple Silicon the library would otherwise pick MPS, which is an order of magnitude
+  slower for series of this size. The bundled dataset takes about two minutes on CPU.
+- `--extra bayesian` is a deprecated alias of `--extra bcp` and will go in 3.0.
+
+## Check the installation
 
 ```bash
-# Test visualization (requires visualization extra)
-jitterbug visualize examples/network_analysis/data/raw.csv --output-dir test_viz
+uv run jitterbug version
+uv run jitterbug analyze examples/network_analysis/data/raw.csv --summary-only
+uv run jitterbug analyze examples/network_analysis/data/raw.csv --algorithm bcp --method ks_test   # bcp extra
+uv run jitterbug visualize examples/network_analysis/data/raw.csv --output-dir plots           # visualization extra
+uv run python -c "from jitterbug.detection import get_available_algorithms; print(get_available_algorithms())"
 ```
+
+`get_available_algorithms()` lists only the detectors whose packages are importable.
 
 ## Troubleshooting
 
-### Common Issues
+| Symptom | Cause and fix |
+| --- | --- |
+| `--algorithm bcp` fails with "bayesian_changepoint_detection package is required" | The extra is not installed: `uv sync --extra bcp`. |
+| Installing the `bcp` extra fails before downloading anything | `git` is missing from `PATH`, or the network blocks github.com. |
+| `bcp` runs for many minutes on a Mac | An older configuration file sets `bcp_device: mps`; use `cpu`. |
+| `jitterbug visualize` reports that matplotlib is missing | `uv sync --extra visualization`. |
+| Plots fail on a server without a display | Set `MPLBACKEND=Agg` before running. |
+| `--output-format parquet` fails | Parquet needs `pyarrow` (`uv pip install pyarrow`). |
+| `pip install jitterbug` installed something else | That is the unrelated PyPI project; uninstall it and use one of the commands above. |
 
-#### 1. Bayesian Installation Fails
+## Developer setup
 
-**Problem:**
-```
-ERROR: Could not find a version that satisfies the requirement bayesian_changepoint_detection
-```
-
-**Solution:**
-```bash
-# Install directly from GitHub
-pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git
-```
-
-#### 2. Visualization Dependencies Fail
-
-**Problem:**
-```
-ERROR: Microsoft Visual C++ 14.0 is required (Windows)
-```
-
-**Solution:**
-```bash
-# On Windows, install Visual C++ Build Tools
-# Or use conda instead:
-conda install matplotlib
-pip install jitterbug
-```
-
-#### 4. Permission Errors
-
-**Problem:**
-```
-ERROR: Could not install packages due to an EnvironmentError: [Errno 13] Permission denied
-```
-
-**Solution:**
-```bash
-# Install in user directory
-pip install --user jitterbug[all]
-
-# Or use virtual environment
-python -m venv jitterbug_env
-source jitterbug_env/bin/activate  # On Windows: jitterbug_env\Scripts\activate
-pip install jitterbug[all]
-```
-
-### Environment-Specific Instructions
-
-#### Ubuntu/Debian
-
-```bash
-# Install system dependencies
-sudo apt-get update
-sudo apt-get install python3-pip python3-venv git build-essential
-
-# Install jitterbug
-uv pip install jitterbug[all]
-```
-
-#### macOS
-
-```bash
-# Install via Homebrew
-brew install python git
-
-# Install jitterbug
-uv pip install jitterbug[all]
-```
-
-#### Windows
-
-```bash
-# Install Python from python.org
-# Install Git from git-scm.com
-# Install Visual C++ Build Tools
-
-# Install jitterbug
-pip install jitterbug[all]
-```
-
-## Version Information
-
-```bash
-# Check installed version
-jitterbug version
-
-# Check algorithm availability
-python -c "
-from jitterbug.detection import get_available_algorithms
-print('Available algorithms:', get_available_algorithms())
-"
-```
-
-## Next Steps
-
-After installation:
-
-1. **Read the examples**: Check `examples/README.md`
-2. **Try the algorithm guide**: See `docs/ALGORITHM_USAGE.md`
-3. **Analyze your data**: Use your own RTT measurements
-4. **Explore visualization**: Generate analysis reports
-
-## Getting Help
-
-- **Documentation**: Check the `docs/` directory
-- **Examples**: See `examples/` for working code
-- **Issues**: Report problems on GitHub
-- **CLI Help**: Run `jitterbug --help` for commands
+See [CONTRIBUTING.md](../CONTRIBUTING.md): `uv sync --extra visualization`,
+`uv run pre-commit install`, then `uv run pytest -m "not slow"`.
