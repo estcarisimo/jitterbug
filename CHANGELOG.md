@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Build backend requirement raised to `uv_build>=0.12.14,<0.13` (Dependabot). Building
+  from source with an older `uv` CLI still works: it fetches the backend from PyPI.
 - `examples/README.md` and `examples/network_analysis/README.md` rewritten to match the
   directory: setup with `uv sync --extra ...`, the script and the notebooks as the two
   entry points, the dataset described (dates, sizes, what the paper found and what
