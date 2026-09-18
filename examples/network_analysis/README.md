@@ -39,7 +39,7 @@ print(analyzer.get_summary_statistics(results))
 
 | Configuration | Periods | Congested | Paper's periods recovered | Spurious |
 | --- | --- | --- | --- | --- |
-| `--algorithm bcp --method ks_test` (the paper's) | 34 | 14 | 13 / 15 | 0 |
+| `--algorithm bcp --method ks_test` (the paper's) | 28 | 14 | 14 / 15 | 0 |
 | `--algorithm ruptures` (default) + jitter dispersion | 22 | 11 | 11 / 15 | 0 |
 
 "Recovered" means a detected congested period overlaps the reference one. Interval

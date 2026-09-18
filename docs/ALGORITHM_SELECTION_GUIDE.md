@@ -192,7 +192,7 @@ change_point_detection:
 
 4. **What are your computational resources?**
    - Limited → **Ruptures**
-   - A few minutes of CPU per series is fine → **BCP**
+   - A few seconds of CPU per series is fine → **BCP**
 
 ### Decision Tree
 
@@ -203,7 +203,7 @@ RTT Dataset Size?
 │   ├── Need interpretability? → BCP
 │   └── Need speed? → Ruptures
 └── Large (>1000 measurements)
-    ├── Reproducing the paper? → BCP (about two minutes for 1 500 points on CPU)
+    ├── Reproducing the paper? → BCP (under ten seconds for 1 500 points on CPU)
     └── Production monitoring? → Ruptures
 ```
 

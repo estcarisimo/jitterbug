@@ -74,7 +74,7 @@ counts, run times and a recommendation; writes `benchmark_results.csv` and
 ## What to expect
 
 With `--algorithm bcp --method ks_test` (the paper's configuration) Jitterbug finds
-34 periods, 14 of them congested, recovering 13 of the paper's 15 with no spurious
+28 periods, 14 of them congested, recovering 14 of the paper's 15 with no spurious
 detection; the default `ruptures` + jitter dispersion finds 22 periods, 11 congested
 (11 of 15). `tests/test_paper_regression.py` pins both. Interval boundaries differ from
 the paper's 1.x implementation by a few minutes; the counts and the overlap are what is
