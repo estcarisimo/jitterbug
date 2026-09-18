@@ -94,8 +94,75 @@ class TestDataFrame:
         assert (m.source, m.destination) == ("a", "b")
 
     def test_rejects_unknown_value_column(self, loader: DataLoader) -> None:
-        with pytest.raises(ValueError, match="RTT values column"):
+        with pytest.raises(ValueError, match="RTT column named one of 'values'"):
             loader.load_from_dataframe(pd.DataFrame({"epoch": [1.0], "ms": [1.0]}))
+
+    def test_rejects_missing_epoch_column(self, loader: DataLoader) -> None:
+        with pytest.raises(ValueError, match="'epoch' column"):
+            loader.load_from_dataframe(pd.DataFrame({"time": [1.0], "values": [1.0]}))
+
+    # --- the input contract, validated once at the edge (docs/INPUT_FORMATS.md)
+
+    def test_missing_values_are_dropped_and_counted(
+        self, loader: DataLoader, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        df = pd.DataFrame({"epoch": [1.0, 2.0, np.nan, 4.0], "values": [10.0, np.nan, 12.0, 13.0]})
+        with caplog.at_level("WARNING", logger="jitterbug"):
+            ds = loader.load_from_dataframe(df)
+        assert [m.epoch for m in ds.measurements] == [1.0, 4.0]
+        assert ds.metadata["dropped_rows"] == {"missing": 2, "non_positive": 0, "too_large": 0}
+        assert ds.metadata["total_rows"] == 4
+        assert "Dropping 2 row(s) with missing RTT" in caplog.text
+
+    def test_out_of_range_rtts_are_dropped(self, loader: DataLoader) -> None:
+        df = pd.DataFrame({"epoch": [1.0, 2.0, 3.0, 4.0], "values": [10.0, 0.0, -5.0, 20_000.0]})
+        ds = loader.load_from_dataframe(df)
+        assert [m.rtt_value for m in ds.measurements] == [10.0]
+        assert ds.metadata["dropped_rows"] == {"missing": 0, "non_positive": 2, "too_large": 1}
+
+    def test_unsorted_rows_are_sorted_stably(
+        self, loader: DataLoader, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        df = pd.DataFrame(
+            {
+                "epoch": [3.0, 1.0, 2.0, 2.0],
+                "values": [30.0, 10.0, 20.0, 21.0],
+                "source": list("abcd"),
+            }
+        )
+        with caplog.at_level("WARNING", logger="jitterbug"):
+            ds = loader.load_from_dataframe(df)
+        assert [m.epoch for m in ds.measurements] == [1.0, 2.0, 2.0, 3.0]
+        assert [m.source for m in ds.measurements] == ["b", "c", "d", "a"]  # ties keep order
+        assert ds.metadata["sorted_on_load"] is True
+        assert "not in time order" in caplog.text
+
+    def test_sorted_input_is_not_flagged(self, loader: DataLoader) -> None:
+        ds = loader.load_from_dataframe(pd.DataFrame({"epoch": [1.0, 2.0], "values": [1.0, 2.0]}))
+        assert ds.metadata["sorted_on_load"] is False
+        assert ds.metadata["dropped_rows"] == {"missing": 0, "non_positive": 0, "too_large": 0}
+
+    @pytest.mark.parametrize("column", ["epoch", "values"])
+    def test_non_numeric_values_are_an_error(self, loader: DataLoader, column: str) -> None:
+        df = pd.DataFrame({"epoch": [1.0, 2.0], "values": [10.0, 11.0]}).astype(object)
+        df.loc[1, column] = "12:00"
+        with pytest.raises(ValueError, match=f"Column '{column}' has 1 non-numeric value"):
+            loader.load_from_dataframe(df)
+
+    def test_empty_strings_count_as_missing(self, loader: DataLoader) -> None:
+        """A frame built by hand (not read_csv) may carry "" for a blank cell."""
+        df = pd.DataFrame({"epoch": [1.0, 2.0, 3.0], "values": [10.0, "", " "]}, dtype=object)
+        ds = loader.load_from_dataframe(df)
+        assert [m.rtt_value for m in ds.measurements] == [10.0]
+        assert ds.metadata["dropped_rows"]["missing"] == 2
+
+    def test_all_rows_invalid_is_an_error(self, loader: DataLoader) -> None:
+        with pytest.raises(ValueError, match="No valid RTT rows"):
+            loader.load_from_dataframe(pd.DataFrame({"epoch": [1.0, 2.0], "values": [0.0, np.nan]}))
+
+    def test_missing_source_cells_become_none(self, loader: DataLoader) -> None:
+        df = pd.DataFrame({"epoch": [1.0, 2.0], "values": [1.0, 2.0], "source": ["a", None]})
+        assert [m.source for m in loader.load_from_dataframe(df).measurements] == ["a", None]
 
 
 class TestScamperJSON:
@@ -106,6 +173,19 @@ class TestScamperJSON:
         assert ds.measurements[1].epoch == 1700000100.5
         assert ds.measurements[0].source == "10.0.0.1"
         assert ds.metadata["format"] == "scamper_warts"
+
+    def test_out_of_range_responses_are_dropped(self, loader: DataLoader, tmp_path: Path) -> None:
+        path = tmp_path / "ping.json"
+        responses = [
+            {"rtt": 0.0, "tx": {"sec": 1700000000, "usec": 0}},  # timeout encoded as 0
+            {"rtt": 12.0, "tx": {"sec": 1700000001, "usec": 0}},
+            {"rtt": 60000.0, "tx": {"sec": 1700000002, "usec": 0}},  # a minute: bad sample
+        ]
+        record = {"type": "ping", "src": "a", "dst": "b", "responses": responses}
+        path.write_text(json.dumps(record))
+        ds = loader.load_from_file(path)
+        assert [m.rtt_value for m in ds.measurements] == [12.0]
+        assert ds.metadata["dropped_responses"] == 2
 
     def test_no_measurements_is_an_error(self, loader: DataLoader, tmp_path: Path) -> None:
         path = tmp_path / "empty.json"
