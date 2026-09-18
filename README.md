@@ -273,7 +273,7 @@ uv run pytest --cov=jitterbug --cov-report=term-missing
 uv run pytest tests/test_cli.py -v
 ```
 
-The fast suite runs in about twenty seconds and needs no network; the Bayesian regression tests (`-m slow`) take a couple of minutes and need the `bcp` extra. Coverage is about 90 % and CI fails below 75 %.
+The fast suite runs in about twenty seconds and needs no network; the Bayesian regression tests (`-m slow`) add about ten seconds and need the `bcp` extra. Coverage is about 90 % and CI fails below 75 %.
 
 ### Code quality
 

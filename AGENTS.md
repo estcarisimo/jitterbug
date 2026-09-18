@@ -51,7 +51,7 @@ uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format src/ tests/ examples/ tools/   # CI checks with --check
 uv run mypy src/jitterbug                  # blocking in CI (disallow_untyped_defs)
 uv run pytest -m "not slow"                # seconds
-uv run pytest                              # + Bayesian regression (~2 min, needs --extra bcp)
+uv run pytest                              # + Bayesian regression (~10 s more, needs --extra bcp)
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/r.json
 uv build                                   # sdist + wheel via uv_build
 ```
@@ -86,8 +86,9 @@ uv build                                   # sdist + wheel via uv_build
   request for interactivity.
 - The ruptures detector retries with a lower penalty and tags those results
   `ruptures_<model>_lowpen`.
-- The `bcp` extra is a git dependency (`bayesian_changepoint_detection`), so a wheel
-  carrying it cannot be uploaded to PyPI. `all` includes it on purpose for now.
+- The `bcp` extra is a git dependency (`bayescd`, imported as
+  `bayesian_changepoint_detection`), so a wheel carrying it cannot be uploaded to PyPI.
+  `all` includes it on purpose for now.
 - Ruff 0.16 formats fenced Python blocks inside Markdown files in the paths it is
   given; `README.md` is deliberately not in the CI paths yet.
 - The `examples/` scripts and notebooks are not run in CI; `tests/test_cli.py` is the

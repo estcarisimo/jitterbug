@@ -25,7 +25,7 @@ uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format --check src/ tests/ examples/ tools/
 uv run mypy src/jitterbug            # blocking in CI
 uv run pytest -m "not slow"          # a few seconds
-uv run pytest                        # + the Bayesian regression tests (~2 min, needs --extra bcp)
+uv run pytest                        # + the Bayesian regression tests (~10 s more, needs --extra bcp)
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/results.json
 uv build
 ```

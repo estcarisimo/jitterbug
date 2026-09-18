@@ -61,7 +61,7 @@ Pin a tag once releases exist: `...jitterbug.git@v2.1.0`.
   `pyproject.toml` (`[tool.uv.sources]`), which avoids a multi-gigabyte CUDA download.
 - The detector runs on CPU by default (`change_point_detection.bcp_device: cpu`). On
   Apple Silicon the library would otherwise pick MPS, which is an order of magnitude
-  slower for series of this size. The bundled dataset takes about two minutes on CPU.
+  slower for series of this size. The bundled dataset takes under ten seconds on CPU.
 - `--extra bayesian` is a deprecated alias of `--extra bcp` and will go in 3.0.
 
 ## Check the installation

@@ -100,11 +100,11 @@ class TestBayesianKSTest:
         return _run("bcp", "ks_test")
 
     def test_golden(self, bcp_ks: CongestionInferenceResult) -> None:
-        assert len(bcp_ks.inferences) == 34
+        assert len(bcp_ks.inferences) == 28
         assert len(_congested(bcp_ks)) == 14
 
     def test_agrees_with_paper(self, bcp_ks: CongestionInferenceResult) -> None:
         recovered, total, spurious = _agreement(bcp_ks, "ks_test")
         assert total == 15
-        assert recovered >= 13
+        assert recovered >= 14
         assert spurious == 0
