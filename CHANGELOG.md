@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   being rejected; a non-numeric cell is a `ValueError` naming the column and value. Before,
   the first bad row surfaced as a Pydantic error from inside the loading loop. The loop
   itself is vectorised: the bundled dataset loads in 0.1 s instead of 1 s.
+- The scamper JSON reader applies the same RTT bounds per response: a `ping` response
+  with an RTT of 0 (a timeout) or above 10 s no longer makes the whole file fail with a
+  Pydantic error; it is dropped with a warning and counted in
+  `metadata["dropped_responses"]`.
 
 - Dependency floors raised to releases that support Python 3.10 (`numpy>=1.24`,
   `pandas>=2.0`, `scipy>=1.10`, `pydantic>=2.5`, `pydantic-settings>=2.1`,

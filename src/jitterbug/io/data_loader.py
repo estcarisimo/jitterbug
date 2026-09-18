@@ -134,8 +134,8 @@ class DataLoader:
         frame = df.loc[keep]
         epoch_values = epochs[keep].to_numpy(dtype=float)
         rtt_values = rtts[keep].to_numpy(dtype=float)
-        was_sorted = bool(np.all(epoch_values[:-1] <= epoch_values[1:]))
-        if not was_sorted:
+        needs_sort = bool(np.any(epoch_values[:-1] > epoch_values[1:]))
+        if needs_sort:
             logger.warning("Rows are not in time order; sorting by epoch")
             order = np.argsort(epoch_values, kind="stable")
             frame = frame.iloc[order]
@@ -164,15 +164,17 @@ class DataLoader:
                 "rtt_column": rtt_column,
                 "total_rows": len(df),
                 "dropped_rows": dropped,
-                "sorted_on_load": not was_sorted,
+                "sorted_on_load": needs_sort,
             },
         )
 
     @staticmethod
     def _numeric_column(df: pd.DataFrame, column: str) -> pd.Series:
-        """Return ``column`` as floats; NaN stays NaN, anything non-numeric is an error."""
+        """Return ``column`` as floats; NaN and empty strings become NaN, anything else
+        non-numeric is an error."""
         values = pd.to_numeric(df[column], errors="coerce")
-        bad = values.isna() & df[column].notna()
+        blank = df[column].map(lambda v: isinstance(v, str) and v.strip() == "")
+        bad = values.isna() & df[column].notna() & ~blank
         if bad.any():
             example = df.loc[bad, column].iloc[0]
             raise ValueError(

@@ -149,6 +149,13 @@ class TestDataFrame:
         with pytest.raises(ValueError, match=f"Column '{column}' has 1 non-numeric value"):
             loader.load_from_dataframe(df)
 
+    def test_empty_strings_count_as_missing(self, loader: DataLoader) -> None:
+        """A frame built by hand (not read_csv) may carry "" for a blank cell."""
+        df = pd.DataFrame({"epoch": [1.0, 2.0, 3.0], "values": [10.0, "", " "]}, dtype=object)
+        ds = loader.load_from_dataframe(df)
+        assert [m.rtt_value for m in ds.measurements] == [10.0]
+        assert ds.metadata["dropped_rows"]["missing"] == 2
+
     def test_all_rows_invalid_is_an_error(self, loader: DataLoader) -> None:
         with pytest.raises(ValueError, match="No valid RTT rows"):
             loader.load_from_dataframe(pd.DataFrame({"epoch": [1.0, 2.0], "values": [0.0, np.nan]}))

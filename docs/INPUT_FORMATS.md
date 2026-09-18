@@ -23,7 +23,8 @@ Rules, applied in this order:
 1. **Missing column or non-numeric value → error.** A missing `epoch` or RTT column, or a
    cell such as `"12:00"` or `"timeout"` in either, raises `ValueError` naming the column
    and the first offending value. Fix the file; Jitterbug does not guess.
-2. **Missing values are dropped.** A row whose `epoch` or RTT is empty/NaN is skipped.
+2. **Missing values are dropped.** A row whose `epoch` or RTT is empty (NaN, `None`, or an
+   empty string) is skipped.
 3. **Out-of-range RTTs are dropped.** RTT must be `> 0` and `<= 10 000` ms
    (`jitterbug.models.MAX_RTT_MS`). Zero or negative values usually encode a timeout or a
    probe error; values above ten seconds are treated the same way.
