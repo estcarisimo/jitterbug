@@ -101,7 +101,7 @@ no PR is merged until CI is green and that review returns `APPROVE` on the final
 commit.** "Fresh" means a reviewer with no context from the session that wrote the
 change: a new AI agent session started for the review alone (a Claude Sonnet subagent
 today), or a human. The brief the reviewer follows is `.github/REVIEW.md`; give it the
-PR number and branch and nothing else. This replaced GitHub Copilot review in
+PR number and nothing else. This replaced GitHub Copilot review in
 September 2026 (cost); the Copilot-specific steps are gone.
 
 The loop:

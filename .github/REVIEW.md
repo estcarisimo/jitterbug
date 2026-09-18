@@ -21,7 +21,8 @@ maintainer would be: concrete, evidence-based findings with file:line, and no pr
 
 ## Setup
 
-1. Work in a throwaway worktree so the main checkout is untouched:
+1. Resolve the branch from the PR number: `gh pr view <PR> --json headRefName -q .headRefName`.
+   Work in a throwaway worktree so the main checkout is untouched:
    `git fetch origin && git worktree add <scratch>/wt-<PR> origin/<branch>`, then `cd`
    there. `<scratch>` is the scratch directory your environment assigned you, or
    `mktemp -d`.
