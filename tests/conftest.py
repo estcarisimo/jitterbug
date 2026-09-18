@@ -19,6 +19,11 @@ from jitterbug.models import (
 # in the developer's environment cannot leak in. It has to be in place before any test
 # module imports `jitterbug.cli.main`, which imports matplotlib.pyplot at collection time.
 os.environ["MPLBACKEND"] = "Agg"
+# Rich (the CLI console) and Click (usage errors) both read COLUMNS when they render, so
+# the CLI tests see the same wrapping everywhere instead of depending on the runner's
+# terminal or on how long its temporary-directory paths are (macOS runners wrapped
+# "'epoch' column" across two lines).
+os.environ["COLUMNS"] = "200"
 
 T0 = datetime(2024, 1, 1, tzinfo=timezone.utc)
 
