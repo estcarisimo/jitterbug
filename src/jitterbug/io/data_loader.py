@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from ..models import MAX_RTT_MS, RTTDataset, RTTMeasurement
+from .compression import inner_suffix, open_text
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,8 @@ class DataLoader:
             Path to the data file.
         file_format : Optional[str]
             Format of the file ('csv' or 'json'). If None, it is inferred from the
-            extension, then from the first line.
+            extension, then from the first line. A trailing ``.zst`` means the file is
+            Zstandard-compressed (``rtts.csv.zst``) and does not count as the extension.
 
         Returns
         -------
@@ -191,8 +193,9 @@ class DataLoader:
 
     def _infer_format(self, file_path: Path) -> str:
         """
-        Infer the file format: ``.csv``/``.json``/``.jsonl`` by extension, otherwise
-        from the first line (a JSON object or a comma-separated header).
+        Infer the file format: ``.csv``/``.json``/``.jsonl`` by extension (ignoring a
+        trailing ``.zst``), otherwise from the first line (a JSON object or a
+        comma-separated header).
 
         Parameters
         ----------
@@ -209,7 +212,7 @@ class DataLoader:
         ValueError
             If the file cannot be read as text or its first line matches neither format.
         """
-        extension = file_path.suffix.lower()
+        extension = inner_suffix(file_path)
 
         if extension == ".csv":
             return "csv"
@@ -217,7 +220,7 @@ class DataLoader:
             return "json"
         # Unknown extension: look at the first line
         try:
-            with file_path.open() as f:
+            with open_text(file_path) as f:
                 first_line = f.readline().strip()
         except (OSError, UnicodeError) as e:
             raise ValueError(f"Cannot infer format for file: {file_path}") from e
@@ -245,8 +248,11 @@ class DataLoader:
             Loaded RTT dataset.
         """
         try:
-            df = pd.read_csv(file_path)
+            with open_text(file_path, newline="") as f:
+                df = pd.read_csv(f)
             dataset = self.load_from_dataframe(df)
+        except ImportError:
+            raise
         except Exception as e:
             raise ValueError(f"Failed to load CSV file {file_path}: {e}") from e
         dataset.metadata.update({"source": "csv", "file_path": str(file_path)})
@@ -270,7 +276,7 @@ class DataLoader:
         out_of_range = 0
 
         try:
-            with file_path.open() as f:
+            with open_text(file_path) as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -311,6 +317,8 @@ class DataLoader:
                         logger.warning(f"Skipping invalid JSON line: {line[:120]!r}")
                         continue
 
+        except ImportError:
+            raise
         except Exception as e:
             raise ValueError(f"Failed to load JSON file {file_path}: {e}") from e
 

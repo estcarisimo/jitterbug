@@ -1,5 +1,8 @@
 """
 Result export utilities.
+
+JSON and CSV outputs are Zstandard-compressed when the path ends in ``.zst``
+(``results.json.zst``); see :mod:`jitterbug.io.compression`.
 """
 
 import json
@@ -9,8 +12,17 @@ from pathlib import Path
 import pandas as pd
 
 from ..models import CongestionInferenceResult
+from .compression import is_zstd, open_text
 
 logger = logging.getLogger(__name__)
+
+
+def reject_zstd_parquet(output_path: Path) -> None:
+    """Raise ValueError for ``*.zst`` Parquet output, which would compress twice."""
+    if is_zstd(output_path):
+        raise ValueError(
+            f"Parquet output is already compressed; drop the .zst suffix: {output_path}"
+        )
 
 
 class ResultExporter:
@@ -32,7 +44,7 @@ class ResultExporter:
         results : CongestionInferenceResult
             Analysis results to export.
         output_path : Union[str, Path]
-            Path to save JSON file.
+            Path to save JSON file; compressed with Zstandard if it ends in ``.zst``.
         pretty : bool
             Whether to format JSON with indentation.
         """
@@ -46,7 +58,7 @@ class ResultExporter:
             isoformat = getattr(obj, "isoformat", None)
             return isoformat() if callable(isoformat) else str(obj)
 
-        with output_path.open("w") as f:
+        with open_text(output_path, "w") as f:
             if pretty:
                 json.dump(data, f, indent=2, default=json_serializer)
             else:
@@ -63,7 +75,7 @@ class ResultExporter:
         results : CongestionInferenceResult
             Analysis results to export.
         output_path : Union[str, Path]
-            Path to save CSV file.
+            Path to save CSV file; compressed with Zstandard if it ends in ``.zst``.
         """
         output_path = Path(output_path)
 
@@ -82,7 +94,8 @@ class ResultExporter:
                 for inf in results.inferences
             ]
 
-        df.to_csv(output_path, index=False)
+        with open_text(output_path, "w", newline="") as f:
+            df.to_csv(f, index=False)
 
         logger.info(f"Results exported to CSV: {output_path}")
 
@@ -98,8 +111,14 @@ class ResultExporter:
             Analysis results to export.
         output_path : Union[str, Path]
             Path to save Parquet file.
+
+        Raises
+        ------
+        ValueError
+            If ``output_path`` ends in ``.zst``: Parquet compresses its own columns.
         """
         output_path = Path(output_path)
+        reject_zstd_parquet(output_path)
 
         # Convert to DataFrame
         df = results.to_dataframe()
@@ -129,7 +148,8 @@ class ResultExporter:
         results : CongestionInferenceResult
             Analysis results to export.
         output_path : Union[str, Path]
-            Path to save summary JSON file.
+            Path to save summary JSON file; compressed with Zstandard if it ends in
+            ``.zst``.
         """
         output_path = Path(output_path)
 
@@ -162,7 +182,7 @@ class ResultExporter:
                     "max": float(pd.Series(confidences).max()),
                 }
 
-        with output_path.open("w") as f:
+        with open_text(output_path, "w") as f:
             json.dump(summary, f, indent=2)
 
         logger.info(f"Summary exported to JSON: {output_path}")

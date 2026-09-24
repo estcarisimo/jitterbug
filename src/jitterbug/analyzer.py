@@ -15,6 +15,8 @@ from .analysis import (
 )
 from .detection import ChangePointDetector
 from .io import DataLoader
+from .io.compression import open_text
+from .io.exporters import reject_zstd_parquet
 from .models import (
     ChangePoint,
     CongestionInferenceResult,
@@ -312,9 +314,17 @@ class JitterbugAnalyzer:
         results : CongestionInferenceResult
             Analysis results to save.
         output_path : Union[str, Path]
-            Path to save results to.
+            Path to save results to. JSON and CSV are compressed with Zstandard when it
+            ends in ``.zst`` (``results.json.zst``).
         format : Optional[str]
             Output format ('json', 'csv', 'parquet'). If None, uses config default.
+
+        Raises
+        ------
+        ValueError
+            If the format is unknown, or Parquet is requested with a ``.zst`` path.
+        ImportError
+            If the path ends in ``.zst`` and no Zstandard codec is available.
         """
         output_path = Path(output_path)
         format = format or self.config.output_format
@@ -322,14 +332,16 @@ class JitterbugAnalyzer:
         if format == "json":
             import json
 
-            with output_path.open("w") as f:
+            with open_text(output_path, "w") as f:
                 json.dump(results.model_dump(), f, indent=2, default=str)
 
         elif format == "csv":
             df = results.to_dataframe()
-            df.to_csv(output_path, index=False)
+            with open_text(output_path, "w", newline="") as f:
+                df.to_csv(f, index=False)
 
         elif format == "parquet":
+            reject_zstd_parquet(output_path)
             df = results.to_dataframe()
             df.to_parquet(output_path)
 

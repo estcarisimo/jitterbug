@@ -35,6 +35,7 @@ dependency group (pytest, ruff, mypy). Add extras as needed:
 | `visualization` | matplotlib | `jitterbug visualize`, `JitterbugPlotter` |
 | `clustering` | scikit-learn | `--mode clustering`, the non-sequential mode |
 | `influx` | influxdb-client | `DataLoader.load_from_influxdb` |
+| `zstd` | zstandard (Python < 3.14 only) | `.zst` input and output files |
 | `jupyter` | JupyterLab, ipykernel | the notebooks in `examples/` |
 | `all` | all of the above | |
 

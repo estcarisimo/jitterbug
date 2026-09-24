@@ -110,3 +110,23 @@ configuration, logs or results.
 other extension it looks at the first line: a line starting with `{` is scamper JSON, a
 line containing a comma is a CSV header. Anything else (including binary content) is a
 `ValueError`; pass `file_format="csv"` or `"json"` explicitly to override.
+
+## Zstandard-compressed files
+
+Large RTT datasets can stay compressed: a file whose name ends in `.zst` is decompressed
+while it is read, and the extension before it decides the format (`rtts.csv.zst` is CSV,
+`pings.jsonl.zst` is scamper JSON; `data.zst` falls back to the first line). Results
+work the same way: `--output results.json.zst` or `results.csv.zst` writes the usual
+JSON or CSV through Zstandard.
+
+```bash
+zstd rtts.csv                                   # -> rtts.csv.zst
+jitterbug analyze rtts.csv.zst --output results.json.zst
+zstd -dc results.json.zst | head                # or zstdcat
+```
+
+On the bundled PAM 2022 dataset `raw.csv` shrinks from 880 KB to 207 KB. The codec is
+the standard library's `compression.zstd` on Python 3.14 and later; on older versions
+install the `zstd` extra (`pip install "jitterbug-inference[zstd]"`), otherwise a `.zst`
+path raises an `ImportError` that says so. Parquet output compresses its own columns, so
+`results.parquet.zst` is rejected.

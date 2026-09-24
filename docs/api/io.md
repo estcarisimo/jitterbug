@@ -3,3 +3,5 @@
 ::: jitterbug.io.data_loader
 
 ::: jitterbug.io.exporters
+
+::: jitterbug.io.compression
