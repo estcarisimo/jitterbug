@@ -14,7 +14,7 @@ pip install "jitterbug-inference[bcp,visualization]"       # the paper's setup p
 uv tool install "jitterbug-inference[bcp]"                  # the CLI in its own environment
 ```
 
-Pin a version for reproducible runs: `pip install "jitterbug-inference==2.1.1"`.
+Pin a version for reproducible runs: `pip install "jitterbug-inference==2.2.0"`.
 
 ## From a clone with uv (recommended)
 
@@ -61,7 +61,7 @@ pip install -e ".[visualization]"        # extras in brackets, as usual
 pip install "jitterbug-inference[visualization] @ git+https://github.com/estcarisimo/jitterbug.git"
 ```
 
-Or a tag: `...jitterbug.git@v2.1.1`.
+Or a tag: `...jitterbug.git@v2.2.0`.
 
 ## Notes on the `bcp` extra
 
