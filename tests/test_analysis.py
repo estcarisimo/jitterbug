@@ -68,7 +68,7 @@ class TestJitterAnalyzerDispersion:
     def test_filters_have_the_configured_orders(self) -> None:
         analyzer = JitterAnalyzer(JitterAnalysisConfig(moving_iqr_order=4, moving_average_order=6))
         signal = np.arange(20, dtype=float)
-        # The IQR window is centred: `order` points on each side.
+        # The IQR window is centered: `order` points on each side.
         iqr = analyzer._moving_iqr_filter(signal, 4)
         assert len(iqr) == len(signal) - 2 * 4
         assert_allclose(iqr, 4.0)  # constant spread on a ramp

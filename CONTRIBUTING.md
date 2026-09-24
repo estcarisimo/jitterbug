@@ -42,6 +42,8 @@ uv build
 - `pathlib.Path` for paths, `logging` (module-level `logger = logging.getLogger(__name__)`)
   instead of `print` in library code. `print` and Rich output belong in `cli/` only.
 - NumPy-style docstrings on public functions and classes.
+- American English in code and prose: identifiers, docstrings, comments, messages,
+  docs and changelog (`analyze`, `behavior`, `color`, `labeled`, `serialize`).
 - Configuration is Pydantic models in `src/jitterbug/models/config.py`. Add a field
   there and thread it through the CLI (`src/jitterbug/cli/main.py`) rather than adding
   ad-hoc parameters.
@@ -55,7 +57,7 @@ uv build
   (golden counts) and checks agreement with the paper's reference intervals by overlap.
   If you change the numbers on purpose, update the goldens and explain in the changelog.
   The Bayesian half is marked `slow` and runs in its own CI job with the `bcp` extra.
-- Every behaviour change gets a test under `tests/` and a line in `CHANGELOG.md` under
+- Every behavior change gets a test under `tests/` and a line in `CHANGELOG.md` under
   `[Unreleased]`.
 
 ## Making a change

@@ -52,6 +52,7 @@ See [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/do
 | `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | The Bayesian detector used in the paper |
 | `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
 | `visualization` | matplotlib | `jitterbug visualize` and the plotting helpers |
+| `jupyter` | JupyterLab, ipykernel | The notebooks in `examples/` |
 | `all` | everything above | |
 
 ```bash
@@ -371,7 +372,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 - [ruptures](https://centre-borelli.github.io/ruptures-docs/): the default change point library
 - [scamper](https://www.caida.org/catalog/software/scamper/): the measurement tool whose JSON output Jitterbug reads
 
-## 🙏 Acknowledgements
+## 🙏 Acknowledgments
 
 Jitterbug is the software behind the following paper. If you use it in your research, please cite it (also available as [CITATION.cff](https://github.com/estcarisimo/jitterbug/blob/main/CITATION.cff) for GitHub's "Cite this repository" button):
 

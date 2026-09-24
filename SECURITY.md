@@ -19,7 +19,7 @@ Use GitHub's private reporting instead:
 
 Include a description of the issue, reproduction steps (a minimal input file and the
 command or code that triggers it), and the version and platform you saw it on. Expect
-an acknowledgement within about two weeks. This is an academic side project, not a
+an acknowledgment within about two weeks. This is an academic side project, not a
 staffed product, so response times are best-effort.
 
 Confirmed vulnerabilities are fixed in a pull request, released, and then disclosed in
@@ -46,7 +46,7 @@ In scope:
 
 - Path traversal or unintended file writes through the output options of the CLI or the
   exporters.
-- Unsafe parsing or deserialisation of input files (CSV, JSON, YAML configuration).
+- Unsafe parsing or deserialization of input files (CSV, JSON, YAML configuration).
 - Leakage of InfluxDB credentials through logs, configuration dumps, or results files.
 - Denial of service through crafted input that is disproportionate to its size (for
   example, quadratic blow-ups in the change point detectors on adversarial input).

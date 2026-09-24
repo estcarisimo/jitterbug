@@ -65,6 +65,11 @@ uv build                                   # sdist + wheel via uv_build
 - `pathlib.Path` for paths; `logging` with a module-level logger, never `print`, in
   `src/` outside `cli/`.
 - NumPy-style docstrings on public API. Type hints on every function.
+- American English everywhere: identifiers (functions, methods, parameters, options),
+  docstrings, comments, log and error messages, docs, CHANGELOG, commit messages and PR
+  text. `analyze`, `visualize`, `behavior`, `color`, `labeled`, `serialize`, not
+  `analyse`, `visualise`, `behaviour`, `colour`, `labelled`, `serialise`. `analyses` is
+  the plural of *analysis* and is fine. Quoted titles, names and URLs stay as they are.
 - All settings live in Pydantic models in `models/config.py`; new options go there,
   then the CLI, then docs.
 - Tests: plain functions, fixtures, `parametrize`; small synthetic series; floats via

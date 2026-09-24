@@ -419,7 +419,7 @@ class DataLoader:
 
         epochs, rtt_values = dataset.to_arrays()
 
-        # Check for time ordering (plain bools: the report is meant to be JSON-serialisable)
+        # Check for time ordering (plain bools: the report is meant to be JSON-serializable)
         time_ordered = bool(np.all(epochs[:-1] <= epochs[1:]))
 
         # Check for duplicates

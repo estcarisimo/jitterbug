@@ -94,7 +94,7 @@ results = JitterbugAnalyzer(JitterbugConfig()).analyze_from_dataframe(df)
 
 The frame follows the contract above. CSV and InfluxDB results go through this same
 path, so anything that can be turned into a frame with `epoch` and `values` columns
-(Parquet, a database query, a live probe) can be analysed.
+(Parquet, a database query, a live probe) can be analyzed.
 
 ## InfluxDB
 

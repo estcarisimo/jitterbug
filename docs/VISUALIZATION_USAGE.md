@@ -58,7 +58,7 @@ jitterbug visualize examples/network_analysis/data/raw.csv \
 | File | Content |
 | --- | --- |
 | `*_congestion_analysis.png` | Three stacked panels sharing the time axis: raw RTT, minimum RTT per interval, and the congestion verdict per period with congested spans shaded. The figure in the README is this one. |
-| `*_change_points.png` | Minimum RTT series with a vertical line per change point, coloured by confidence. |
+| `*_change_points.png` | Minimum RTT series with a vertical line per change point, colored by confidence. |
 | `*_confidence_heatmap.png` | Confidence of each period's verdict over time. |
 | `*_summary_stats.png` | Counts, congestion ratio, confidence and duration distributions. |
 | `*_rtt_timeseries.png` | Raw and minimum RTT series overlaid. |
