@@ -99,14 +99,22 @@ escape hatch and say so in the PR when it is used.
    heading and add the compare link at the bottom. Update `version` and
    `date-released` in `CITATION.cff`.
 3. Open a PR with those changes and merge it.
-4. Tag and publish a GitHub release: `git tag vX.Y.Z && git push origin vX.Y.Z`, then
-   `gh release create vX.Y.Z --generate-notes`.
+4. Tag and publish a GitHub release: `git tag -a vX.Y.Z -m "Jitterbug X.Y.Z"`,
+   `git push origin vX.Y.Z`, then `gh release create vX.Y.Z --verify-tag` with the
+   CHANGELOG section as notes.
+5. Publishing the release starts `.github/workflows/publish.yml`, which builds the tag,
+   checks that the version equals the tag, smoke-tests the wheel, uploads to PyPI
+   through Trusted Publishing (no API token) and attaches the sdist and wheel to the
+   release. The upload waits for approval if the `pypi` environment requires a reviewer.
 
-Jitterbug is not published on PyPI yet: the `jitterbug` name there belongs to an
-unrelated project, so the distribution is named `jitterbug-inference` (the import
-package and the command stay `jitterbug`). The Bayesian back end (`bcp` extra) is on
-PyPI as `bayesian-changepoint`, so every extra now resolves from PyPI; until the first
-upload, installation is from GitHub.
+PyPI uploads cannot be replaced or deleted and reused: a broken upload means a new
+version. To rehearse, run the workflow by hand on TestPyPI first (Actions → Publish →
+Run workflow, tag `vX.Y.Z`, target `testpypi`); the same form with target `pypi`
+uploads an existing tag that was not published automatically.
+
+The distribution is named `jitterbug-inference` because `jitterbug` on PyPI belongs to
+an unrelated project; the import package and the command stay `jitterbug`. The README
+is the PyPI project page, so its links are absolute URLs.
 
 ## Reporting issues
 

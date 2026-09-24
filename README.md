@@ -47,7 +47,7 @@ pip install -e .
 > unrelated project; this distribution is named `jitterbug-inference`). Install from a
 > clone as shown above, or straight from GitHub:
 > `pip install "jitterbug-inference @ git+https://github.com/estcarisimo/jitterbug.git"`.
-> See [docs/INSTALLATION.md](docs/INSTALLATION.md).
+> See [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INSTALLATION.md).
 
 ### Optional back ends
 
@@ -102,7 +102,7 @@ jitterbug validate rtts.csv --verbose
 jitterbug visualize examples/network_analysis/data/raw.csv --output-dir plots
 ```
 
-The figures are described in [docs/VISUALIZATION_USAGE.md](docs/VISUALIZATION_USAGE.md), together with the `JitterbugPlotter` API for your own scripts.
+The figures are described in [docs/VISUALIZATION_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/VISUALIZATION_USAGE.md), together with the `JitterbugPlotter` API for your own scripts.
 
 ### Configuration files
 
@@ -148,7 +148,7 @@ print(
 
 ### Input formats
 
-The contract (columns, units, ordering, what is dropped) is in [docs/INPUT_FORMATS.md](docs/INPUT_FORMATS.md).
+The contract (columns, units, ordering, what is dropped) is in [docs/INPUT_FORMATS.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INPUT_FORMATS.md).
 
 **CSV**: one RTT sample per row, epoch seconds and milliseconds.
 
@@ -225,7 +225,7 @@ export JITTERBUG_OUTPUT_FORMAT=csv
 4. **Jitter test**: jitter dispersion (variance of the filtered jitter series) or a KS test of the RTT distributions on both sides of the change point.
 5. **Congestion inference**: a period is congested when both tests agree; each result carries a confidence and the evidence behind it.
 
-`ruptures` and `bcp` are the two detectors evaluated in the paper; see [docs/ALGORITHM_SELECTION_GUIDE.md](docs/ALGORITHM_SELECTION_GUIDE.md) for when to use which.
+`ruptures` and `bcp` are the two detectors evaluated in the paper; see [docs/ALGORITHM_SELECTION_GUIDE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_SELECTION_GUIDE.md) for when to use which.
 
 ## 🏗️ Architecture
 
@@ -282,7 +282,7 @@ uv run ruff format src/ tests/ examples/ tools/
 uv run mypy src/jitterbug
 ```
 
-`ruff check`, `ruff format --check` and `mypy` are all enforced in CI. See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull request workflow.
+`ruff check`, `ruff format --check` and `mypy` are all enforced in CI. See [CONTRIBUTING.md](https://github.com/estcarisimo/jitterbug/blob/main/CONTRIBUTING.md) for the pull request workflow.
 
 ### Building
 
@@ -323,7 +323,7 @@ uv pip install dist/*.whl
 
 The dataset shows the daily congestion episodes the paper analyzes. With the Bayesian detector and the KS test (`--algorithm bcp --method ks_test`) the output matches the reference in `examples/network_analysis/expected_results/`:
 
-![BCP + KS test on the PAM 2022 dataset](examples/network_analysis/plots/bcp_congestion_analysis.png)
+![BCP + KS test on the PAM 2022 dataset](https://raw.githubusercontent.com/estcarisimo/jitterbug/main/examples/network_analysis/plots/bcp_congestion_analysis.png)
 
 Each entry in `results.json` carries the period, the verdict, and the evidence:
 
@@ -340,7 +340,7 @@ Each entry in `results.json` carries the period, the verdict, and the evidence:
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md) for the development setup, the checks every change must pass, and the pull request workflow.
+Contributions are welcome! Please see the [Contributing Guide](https://github.com/estcarisimo/jitterbug/blob/main/CONTRIBUTING.md) for the development setup, the checks every change must pass, and the pull request workflow.
 
 1. Fork the repository
 2. Create a feature branch (`git switch -c feat/amazing-feature`)
@@ -352,21 +352,21 @@ Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md) 
 
 | Document | Contents |
 | --- | --- |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, workflow, PR expectations |
-| [CHANGELOG.md](CHANGELOG.md) | Release history |
-| [AGENTS.md](AGENTS.md) | Guidance for AI coding agents working in this repo |
-| [SECURITY.md](SECURITY.md) | Vulnerability reporting, and what data this tool handles |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
-| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Installation details and troubleshooting |
-| [docs/INPUT_FORMATS.md](docs/INPUT_FORMATS.md) | Input contract: CSV, scamper JSON, DataFrame, InfluxDB |
-| [docs/ALGORITHM_SELECTION_GUIDE.md](docs/ALGORITHM_SELECTION_GUIDE.md) | Choosing a change point detector |
-| [docs/ALGORITHM_USAGE.md](docs/ALGORITHM_USAGE.md) | Per-detector options and examples |
-| [docs/VISUALIZATION_USAGE.md](docs/VISUALIZATION_USAGE.md) | `jitterbug visualize`, the five figures, `JitterbugPlotter` |
-| [examples/README.md](examples/README.md) | Scripts and notebooks |
+| [CONTRIBUTING.md](https://github.com/estcarisimo/jitterbug/blob/main/CONTRIBUTING.md) | Development setup, workflow, PR expectations |
+| [CHANGELOG.md](https://github.com/estcarisimo/jitterbug/blob/main/CHANGELOG.md) | Release history |
+| [AGENTS.md](https://github.com/estcarisimo/jitterbug/blob/main/AGENTS.md) | Guidance for AI coding agents working in this repo |
+| [SECURITY.md](https://github.com/estcarisimo/jitterbug/blob/main/SECURITY.md) | Vulnerability reporting, and what data this tool handles |
+| [CODE_OF_CONDUCT.md](https://github.com/estcarisimo/jitterbug/blob/main/CODE_OF_CONDUCT.md) | Community standards |
+| [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INSTALLATION.md) | Installation details and troubleshooting |
+| [docs/INPUT_FORMATS.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INPUT_FORMATS.md) | Input contract: CSV, scamper JSON, DataFrame, InfluxDB |
+| [docs/ALGORITHM_SELECTION_GUIDE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_SELECTION_GUIDE.md) | Choosing a change point detector |
+| [docs/ALGORITHM_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_USAGE.md) | Per-detector options and examples |
+| [docs/VISUALIZATION_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/VISUALIZATION_USAGE.md) | `jitterbug visualize`, the five figures, `JitterbugPlotter` |
+| [examples/README.md](https://github.com/estcarisimo/jitterbug/blob/main/examples/README.md) | Scripts and notebooks |
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/estcarisimo/jitterbug/blob/main/LICENSE) file for details.
 
 ## 🔗 Related Resources
 
@@ -377,7 +377,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgements
 
-Jitterbug is the software behind the following paper. If you use it in your research, please cite it (also available as [CITATION.cff](CITATION.cff) for GitHub's "Cite this repository" button):
+Jitterbug is the software behind the following paper. If you use it in your research, please cite it (also available as [CITATION.cff](https://github.com/estcarisimo/jitterbug/blob/main/CITATION.cff) for GitHub's "Cite this repository" button):
 
 **Paper**: *"Jitterbug: A New Framework for Jitter-Based Congestion Inference"*
 **Authors**: Esteban Carisimo, Ricky K. P. Mok, David D. Clark, and K. C. Claffy

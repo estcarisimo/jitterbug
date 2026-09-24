@@ -143,6 +143,11 @@ The loop:
 Never push directly to `main`, never force-push a shared branch, never disable or
 weaken a CI check to get green.
 
+Releases: follow `CONTRIBUTING.md` → Releasing. Publishing a GitHub release uploads to
+PyPI (`publish.yml`, Trusted Publishing); uploads are irreversible, so never create a
+release or run that workflow with target `pypi` without the maintainer's explicit
+go-ahead in the session.
+
 ## Session continuity
 
 The maintainer keeps a roadmap and a session log in a private Notion page. At the
