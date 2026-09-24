@@ -38,7 +38,7 @@ tests/                   pytest; test_cli.py runs the CLI on the bundled dataset
                          test_paper_regression.py pins the paper-dataset results
 examples/network_analysis/data/raw.csv         PAM 2022 dataset (47 163 RTT samples)
 examples/network_analysis/expected_results/    reference output of the paper (BCP + KS)
-docs/                    plain Markdown guides
+docs/                    Markdown guides + API stubs, built into the MkDocs site (mkdocs.yml)
 ```
 
 ## Commands
@@ -54,6 +54,7 @@ uv run pytest -m "not slow"                # seconds
 uv run pytest                              # + Bayesian regression (~2 s more, needs --extra bcp)
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/r.json
 uv build                                   # sdist + wheel via uv_build
+uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs serve` to preview
 ```
 
 ## Conventions

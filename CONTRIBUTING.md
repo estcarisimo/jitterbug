@@ -28,7 +28,13 @@ uv run pytest -m "not slow"          # a few seconds
 uv run pytest                        # + the Bayesian regression tests (~2 s more, needs --extra bcp)
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/results.json
 uv build
+uv run --group docs mkdocs build --strict   # the documentation site; warnings fail
 ```
+
+The documentation site (`mkdocs.yml`, Material theme) is built from `docs/`; its home,
+changelog, contributing and citing pages include the root files, and the API reference
+is generated from the docstrings. Preview it with `uv run --group docs mkdocs serve`.
+Pushes to `main` publish it to GitHub Pages (`.github/workflows/pages.yml`).
 
 `uv run pre-commit run --all-files` runs the lint and hygiene hooks on the whole tree.
 
