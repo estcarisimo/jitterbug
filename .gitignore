@@ -169,3 +169,6 @@ examples/network_analysis/results/
 # Written by examples/algorithm_benchmark.py
 examples/benchmark_results.csv
 examples/benchmark_report.html
+
+# Agent worktrees (Claude Code subagents)
+.claude/worktrees/
