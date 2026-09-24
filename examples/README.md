@@ -29,7 +29,7 @@ From the repository root:
 
 ```bash
 uv sync --extra visualization          # ruptures detector, matplotlib
-uv sync --extra bcp --extra visualization   # + the Bayesian detector (git dependency, torch)
+uv sync --extra bcp --extra visualization   # + the Bayesian detector (bayesian-changepoint, torch)
 uv sync --extra jupyter --extra visualization   # + JupyterLab for the notebooks
 ```
 

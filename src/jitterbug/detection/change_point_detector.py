@@ -61,7 +61,8 @@ class ChangePointDetector:
             except ImportError as e:
                 raise ImportError(
                     "bayesian_changepoint_detection package is required for BCP detection. "
-                    "Install it with: pip install git+https://github.com/estcarisimo/bayesian_changepoint_detection.git"
+                    "Install the bcp extra: pip install 'jitterbug-inference[bcp]' "
+                    "(or pip install bayesian-changepoint)."
                 ) from e
         else:
             raise ValueError(f"Unknown change point detection algorithm: {self.config.algorithm}")

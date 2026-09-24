@@ -247,12 +247,16 @@ wheels = [
 ]
 
 [[package]]
-name = "bayescd"
-version = "1.1.0"
-source = { git = "https://github.com/estcarisimo/bayesian_changepoint_detection.git#6c601bafa44a683b0ee5c8f180637c9bb78522e6" }
+name = "bayesian-changepoint"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
     { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/cb/71ea87a96f9530798b75aceecb75e68216ff838aabc593d613ad218eaabe/bayesian_changepoint-1.2.0.tar.gz", hash = "sha256:243718d0c9a8ea68d3017c7c9430a87fc5eaf876c1d44e387554cb6da6d5cf7f", size = 122958, upload-time = "2026-09-23T00:43:00.535Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/42/c6/feb6e7eea79694b95aa5d4cb83be7cd4dc9cf63149df1d3deadca0600d11/bayesian_changepoint-1.2.0-py3-none-any.whl", hash = "sha256:d5c46889c25abc4aa471cb3fc5603fb2f3871e80efa6189553d85ad076284b74", size = 56914, upload-time = "2026-09-23T00:42:58.894Z" },
 ]
 
 [[package]]
@@ -1441,7 +1445,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
-    { name = "bayescd" },
+    { name = "bayesian-changepoint" },
     { name = "influxdb-client" },
     { name = "ipykernel" },
     { name = "jupyter" },
@@ -1451,12 +1455,12 @@ all = [
     { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
 ]
 bayesian = [
-    { name = "bayescd" },
+    { name = "bayesian-changepoint" },
     { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
     { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
 ]
 bcp = [
-    { name = "bayescd" },
+    { name = "bayesian-changepoint" },
     { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
     { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
 ]
@@ -1487,8 +1491,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bayescd", marker = "extra == 'all'", git = "https://github.com/estcarisimo/bayesian_changepoint_detection.git" },
-    { name = "bayescd", marker = "extra == 'bcp'", git = "https://github.com/estcarisimo/bayesian_changepoint_detection.git" },
+    { name = "bayesian-changepoint", marker = "extra == 'all'", specifier = ">=1.2" },
+    { name = "bayesian-changepoint", marker = "extra == 'bcp'", specifier = ">=1.2" },
     { name = "influxdb-client", marker = "extra == 'all'", specifier = ">=1.30.0" },
     { name = "influxdb-client", marker = "extra == 'influx'", specifier = ">=1.30.0" },
     { name = "ipykernel", marker = "extra == 'all'", specifier = ">=6.0.0" },

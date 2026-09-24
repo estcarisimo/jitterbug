@@ -2,11 +2,11 @@
 
 Jitterbug is installed from this repository. The distribution is named
 `jitterbug-inference` (the name `jitterbug` on PyPI belongs to an unrelated project);
-the import stays `import jitterbug` and the command stays `jitterbug`. A PyPI release
-is planned once the Bayesian back end is itself on PyPI; until then every command below
-works from a clone or a git URL.
+the import stays `import jitterbug` and the command stays `jitterbug`. Until the first
+PyPI release every command below works from a clone or a git URL; all dependencies,
+including the `bcp` extra, come from PyPI.
 
-Requirements: Python 3.10 or newer, `git` on `PATH` for the `bcp` extra.
+Requirements: Python 3.10 or newer.
 
 ## From a clone with uv (recommended)
 
@@ -23,7 +23,7 @@ dependency group (pytest, ruff, mypy). Add extras as needed:
 
 | Extra | Installs | Enables |
 | --- | --- | --- |
-| `bcp` | [bayesian_changepoint_detection](https://github.com/estcarisimo/bayesian_changepoint_detection) (git) + torch | `--algorithm bcp`, the paper's detector |
+| `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | `--algorithm bcp`, the paper's detector |
 | `visualization` | matplotlib | `jitterbug visualize`, `JitterbugPlotter` |
 | `influx` | influxdb-client | `DataLoader.load_from_influxdb` |
 | `jupyter` | JupyterLab, ipykernel | the notebooks in `examples/` |
@@ -56,12 +56,14 @@ Pin a tag once releases exist: `...jitterbug.git@v2.1.0`.
 
 ## Notes on the `bcp` extra
 
-- It is a git dependency, so `git` must be on `PATH`; pip and uv fetch the repository
-  and build it. On Linux, uv resolves `torch` from the CPU-only index configured in
-  `pyproject.toml` (`[tool.uv.sources]`), which avoids a multi-gigabyte CUDA download.
+- It installs `bayesian-changepoint` (>= 1.2) from PyPI, imported as
+  `bayesian_changepoint_detection`. The older PyPI projects `bayescd` and
+  `bayesian-changepoint-detection` are unmaintained releases of the same library that
+  Jitterbug does not work with. On Linux, uv resolves `torch` from the CPU-only index
+  configured in `pyproject.toml` (`[tool.uv.sources]`), which avoids a multi-gigabyte CUDA download.
 - The detector runs on CPU by default (`change_point_detection.bcp_device: cpu`). On
   Apple Silicon the library would otherwise pick MPS, which is an order of magnitude
-  slower for series of this size. The bundled dataset takes under ten seconds on CPU.
+  slower for series of this size. The bundled dataset takes about a second on CPU.
 - `--extra bayesian` is a deprecated alias of `--extra bcp` and will go in 3.0.
 
 ## Check the installation
@@ -81,7 +83,6 @@ uv run python -c "from jitterbug.detection import get_available_algorithms; prin
 | Symptom | Cause and fix |
 | --- | --- |
 | `--algorithm bcp` fails with "bayesian_changepoint_detection package is required" | The extra is not installed: `uv sync --extra bcp`. |
-| Installing the `bcp` extra fails before downloading anything | `git` is missing from `PATH`, or the network blocks github.com. |
 | `bcp` runs for many minutes on a Mac | An older configuration file sets `bcp_device: mps`; use `cpu`. |
 | `jitterbug visualize` reports that matplotlib is missing | `uv sync --extra visualization`. |
 | Plots fail on a server without a display | Set `MPLBACKEND=Agg` before running. |

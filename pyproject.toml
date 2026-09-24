@@ -47,11 +47,10 @@ dependencies = [
 
 [project.optional-dependencies]
 # Change point detection back ends. `ruptures` is a core dependency; `bcp` is opt-in.
-# `bcp` is a git dependency until `bayescd` 1.1 (import name
-# `bayesian_changepoint_detection`) is published on PyPI, which also means a wheel with
-# this extra cannot be uploaded to PyPI yet.
+# `bcp` is the PyPI distribution `bayesian-changepoint` (import name
+# `bayesian_changepoint_detection`); 1.2 is the first release from the maintained fork.
 bcp = [
-    "bayescd @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git",
+    "bayesian-changepoint>=1.2",
     "torch>=2.0",  # listed explicitly so the [tool.uv.sources] CPU-index rule applies to it
 ]
 bayesian = ["jitterbug-inference[bcp]"]  # deprecated alias for the old extra name; remove in 3.0
@@ -59,11 +58,9 @@ bayesian = ["jitterbug-inference[bcp]"]  # deprecated alias for the old extra na
 influx = ["influxdb-client>=1.30.0"]
 visualization = ["matplotlib>=3.5.0"]
 jupyter = ["ipykernel>=6.0.0", "jupyter>=1.0.0"]
-# Every optional back end and front end. Includes `bcp` (a git dependency), which is fine
-# for the GitHub-based install this project uses today; PyPI rejects direct URL
-# dependencies, so drop it from `all` (or wait for a bcp release) before publishing there.
+# Every optional back end and front end.
 all = [
-    "bayescd @ git+https://github.com/estcarisimo/bayesian_changepoint_detection.git",
+    "bayesian-changepoint>=1.2",
     "torch>=2.0",
     "influxdb-client>=1.30.0",
     "matplotlib>=3.5.0",

@@ -15,7 +15,7 @@ uv sync --extra visualization   # runtime + dev tools (the `dev` group is instal
 uv run pre-commit install       # git hooks: ruff lint/format, file hygiene
 ```
 
-Add `--extra bcp` for the Bayesian back end used in the paper (a git dependency), or
+Add `--extra bcp` for the Bayesian back end used in the paper (`bayesian-changepoint`), or
 `--extra all` for every optional back end. See `pyproject.toml` for the full list.
 
 Run the same checks CI runs:
@@ -25,7 +25,7 @@ uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format --check src/ tests/ examples/ tools/
 uv run mypy src/jitterbug            # blocking in CI
 uv run pytest -m "not slow"          # a few seconds
-uv run pytest                        # + the Bayesian regression tests (~10 s more, needs --extra bcp)
+uv run pytest                        # + the Bayesian regression tests (~2 s more, needs --extra bcp)
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/results.json
 uv build
 ```
@@ -104,9 +104,9 @@ escape hatch and say so in the PR when it is used.
 
 Jitterbug is not published on PyPI yet: the `jitterbug` name there belongs to an
 unrelated project, so the distribution is named `jitterbug-inference` (the import
-package and the command stay `jitterbug`). The first PyPI upload waits until the
-Bayesian back end (`bcp` extra, today a git dependency) is itself on PyPI; until then
-installation is from GitHub.
+package and the command stay `jitterbug`). The Bayesian back end (`bcp` extra) is on
+PyPI as `bayesian-changepoint`, so every extra now resolves from PyPI; until the first
+upload, installation is from GitHub.
 
 ## Reporting issues
 

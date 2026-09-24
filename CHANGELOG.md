@@ -49,14 +49,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The `bcp` extra now installs the Bayesian library under its new distribution name,
-  `bayescd` (still a git dependency; the import name `bayesian_changepoint_detection` is
-  unchanged), pinned at the commit that fixes the offline segment likelihoods and the
-  detection performance. On the PAM 2022 dataset the paper's configuration
-  (`--algorithm bcp --method ks_test`) now runs in about eight seconds instead of two
-  minutes and yields 28 periods / 14 congested (was 34 / 14), recovering 14 of the
-  paper's 15 congested intervals (was 13) with no spurious detections. Golden values,
-  the example plots and summaries, and the timing notes in the docs are updated.
+- The `bcp` extra now installs the Bayesian library from PyPI as
+  **`bayesian-changepoint>=1.2`** (the import name `bayesian_changepoint_detection` is
+  unchanged), replacing the unmaintained upstream release and the git dependency used
+  during development. `git` is no longer needed to install any extra, and a wheel of
+  Jitterbug no longer carries a direct URL dependency. The new release fixes the offline
+  segment likelihoods and the detection performance: on the PAM 2022 dataset the
+  paper's configuration (`--algorithm bcp --method ks_test`) runs in about four seconds
+  end to end (under one second of detection) instead of two minutes, and yields
+  28 periods / 14 congested (was 34 / 14), recovering 14 of the paper's 15 congested
+  intervals (was 13) with no spurious detections. Golden values, the example plots and
+  summaries, and the timing notes in the docs are updated. The detector no longer
+  passes `truncate=-40`, deprecated in 1.2; the exact sum is as fast and matches the
+  truncated one to 1e-12 on the paper dataset.
 - The distribution is now named **`jitterbug-inference`** (`[project] name`); the
   import package and the `jitterbug` command are unchanged. `jitterbug` on PyPI belongs
   to an unrelated project, so this is the name a future PyPI release will use.
