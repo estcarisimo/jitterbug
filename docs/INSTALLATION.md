@@ -1,12 +1,20 @@
 # Installation
 
-Jitterbug is installed from this repository. The distribution is named
-`jitterbug-inference` (the name `jitterbug` on PyPI belongs to an unrelated project);
-the import stays `import jitterbug` and the command stays `jitterbug`. Until the first
-PyPI release every command below works from a clone or a git URL; all dependencies,
-including the `bcp` extra, come from PyPI.
+The distribution is named `jitterbug-inference` on PyPI (the name `jitterbug` there
+belongs to an unrelated project); the import is `import jitterbug` and the command is
+`jitterbug`.
 
 Requirements: Python 3.10 or newer.
+
+## From PyPI
+
+```bash
+pip install jitterbug-inference                            # core
+pip install "jitterbug-inference[bcp,visualization]"       # the paper's setup plus figures
+uv tool install "jitterbug-inference[bcp]"                  # the CLI in its own environment
+```
+
+Pin a version for reproducible runs: `pip install "jitterbug-inference==2.1.1"`.
 
 ## From a clone with uv (recommended)
 
@@ -46,13 +54,13 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[visualization]"        # extras in brackets, as usual
 ```
 
-## Directly from GitHub, no clone
+## Directly from GitHub (unreleased changes)
 
 ```bash
 pip install "jitterbug-inference[visualization] @ git+https://github.com/estcarisimo/jitterbug.git"
 ```
 
-Pin a tag once releases exist: `...jitterbug.git@v2.1.0`.
+Or a tag: `...jitterbug.git@v2.1.1`.
 
 ## Notes on the `bcp` extra
 

@@ -2,6 +2,7 @@
 
 A Python framework for inferring Internet path congestion from Round-Trip Time (RTT) measurements. Jitterbug splits an RTT time series at change points, then classifies each period as congested or not by combining a latency-jump test with a jitter test (jitter dispersion or Kolmogorov–Smirnov). It implements the method from *Jitterbug: A New Framework for Jitter-Based Congestion Inference* (PAM 2022) and ships the paper's dataset so you can reproduce it in one command.
 
+[![PyPI](https://img.shields.io/pypi/v/jitterbug-inference.svg)](https://pypi.org/project/jitterbug-inference/)
 [![CI](https://github.com/estcarisimo/jitterbug/actions/workflows/ci.yml/badge.svg)](https://github.com/estcarisimo/jitterbug/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -22,32 +23,27 @@ A Python framework for inferring Internet path congestion from Round-Trip Time (
 
 ### Installation
 
-Using [uv](https://docs.astral.sh/uv/) (recommended):
+From PyPI:
 
 ```bash
-# Install uv if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh
+pip install jitterbug-inference              # core: ruptures detector, CLI, library
+pip install "jitterbug-inference[bcp]"       # + the paper's Bayesian detector
+```
 
-# Clone and install
+> The distribution is named `jitterbug-inference` because `jitterbug` on PyPI is an
+> unrelated project; the import is `import jitterbug` and the command is `jitterbug`.
+> `pip install jitterbug` installs the wrong package.
+
+For development, clone and use [uv](https://docs.astral.sh/uv/):
+
+```bash
 git clone https://github.com/estcarisimo/jitterbug.git
 cd jitterbug
 uv sync
 source .venv/bin/activate   # or prefix every command below with `uv run`
 ```
 
-Traditional pip installation:
-
-```bash
-git clone https://github.com/estcarisimo/jitterbug.git
-cd jitterbug
-pip install -e .
-```
-
-> **Note:** this package is not on PyPI yet (the `jitterbug` name there belongs to an
-> unrelated project; this distribution is named `jitterbug-inference`). Install from a
-> clone as shown above, or straight from GitHub:
-> `pip install "jitterbug-inference @ git+https://github.com/estcarisimo/jitterbug.git"`.
-> See [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INSTALLATION.md).
+See [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INSTALLATION.md) for pip from a clone, pinned versions and troubleshooting.
 
 ### Optional back ends
 
@@ -59,8 +55,8 @@ pip install -e .
 | `all` | everything above | |
 
 ```bash
-uv sync --extra bcp            # the paper's setup
-uv sync --extra all            # everything
+pip install "jitterbug-inference[bcp,visualization]"   # the paper's setup plus figures
+uv sync --extra all                                     # from a clone: everything
 ```
 
 ### System requirements

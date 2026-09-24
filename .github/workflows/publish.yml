@@ -69,7 +69,7 @@ jobs:
           tag_version="${TAG#v}"
           echo "wheel: $wheel_version, tag: $tag_version"
           if [ "$wheel_version" != "$tag_version" ]; then
-            echo "::error::version in pyproject.toml ($wheel_version) does not match the tag ($TAG)"
+            echo "::error::version in pyproject.toml ($wheel_version) does not match the tag ($tag_version)"
             exit 1
           fi
 

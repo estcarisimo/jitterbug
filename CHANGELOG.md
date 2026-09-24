@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-09-23
+
 ### Added
 
 - `.github/workflows/publish.yml`: publishing a GitHub release uploads the tag's sdist
@@ -18,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - README links and the figure use absolute GitHub URLs, so they work on the PyPI
   project page.
+- First release on PyPI: `pip install jitterbug-inference`. README (with a PyPI badge),
+  `docs/INSTALLATION.md`, `AGENTS.md` install instructions updated accordingly.
+- `CODE_OF_CONDUCT.md`: incidents are reported privately through GitHub (maintainer
+  profile, the repository's private reporting form, GitHub's *Report content*); the
+  document no longer lists an email address.
 
 ## [2.1.0] - 2026-09-23
 
@@ -244,7 +251,8 @@ Typer CLI, optional REST API and visualization modules. See the
 Original implementation accompanying the paper *Jitterbug: A new framework for
 jitter-based congestion inference* (PAM 2022).
 
-[Unreleased]: https://github.com/estcarisimo/jitterbug/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/estcarisimo/jitterbug/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/estcarisimo/jitterbug/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/estcarisimo/jitterbug/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/estcarisimo/jitterbug/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/estcarisimo/jitterbug/releases/tag/v1.0.0
