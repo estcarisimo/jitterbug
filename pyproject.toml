@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "jitterbug-inference"
-version = "2.0.0"
+version = "2.1.0"
 description = "Framework for jitter-based network congestion inference"
 readme = "README.md"
 license = {text = "MIT"}
