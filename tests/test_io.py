@@ -212,7 +212,7 @@ class TestFormatInference:
         csv.write_text("epoch,values\n")
         assert loader._infer_format(csv) == "csv"
 
-    def test_unrecognisable_content_is_an_error(self, loader: DataLoader, tmp_path: Path):
+    def test_unrecognizable_content_is_an_error(self, loader: DataLoader, tmp_path: Path):
         path = tmp_path / "data.bin"
         path.write_text("just some words\n")
         with pytest.raises(ValueError, match="Cannot infer format"):
@@ -356,7 +356,7 @@ class TestExporters:
         assert len(data["inferences"]) == 3
         assert data["inferences"][0]["is_congested"] is True
         assert data["metadata"]["change_points"] == 4
-        # datetimes are serialised as ISO strings
+        # datetimes are serialized as ISO strings
         datetime.fromisoformat(data["inferences"][0]["start_timestamp"])
 
     def test_csv_has_the_v1_columns(self, results: CongestionInferenceResult, tmp_path: Path):

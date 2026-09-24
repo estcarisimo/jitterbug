@@ -39,15 +39,16 @@ maintainer would be: concrete, evidence-based findings with file:line, and no pr
 
 ## What to check
 
-- Correctness: bugs, edge cases, behaviour changes not described in the PR, error paths,
+- Correctness: bugs, edge cases, behavior changes not described in the PR, error paths,
   regressions. Verify claims in the PR description by running code, not by reading.
-- Tests: does every behaviour change have a test that fails without the change? Revert a
+- Tests: does every behavior change have a test that fails without the change? Revert a
   hunk in your worktree if unsure.
 - Contract with the rest of the codebase: callers of changed functions, docstrings and
-  docs that describe the old behaviour, README/CHANGELOG consistency.
+  docs that describe the old behavior, README/CHANGELOG consistency.
 - Conventions from `AGENTS.md`: py310 syntax, `pathlib`, `logging` not `print` in `src/`
   outside `cli/`, NumPy docstrings on public API, type hints, a CHANGELOG bullet under
-  `[Unreleased]` for user-visible changes, no generated outputs committed.
+  `[Unreleased]` for user-visible changes, no generated outputs committed, American
+  English in new identifiers, comments and docs.
 - Security and data handling when `io/` is touched.
 - Anything misleading in docs the PR adds or changes (numbers, commands, paths). Run the
   commands.

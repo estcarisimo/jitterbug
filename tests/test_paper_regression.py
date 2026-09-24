@@ -4,7 +4,7 @@ Regression tests against the PAM 2022 dataset bundled in ``examples/network_anal
 Two kinds of assertion, deliberately kept apart:
 
 * **Golden values** pin what the current implementation produces (period and congestion
-  counts). They exist to catch unintended behaviour changes; if a change is intended,
+  counts). They exist to catch unintended behavior changes; if a change is intended,
   update the numbers and say why in the changelog.
 * **Agreement with the paper's reference output** (``expected_results/*.csv``, produced
   by the 1.x scripts) is measured by interval overlap, because the 2.x minimum-RTT binning

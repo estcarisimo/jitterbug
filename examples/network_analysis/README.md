@@ -1,6 +1,6 @@
 # The PAM 2022 dataset
 
-The RTT series analysed in *Jitterbug: A New Framework for Jitter-Based Congestion
+The RTT series analyzed in *Jitterbug: A New Framework for Jitter-Based Congestion
 Inference* (PAM 2022), with the congestion periods the paper reports on it. It is the
 reference input for the tests (`tests/test_paper_regression.py`) and for every example.
 

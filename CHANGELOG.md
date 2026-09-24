@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- American English is now a documented convention (`AGENTS.md`, `CONTRIBUTING.md`,
+  the review brief). Existing British spellings in docs, comments, the changelog and
+  one test name (`test_unrecognizable_content_is_an_error`) were corrected; no public
+  function, method, option or message changed.
+- README: the extras table lists `jupyter`.
+
 ## [2.1.1] - 2026-09-23
 
 ### Added
@@ -121,7 +129,7 @@ gone (see *Removed*). Python 3.10 or newer is required. The distribution is rena
   `metadata["dropped_rows"]`; unsorted rows are sorted (stable) with a warning instead of
   being rejected; a non-numeric cell is a `ValueError` naming the column and value. Before,
   the first bad row surfaced as a Pydantic error from inside the loading loop. The loop
-  itself is vectorised: the bundled dataset loads in 0.1 s instead of 1 s.
+  itself is vectorized: the bundled dataset loads in 0.1 s instead of 1 s.
 - The scamper JSON reader applies the same RTT bounds per response: a `ping` response
   with an RTT of 0 (a timeout) or above 10 s no longer makes the whole file fail with a
   Pydantic error; it is dropped with a warning and counted in
@@ -145,7 +153,7 @@ gone (see *Removed*). Python 3.10 or newer is required. The distribution is rena
 - All temporary ruff ignores are gone except `B008` (Typer's `Option(...)` defaults):
   `pathlib` everywhere (`Path.open`, `/`, `mkdir`, `iterdir`), `raise ... from` inside
   every `except`, collapsed nested conditions, no line over 100 characters. `tools/`
-  scripts no longer patch `sys.path` to a directory that does not exist. Behaviour
+  scripts no longer patch `sys.path` to a directory that does not exist. Behavior
   unchanged (CLI output on the bundled dataset is identical).
 - `pyproject.toml` is the single source of packaging metadata; `setup.py`,
   `requirements.txt`, `requirements-new.txt` and `install_dev.sh` are gone. The build
@@ -177,10 +185,10 @@ gone (see *Removed*). Python 3.10 or newer is required. The distribution is rena
 - Change point timestamps are timezone-aware UTC, like the measurements they come from.
   They used to be naive local time, so `start_timestamp`/`end_timestamp` in results
   files and the CLI table depended on the machine's timezone (the epochs were always
-  right). The CLI table columns are now labelled `Start (UTC)` / `End (UTC)`.
+  right). The CLI table columns are now labeled `Start (UTC)` / `End (UTC)`.
 - `DataLoader.validate_data()` returns plain Python numbers and booleans (it used to
   return numpy scalars, which `json.dumps` rejects); CSV datasets record `source: csv`
-  and the file path in their metadata; `.jsonl` is recognised as scamper JSON.
+  and the file path in their metadata; `.jsonl` is recognized as scamper JSON.
 - `jitterbug analyze` and `jitterbug visualize` no longer overwrite the `algorithm`,
   `method`, `threshold` and `output_format` values of a `--config` file with the CLI's
   own defaults; a flag now overrides the file only when it is given explicitly. A wrong
@@ -192,7 +200,7 @@ gone (see *Removed*). Python 3.10 or newer is required. The distribution is rena
   analysis yields no inferences the confidence heatmap is an empty placeholder instead
   of an `imshow` error, so the command still writes its five files.
 - Time axes in every plot use matplotlib's automatic date locator and concise formatter
-  instead of one labelled tick per hour, which produced an unreadable axis on multi-day
+  instead of one labeled tick per hour, which produced an unreadable axis on multi-day
   series.
 - The Bayesian detector no longer swallows exceptions and returns "no change points";
   a failure is raised as `RuntimeError` with the cause attached.
@@ -210,7 +218,7 @@ gone (see *Removed*). Python 3.10 or newer is required. The distribution is rena
 - The `influx` *file* format: `--format influx` and `.flux`/`.influx` files were routed to
   a placeholder that raised `NotImplementedError`. Loading from an InfluxDB server through
   `DataLoader.load_from_influxdb()` is unchanged. Format inference now fails with a clear
-  message instead of guessing `influx` for anything it does not recognise.
+  message instead of guessing `influx` for anything it does not recognize.
 - Dead code in `analysis/`: `LatencyJumpAnalyzer.analyze_detailed`,
   `CongestionInferenceAnalyzer._apply_inference_logic` and `_post_process_inferences`
   implemented alternative rules that nothing called.
@@ -223,7 +231,7 @@ gone (see *Removed*). Python 3.10 or newer is required. The distribution is rena
 - **The experimental `torch`, `rbeast` and `adtk` detectors** and their extras. None of
   them was evaluated in the paper; `torch` was a heuristic rather than a trained model,
   and `rbeast`/`adtk` silently fell back to an internal statistical method when their
-  package was missing while still labelling the output with the back end's name. The
+  package was missing while still labeling the output with the back end's name. The
   detectors are now `ruptures` (default) and `bcp`. `algorithms.py` shrinks from 1 215
   to 318 lines; `examples/interactive_algorithm_selector.py` and the stale plots for the
   removed detectors are gone, and `examples/network_analysis/plots/` was regenerated

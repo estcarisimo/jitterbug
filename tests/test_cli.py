@@ -85,7 +85,7 @@ def test_invalid_algorithm_flag_is_rejected():
 
 
 @pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
-def test_analyze_honours_a_config_file_end_to_end(tmp_path: Path):
+def test_analyze_honors_a_config_file_end_to_end(tmp_path: Path):
     """The file's `output_format` and `threshold` must reach the analyzer through the CLI."""
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
