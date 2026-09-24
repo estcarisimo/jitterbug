@@ -214,6 +214,7 @@ data_processing:
 clustering:                    # used when analysis_mode is clustering
   algorithm: gmm               # gmm | kmeans | kmeans_silhouette
   min_period_intervals: 2      # temporal smoothing, in intervals
+  min_ks_statistic: 0.1        # smallest KS statistic that counts as a jitter change
 
 output_format: json            # json | csv | parquet (parquet needs pyarrow)
 verbose: false
