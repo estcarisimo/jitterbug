@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-23
+
+Maintenance release: the project is back to a maintainable state, with CI, a
+protected `main`, tests, and only the components that work. Jitterbug is now a
+library plus a CLI with two change point detectors (`ruptures` and the paper's
+Bayesian `bcp`, now installed from PyPI as `bayesian-changepoint`); the REST API,
+Docker image, experimental detectors and plotly dashboards described in 2.0.0 are
+gone (see *Removed*). Python 3.10 or newer is required. The distribution is renamed
+`jitterbug-inference`; installation is from GitHub, there is no PyPI release yet.
+
 ### Added
 
 - CLI tests for `validate` (metrics table, `--verbose`, contract violations, missing
@@ -222,6 +232,7 @@ Typer CLI, optional REST API and visualization modules. See the
 Original implementation accompanying the paper *Jitterbug: A new framework for
 jitter-based congestion inference* (PAM 2022).
 
-[Unreleased]: https://github.com/estcarisimo/jitterbug/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/estcarisimo/jitterbug/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/estcarisimo/jitterbug/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/estcarisimo/jitterbug/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/estcarisimo/jitterbug/releases/tag/v1.0.0
