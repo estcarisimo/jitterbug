@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `.github/workflows/publish.yml`: publishing a GitHub release uploads the tag's sdist
+  and wheel to PyPI with Trusted Publishing (OpenID Connect, no stored token), after
+  checking that the version matches the tag and smoke-testing the wheel, then attaches
+  both files to the release. A manual run uploads an existing tag to TestPyPI or PyPI.
+
+### Changed
+
+- README links and the figure use absolute GitHub URLs, so they work on the PyPI
+  project page.
+
 ## [2.1.0] - 2026-09-23
 
 Maintenance release: the project is back to a maintainable state, with CI, a
