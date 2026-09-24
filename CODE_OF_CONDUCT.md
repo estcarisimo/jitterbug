@@ -56,8 +56,10 @@ an individual is officially representing the community in public spaces.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-el.murdo@gmail.com. All complaints will be reviewed and investigated promptly
+reported privately to the maintainer, [@estcarisimo](https://github.com/estcarisimo), through
+the repository's [private reporting form](https://github.com/estcarisimo/jitterbug/security/advisories/new),
+which only maintainers can read; for content on GitHub you can also use GitHub's own
+*Report content* option. All complaints will be reviewed and investigated promptly
 and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

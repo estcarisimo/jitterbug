@@ -13,9 +13,9 @@ method from *Jitterbug: A New Framework for Jitter-Based Congestion Inference*
 (PAM 2022). Version 2.x is a rewrite of the original 1.x scripts.
 
 The distribution is named `jitterbug-inference` (`jitterbug` on PyPI belongs to an
-unrelated project); the import package and the CLI are still `jitterbug`. It is **not**
-published on PyPI yet, although every dependency, including the `bcp` extra
-(`bayesian-changepoint`), now resolves from PyPI; install from GitHub. Never write `pip install jitterbug`, and no PyPI badge until the first upload.
+unrelated project); the import package and the CLI are still `jitterbug`. It is
+on PyPI as `jitterbug-inference` since 2.1.1 (`pip install jitterbug-inference`). Never
+write `pip install jitterbug`: that is the unrelated project.
 
 ## Layout
 
