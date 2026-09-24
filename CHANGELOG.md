@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   guide and citation included from the root files. CI builds it with `--strict` and
   validates `CITATION.cff` on every PR; `.github/workflows/pages.yml` publishes it to
   GitHub Pages from `main`. New `docs` dependency group.
+- The documentation is online at <https://estcarisimo.github.io/jitterbug/>: README badge,
+  the `Documentation` project URL (shown on PyPI from the next release) and the
+  repository website point to it.
 
 ### Changed
 
