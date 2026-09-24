@@ -54,6 +54,7 @@ See [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/do
 | `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | The Bayesian detector used in the paper |
 | `clustering` | scikit-learn | The non-sequential mode (`--mode clustering`) |
 | `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
+| `zstd` | zstandard (not needed on Python 3.14+) | Reading and writing `.zst`-compressed files |
 | `visualization` | matplotlib | `jitterbug visualize` and the plotting helpers |
 | `jupyter` | JupyterLab, ipykernel | The notebooks in `examples/` |
 | `all` | everything above | |
@@ -89,6 +90,10 @@ jitterbug analyze examples/network_analysis/data/raw.csv --summary-only
 
 # CSV instead of JSON (Parquet is also supported if `pyarrow` is installed)
 jitterbug analyze rtts.csv --output results.csv --output-format csv
+
+# Zstandard-compressed input and output: a trailing .zst is enough (needs the `zstd` extra
+# before Python 3.14)
+jitterbug analyze rtts.csv.zst --output results.json.zst
 ```
 
 ### Validate input before analyzing

@@ -232,3 +232,18 @@ def test_analyze_rejects_unknown_method(tmp_path: Path):
     result = runner.invoke(app, ["analyze", str(csv), "--method", "magic"])
     assert result.exit_code == 1
     assert "jitter_dispersion" in result.output  # Pydantic lists the allowed values
+
+
+def test_analyze_reads_and_writes_zstandard(tmp_path: Path):
+    pytest.importorskip("zstandard")
+    from jitterbug.io.compression import open_text
+
+    packed_input = tmp_path / "raw.csv.zst"
+    with open_text(packed_input, "w", newline="") as f:
+        f.write(EXAMPLE_CSV.read_text())
+    out = tmp_path / "results.json.zst"
+    result = runner.invoke(app, ["analyze", str(packed_input), "--output", str(out)])
+    assert result.exit_code == 0, result.output
+    assert packed_input.stat().st_size < EXAMPLE_CSV.stat().st_size / 2
+    with open_text(out) as f:
+        assert json.load(f)["inferences"]

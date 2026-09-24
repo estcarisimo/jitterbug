@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Zstandard (`.zst`) input and output. A path ending in `.zst` is decompressed on read
+  (`jitterbug analyze rtts.csv.zst`; the extension before `.zst` picks the format) and
+  compressed on write (`--output results.json.zst`, `results.csv.zst`, and the same in
+  `ResultExporter` and `JitterbugAnalyzer.save_results`). New `zstd` extra
+  (`zstandard`, only needed before Python 3.14, which has `compression.zstd`), included
+  in `all`. `.parquet.zst` is rejected, since Parquet is already compressed. See
+  `docs/INPUT_FORMATS.md`.
+
+### Changed
+
+- Text inputs and outputs (CSV, scamper JSON, JSON and CSV results) are read and written
+  as UTF-8 instead of the platform's default encoding.
+
 ## [2.2.0] - 2026-09-24
 
 ### Added

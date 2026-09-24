@@ -1,5 +1,7 @@
 """Unit tests for ``jitterbug.io``: loaders, format inference, validation and exporters."""
 
+import importlib
+import importlib.util
 import json
 import sys
 import types
@@ -12,7 +14,7 @@ import pandas as pd
 import pytest
 from numpy.testing import assert_allclose
 
-from jitterbug.io import DataLoader, ResultExporter
+from jitterbug.io import DataLoader, ResultExporter, compression
 from jitterbug.models import CongestionInferenceResult, RTTDataset
 
 from .conftest import jitter, jump, make_measurements
@@ -392,3 +394,161 @@ class TestExporters:
         analyzer.save_results(results, tmp_path / "b.json", "json")
         assert (tmp_path / "a.csv").read_text().startswith("starts,ends,congestion")
         assert json.loads((tmp_path / "b.json").read_text())["metadata"]["change_points"] == 4
+
+
+# ----------------------------------------------------------------------- compression
+
+ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+ZSTD_BACKENDS = [
+    pytest.param(
+        name,
+        marks=pytest.mark.skipif(
+            importlib.util.find_spec(name.split(".")[0]) is None
+            or (name == "compression.zstd" and sys.version_info < (3, 14)),
+            reason=f"{name} not available",
+        ),
+    )
+    for name in ("zstandard", "compression.zstd")
+]
+
+
+@pytest.fixture(params=ZSTD_BACKENDS)
+def zstd_backend(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Run the test once per available Zstandard codec."""
+    module = importlib.import_module(request.param)
+    monkeypatch.setattr(compression, "_zstd_module", lambda: module)
+    return str(request.param)
+
+
+@pytest.fixture
+def no_zstd(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("compression.zstd", "zstandard"):
+        monkeypatch.setitem(sys.modules, name, None)
+
+
+def _write_zst(path: Path, text: str) -> Path:
+    with compression.open_text(path, "w", newline="") as f:
+        f.write(text)
+    assert path.read_bytes()[:4] == ZSTD_MAGIC
+    return path
+
+
+class TestCompression:
+    @pytest.mark.parametrize(
+        ("name", "zstd", "inner"),
+        [
+            ("r.json.zst", True, ".json"),
+            ("R.CSV.ZST", True, ".csv"),
+            ("r.csv", False, ".csv"),
+            ("r.zst", True, ""),
+            ("r", False, ""),
+        ],
+    )
+    def test_suffixes(self, name: str, zstd: bool, inner: str) -> None:
+        assert compression.is_zstd(name) is zstd
+        assert compression.inner_suffix(name) == inner
+
+    @pytest.mark.parametrize(
+        ("export", "name"),
+        [("export_to_json", "r.json"), ("export_to_csv", "r.csv"), ("export_summary", "s.json")],
+    )
+    def test_exporters_write_the_same_content_compressed(
+        self,
+        zstd_backend: str,
+        results: CongestionInferenceResult,
+        tmp_path: Path,
+        export: str,
+        name: str,
+    ) -> None:
+        plain, packed = tmp_path / name, tmp_path / f"{name}.zst"
+        getattr(ResultExporter(), export)(results, plain)
+        getattr(ResultExporter(), export)(results, packed)
+        assert packed.read_bytes()[:4] == ZSTD_MAGIC
+        with compression.open_text(packed, newline="") as f:
+            assert f.read() == plain.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("fmt", ["json", "csv"])
+    def test_analyzer_save_results_compresses(
+        self, zstd_backend: str, results: CongestionInferenceResult, tmp_path: Path, fmt: str
+    ) -> None:
+        from jitterbug import JitterbugAnalyzer, JitterbugConfig
+
+        analyzer = JitterbugAnalyzer(JitterbugConfig())
+        plain, packed = tmp_path / f"r.{fmt}", tmp_path / f"r.{fmt}.zst"
+        analyzer.save_results(results, plain, fmt)
+        analyzer.save_results(results, packed, fmt)
+        with compression.open_text(packed, newline="") as f:
+            assert f.read() == plain.read_text(encoding="utf-8")
+
+    def test_parquet_with_zst_suffix_is_rejected(
+        self, results: CongestionInferenceResult, tmp_path: Path
+    ) -> None:
+        from jitterbug import JitterbugAnalyzer, JitterbugConfig
+
+        out = tmp_path / "r.parquet.zst"
+        with pytest.raises(ValueError, match="already compressed"):
+            ResultExporter().export_to_parquet(results, out)
+        with pytest.raises(ValueError, match="already compressed"):
+            JitterbugAnalyzer(JitterbugConfig()).save_results(results, out, "parquet")
+        assert not out.exists()
+
+    def test_compressed_csv_loads_like_the_plain_one(
+        self, zstd_backend: str, loader: DataLoader, csv_file: Path, tmp_path: Path
+    ) -> None:
+        packed = _write_zst(tmp_path / "rtts.csv.zst", csv_file.read_text())
+        plain_ds, packed_ds = loader.load_from_file(csv_file), loader.load_from_file(packed)
+        assert_allclose(packed_ds.to_arrays()[1], plain_ds.to_arrays()[1])
+        assert packed_ds.metadata["file_path"] == str(packed)
+
+    def test_compressed_scamper_json_loads_like_the_plain_one(
+        self, zstd_backend: str, loader: DataLoader, scamper_file: Path, tmp_path: Path
+    ) -> None:
+        packed = _write_zst(tmp_path / "pings.jsonl.zst", scamper_file.read_text())
+        assert_allclose(
+            loader.load_from_file(packed).to_arrays()[1],
+            loader.load_from_file(scamper_file).to_arrays()[1],
+        )
+
+    @pytest.mark.parametrize(
+        ("name", "text", "expected"),
+        [
+            ("rtts.csv.zst", "epoch,values\n1,2\n", "csv"),
+            ("pings.json.zst", '{"type": "ping"}\n', "json"),
+            ("data.zst", '{"type": "ping"}\n', "json"),
+            ("data.txt.zst", "epoch,values\n1,2\n", "csv"),
+        ],
+    )
+    def test_format_inference_ignores_the_zst_suffix(
+        self,
+        zstd_backend: str,
+        loader: DataLoader,
+        tmp_path: Path,
+        name: str,
+        text: str,
+        expected: str,
+    ) -> None:
+        assert loader._infer_format(_write_zst(tmp_path / name, text)) == expected
+
+    def test_missing_codec_raises_with_the_install_hint(
+        self,
+        no_zstd: None,
+        loader: DataLoader,
+        results: CongestionInferenceResult,
+        tmp_path: Path,
+    ) -> None:
+        with pytest.raises(ImportError, match=r"jitterbug-inference\[zstd\]"):
+            ResultExporter().export_to_json(results, tmp_path / "r.json.zst")
+        packed = tmp_path / "rtts.csv.zst"
+        packed.write_bytes(ZSTD_MAGIC + b"\x00" * 8)
+        with pytest.raises(ImportError, match=r"jitterbug-inference\[zstd\]"):
+            loader.load_from_file(packed)
+
+    def test_plain_files_do_not_need_a_codec(
+        self, no_zstd: None, results: CongestionInferenceResult, tmp_path: Path
+    ) -> None:
+        ResultExporter().export_to_json(results, tmp_path / "r.json")
+        assert json.loads((tmp_path / "r.json").read_text())["metadata"]["change_points"] == 4
+
+    def test_invalid_mode_is_rejected(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="Unsupported mode"):
+            compression.open_text(tmp_path / "r.json", "a")

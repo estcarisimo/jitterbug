@@ -58,6 +58,8 @@ bayesian = ["jitterbug-inference[bcp]"]  # deprecated alias for the old extra na
 # Non-sequential (clustering) analysis mode: `analysis_mode: clustering`
 clustering = ["scikit-learn>=1.3"]
 influx = ["influxdb-client>=1.30.0"]
+# Zstandard (`.zst`) input and output; Python 3.14+ has it in the standard library
+zstd = ["zstandard>=0.23; python_version < '3.14'"]
 visualization = ["matplotlib>=3.5.0"]
 jupyter = ["ipykernel>=6.0.0", "jupyter>=1.0.0"]
 # Every optional back end and front end.
@@ -66,6 +68,7 @@ all = [
     "torch>=2.0",
     "scikit-learn>=1.3",
     "influxdb-client>=1.30.0",
+    "zstandard>=0.23; python_version < '3.14'",
     "matplotlib>=3.5.0",
     "ipykernel>=6.0.0",
     "jupyter>=1.0.0",
