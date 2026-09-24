@@ -99,5 +99,5 @@ uv run python -c "from jitterbug.detection import get_available_algorithms; prin
 
 ## Developer setup
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md): `uv sync --extra visualization`,
+See [CONTRIBUTING.md](https://github.com/estcarisimo/jitterbug/blob/main/CONTRIBUTING.md): `uv sync --extra visualization`,
 `uv run pre-commit install`, then `uv run pytest -m "not slow"`.

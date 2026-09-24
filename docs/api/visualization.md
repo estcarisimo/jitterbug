@@ -1,0 +1,3 @@
+# Plotting
+
+::: jitterbug.visualization.plotter

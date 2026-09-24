@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documentation site built with MkDocs (Material theme): the guides in `docs/`, an API
+  reference generated from the docstrings, and the README, changelog, contributing
+  guide and citation included from the root files. CI builds it with `--strict` and
+  validates `CITATION.cff` on every PR; `.github/workflows/pages.yml` publishes it to
+  GitHub Pages from `main`. New `docs` dependency group.
+
 ### Changed
 
 - American English is now a documented convention (`AGENTS.md`, `CONTRIBUTING.md`,
