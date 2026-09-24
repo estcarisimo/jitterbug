@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-09-24
+
 ### Added
 
 - Zstandard (`.zst`) input and output. A path ending in `.zst` is decompressed on read
@@ -308,7 +310,8 @@ Typer CLI, optional REST API and visualization modules. See the
 Original implementation accompanying the paper *Jitterbug: A new framework for
 jitter-based congestion inference* (PAM 2022).
 
-[Unreleased]: https://github.com/estcarisimo/jitterbug/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/estcarisimo/jitterbug/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/estcarisimo/jitterbug/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/estcarisimo/jitterbug/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/estcarisimo/jitterbug/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/estcarisimo/jitterbug/compare/v2.0.0...v2.1.0
