@@ -14,8 +14,8 @@ method from *Jitterbug: A New Framework for Jitter-Based Congestion Inference*
 
 The distribution is named `jitterbug-inference` (`jitterbug` on PyPI belongs to an
 unrelated project); the import package and the CLI are still `jitterbug`. It is **not**
-published on PyPI yet (planned once the Bayesian back end is on PyPI); install from
-GitHub. Never write `pip install jitterbug`, and no PyPI badge until the first upload.
+published on PyPI yet, although every dependency, including the `bcp` extra
+(`bayesian-changepoint`), now resolves from PyPI; install from GitHub. Never write `pip install jitterbug`, and no PyPI badge until the first upload.
 
 ## Layout
 
