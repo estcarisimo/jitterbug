@@ -7,8 +7,9 @@ interval is a point with two features (its minimum RTT and the interquartile ran
 jitter samples inside it), the points are clustered, and each cluster is compared with
 the baseline cluster (lowest median minimum RTT), no matter whether their intervals are
 adjacent in time. A cluster is congested when both signals of the paper hold: its median
-minimum RTT exceeds the baseline's by more than the latency-jump threshold, and a
-Kolmogorov-Smirnov test on the raw jitter samples of the two clusters is significant.
+minimum RTT exceeds the baseline's by more than the latency threshold, and the raw jitter
+samples of the two clusters differ (a significant Kolmogorov-Smirnov test whose statistic
+reaches a minimum effect size).
 Consecutive intervals with the same verdict are merged into periods, after an optional
 temporal smoothing, so the output has the same shape as the sequential mode.
 """
@@ -281,7 +282,7 @@ class ClusteringCongestionAnalyzer:
         Clustering options.
     latency_threshold : float
         Minimum excess of a cluster's median minimum RTT over the baseline's (ms), from
-        ``latency_jump.threshold``.
+        ``clustering.latency_threshold`` or else ``latency_jump.threshold``.
     significance_level : float
         Significance level of the KS test, from ``jitter_analysis.significance_level``.
     interval_minutes : int
@@ -428,7 +429,9 @@ class ClusteringCongestionAnalyzer:
             if cluster > 0:
                 ks = scipy.stats.ks_2samp(baseline_jitter, pooled_jitter(cluster))
                 ks_statistic, p_value = float(ks.statistic), float(ks.pvalue)
-                congested = jump > self.latency_threshold and p_value < self.significance_level
+                congested = jump > self.latency_threshold and self._jitter_differs(
+                    ks_statistic, p_value
+                )
             summaries.append(
                 ClusterSummary(
                     cluster=cluster,
@@ -442,6 +445,12 @@ class ClusteringCongestionAnalyzer:
                 )
             )
         return summaries
+
+    def _jitter_differs(self, ks_statistic: float | None, p_value: float | None) -> bool:
+        """Whether a KS comparison with the baseline counts as a jitter change."""
+        if ks_statistic is None or p_value is None:
+            return False
+        return p_value < self.significance_level and ks_statistic >= self.config.min_ks_statistic
 
     def _periods(
         self,
@@ -488,8 +497,9 @@ class ClusteringCongestionAnalyzer:
                             end_timestamp=end_ts,
                             start_epoch=start_epoch,
                             end_epoch=end_epoch,
-                            has_significant_jitter=dominant.p_value is not None
-                            and dominant.p_value < self.significance_level,
+                            has_significant_jitter=self._jitter_differs(
+                                dominant.ks_statistic, dominant.p_value
+                            ),
                             jitter_metric=dominant.ks_statistic or 0.0,
                             method="ks_test",
                             threshold=self.significance_level,
