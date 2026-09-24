@@ -93,7 +93,11 @@ class JitterbugAnalyzer:
         self.congestion_inference_analyzer = CongestionInferenceAnalyzer()
         self.clustering_analyzer = ClusteringCongestionAnalyzer(
             self.config.clustering,
-            latency_threshold=self.config.latency_jump.threshold,
+            latency_threshold=(
+                self.config.clustering.latency_threshold
+                if self.config.clustering.latency_threshold is not None
+                else self.config.latency_jump.threshold
+            ),
             significance_level=self.config.jitter_analysis.significance_level,
             interval_minutes=self.config.data_processing.minimum_interval_minutes,
         )

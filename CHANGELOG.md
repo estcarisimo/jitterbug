@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   BCP + KS: 14/15, 0 extra). New
   `clustering` extra (scikit-learn), included in `all`; guide in
   `docs/CLUSTERING_MODE.md`. The sequential mode stays the default and is unchanged.
+- Clustering mode: `clustering.min_ks_statistic` (default 0.1) requires the KS statistic,
+  not only the p-value, to show a jitter change. Clusters pool thousands of samples, so
+  the p-value is significant for negligible differences (p < 1e-49 for every cluster of
+  the PAM 2022 dataset, including one at the baseline's latency, whose statistic is
+  0.088; the congested clusters are at 0.21–0.32). `clustering.latency_threshold`
+  (default: `latency_jump.threshold`) sets a latency threshold for this mode alone.
+  Results on the PAM 2022 dataset are unchanged.
 
 - Documentation site built with MkDocs (Material theme): the guides in `docs/`, an API
   reference generated from the docstrings, and the README, changelog, contributing

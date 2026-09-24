@@ -210,9 +210,10 @@ class ClusteringConfig(BaseModel):
     the interquartile range of the jitter samples inside it. The points are clustered
     without regard to time; the cluster with the lowest median minimum RTT is the
     baseline, and every other cluster is congested when its median minimum RTT exceeds
-    the baseline by more than ``latency_jump.threshold`` and a Kolmogorov-Smirnov test
-    on the raw jitter samples of the two clusters is significant at
-    ``jitter_analysis.significance_level``.
+    the baseline by more than the latency threshold and the jitter samples of the two
+    clusters differ: a Kolmogorov-Smirnov test is significant at
+    ``jitter_analysis.significance_level`` and its statistic is at least
+    ``min_ks_statistic``.
 
     Attributes
     ----------
@@ -231,6 +232,14 @@ class ClusteringConfig(BaseModel):
         many intervals are dropped. ``0`` keeps the raw per-interval labels.
     random_state : int
         Seed for the clustering algorithms, so results are reproducible.
+    latency_threshold : float | None
+        Minimum excess of a cluster's median minimum RTT over the baseline's (ms).
+        ``None`` uses ``latency_jump.threshold``, the threshold of the sequential mode.
+    min_ks_statistic : float
+        Smallest Kolmogorov-Smirnov statistic (the largest gap between the two empirical
+        jitter distributions, 0-1) that counts as a jitter change. Clusters pool
+        thousands of samples, so the p-value alone is significant for negligible
+        differences; this bounds the effect size. ``0`` relies on the p-value only.
     """
 
     algorithm: Literal["gmm", "kmeans", "kmeans_silhouette"] = Field(
@@ -244,6 +253,14 @@ class ClusteringConfig(BaseModel):
         default=2, ge=0, description="Temporal smoothing window, in minimum-RTT intervals"
     )
     random_state: int = Field(default=0, description="Random seed for clustering")
+    latency_threshold: float | None = Field(
+        default=None,
+        gt=0,
+        description="Latency jump threshold for this mode (ms); None uses latency_jump.threshold",
+    )
+    min_ks_statistic: float = Field(
+        default=0.1, ge=0, le=1, description="Smallest KS statistic that counts as a jitter change"
+    )
 
     model_config = ConfigDict(validate_assignment=True)
 

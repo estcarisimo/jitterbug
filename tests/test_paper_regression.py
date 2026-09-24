@@ -135,3 +135,23 @@ def test_clustering_mode_agrees_with_paper(algorithm: str, min_recovered: int) -
     assert total == 15
     assert recovered >= min_recovered
     assert spurious <= 2
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("sklearn") is None, reason="clustering extra not installed"
+)
+def test_clustering_ks_statistic_separates_congested_clusters() -> None:
+    """
+    Every cluster has p < 1e-49 against the baseline, so the p-value cannot tell them
+    apart; the KS statistic can. The default ``min_ks_statistic`` (0.1) sits between the
+    cluster at the baseline's latency and the congested ones.
+    """
+    config = JitterbugConfig(analysis_mode="clustering")
+    results = JitterbugAnalyzer(config).analyze_from_file(RAW_CSV)
+    clusters = results.metadata["clustering"]["clusters"][1:]
+    minimum = config.clustering.min_ks_statistic
+
+    assert all(c["p_value"] < 1e-49 for c in clusters)
+    same_latency = [c for c in clusters if c["latency_jump"] < 0.1]
+    assert same_latency and all(c["ks_statistic"] < minimum for c in same_latency)
+    assert all(c["ks_statistic"] > 2 * minimum for c in clusters if c["is_congested"])

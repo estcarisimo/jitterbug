@@ -33,10 +33,13 @@ pip install "jitterbug-inference[clustering]"      # or: uv sync --extra cluster
    the lowest, is the baseline.
 4. **Verdict per cluster**, the paper's two signals against the baseline:
     - *latency jump*: the cluster's median minimum RTT exceeds the baseline's by more
-      than `latency_jump.threshold` (0.5 ms), **and**
+      than `clustering.latency_threshold`, which defaults to the sequential mode's
+      `latency_jump.threshold` (0.5 ms), **and**
     - *jitter change*: a two-sample Kolmogorov–Smirnov test between the pooled raw jitter
       samples of the cluster and of the baseline is significant at
-      `jitter_analysis.significance_level` (0.05).
+      `jitter_analysis.significance_level` (0.05) **and** its statistic, the largest gap
+      between the two empirical distributions, is at least `clustering.min_ks_statistic`
+      (0.1). The p-value alone is not enough; see *Limitations*.
 5. **Periods.** Each interval takes its cluster's verdict. A temporal smoothing
    (`clustering.min_period_intervals`, default 2) first fills gaps of up to that many
    non-congested intervals inside congestion, then drops congested runs of up to that
@@ -60,6 +63,8 @@ clustering:
   max_clusters: 6                # gmm and kmeans_silhouette
   min_period_intervals: 2        # temporal smoothing; 0 = raw per-interval verdicts
   random_state: 0
+  latency_threshold: null        # ms; null = latency_jump.threshold (0.5)
+  min_ks_statistic: 0.1          # smallest KS statistic that counts as a jitter change
 ```
 
 ```python
@@ -100,15 +105,19 @@ see *Limitations*.
 
 ## Limitations
 
-- **The KS test rarely discriminates.** Clusters pool thousands of jitter samples, so
-  the test is significant for almost any difference: on the paper dataset every
-  non-baseline cluster has p < 1e-49, including one only 0.01 ms above the baseline.
-  In practice the latency jump decides; the KS statistic in the metadata is a better
-  indicator of how different a cluster's jitter really is.
-- **The latency threshold is small.** 0.5 ms suits the sequential comparison of adjacent
-  periods; here a cluster 0.86 ms above the baseline (114 intervals on the paper dataset)
-  counts as congested, next to the clear 20+ ms clusters. Raise
-  `latency_jump.threshold` if short, shallow episodes are not of interest.
+- **The KS p-value does not discriminate; the statistic does.** Clusters pool thousands
+  of jitter samples, so the test is significant for almost any difference: on the paper
+  dataset every non-baseline cluster has p < 1e-49, including one only 0.01 ms above the
+  baseline. Its KS statistic, though, is 0.088, against 0.21–0.32 for the congested
+  clusters, which is why `min_ks_statistic` defaults to 0.1. Any value from 0 to 0.2
+  gives the same results on this dataset; at 0.25 most of the congestion is lost.
+- **The latency threshold is small, but raising it costs recall here.** 0.5 ms suits the
+  sequential comparison of adjacent periods. Here the GMM's cluster 0.86 ms above the
+  baseline (114 intervals on the paper dataset) counts as congested, next to the clear
+  20+ ms clusters, and it is what recovers the fifteenth reference period: with
+  `clustering.latency_threshold` anywhere from 1 to 10 ms the GMM recovers 14/15 (17
+  congested periods, still 2 extra), and k-means is unaffected. Raise it if short,
+  shallow episodes are not of interest.
 - **Time is ignored until the smoothing step.** Without smoothing a single noisy interval
   can split a congestion period or create a spurious one, which is why the default
   window is two intervals (30 minutes).

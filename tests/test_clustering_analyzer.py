@@ -62,7 +62,7 @@ def two_episode_raw(rng: np.random.Generator) -> RTTDataset:
     return RTTDataset(measurements=make_measurements(_series(rng), step_seconds=STEP))
 
 
-def _analyzer(algorithm: str = "gmm", **overrides: int) -> ClusteringCongestionAnalyzer:
+def _analyzer(algorithm: str = "gmm", **overrides: float) -> ClusteringCongestionAnalyzer:
     config = ClusteringConfig(algorithm=algorithm, **overrides)  # type: ignore[arg-type]
     return ClusteringCongestionAnalyzer(
         config, latency_threshold=0.5, significance_level=0.05, interval_minutes=INTERVAL
@@ -195,6 +195,23 @@ def test_a_jitter_change_without_a_latency_jump_is_not_congestion(
 
 
 @needs_sklearn
+def test_min_ks_statistic_bounds_the_jitter_effect_size(two_episode_raw: RTTDataset) -> None:
+    default = _analyzer("kmeans").analyze(two_episode_raw)
+    statistic = default.clusters[1].ks_statistic
+    assert statistic is not None and statistic >= ClusteringConfig().min_ks_statistic
+    assert default.clusters[1].is_congested
+
+    # A significant test whose statistic is below the minimum is not a jitter change.
+    strict = _analyzer("kmeans", min_ks_statistic=min(1.0, statistic + 0.01)).analyze(
+        two_episode_raw
+    )
+    assert strict.clusters[1].p_value is not None and strict.clusters[1].p_value < 0.05
+    assert not strict.clusters[1].is_congested
+    assert not any(p.is_congested for p in strict.inferences)
+    assert not any(p.jitter_analysis.has_significant_jitter for p in strict.inferences)
+
+
+@needs_sklearn
 def test_smoothing_window_zero_keeps_per_interval_verdicts(two_episode_raw: RTTDataset) -> None:
     raw = _analyzer("gmm", min_period_intervals=0).analyze(two_episode_raw)
     smoothed = _analyzer("gmm").analyze(two_episode_raw)
@@ -223,11 +240,28 @@ def test_too_few_intervals_give_an_empty_result() -> None:
 
 @pytest.mark.parametrize(
     "kwargs",
-    [{"algorithm": "dbscan"}, {"n_clusters": 1}, {"max_clusters": 1}, {"min_period_intervals": -1}],
+    [
+        {"algorithm": "dbscan"},
+        {"n_clusters": 1},
+        {"max_clusters": 1},
+        {"min_period_intervals": -1},
+        {"latency_threshold": 0.0},
+        {"min_ks_statistic": -0.1},
+        {"min_ks_statistic": 1.5},
+    ],
 )
 def test_invalid_clustering_options_are_rejected(kwargs: dict) -> None:
     with pytest.raises(ValidationError):
         ClusteringConfig(**kwargs)
+
+
+@pytest.mark.parametrize(("own", "expected"), [(None, 0.5), (3.0, 3.0)])
+def test_clustering_latency_threshold_falls_back_to_the_sequential_one(
+    own: float | None, expected: float
+) -> None:
+    config = JitterbugConfig(analysis_mode="clustering")
+    config.clustering.latency_threshold = own
+    assert JitterbugAnalyzer(config).clustering_analyzer.latency_threshold == expected
 
 
 def test_sequential_is_the_default_mode() -> None:
@@ -286,3 +320,15 @@ def test_cli_rejects_an_unknown_mode(tmp_path: Path) -> None:
     csv.write_text("epoch,values\n0,20\n10,21\n")
     result = CliRunner().invoke(app, ["analyze", str(csv), "--mode", "random"])
     assert result.exit_code != 0
+
+
+@needs_sklearn
+def test_clustering_latency_threshold_above_the_episodes_finds_no_congestion(
+    two_episode_raw: RTTDataset,
+) -> None:
+    config = JitterbugConfig(analysis_mode="clustering")
+    config.data_processing.minimum_interval_minutes = INTERVAL
+    config.clustering.latency_threshold = 50.0  # the episodes are 20 ms above the floor
+    result = JitterbugAnalyzer(config).analyze(two_episode_raw)
+    assert result.get_congested_periods() == []
+    assert config.latency_jump.threshold == 0.5  # the sequential threshold is untouched
