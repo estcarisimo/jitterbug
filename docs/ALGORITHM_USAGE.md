@@ -21,7 +21,7 @@ Jitterbug supports multiple change point detection algorithms:
 ```bash
 # From a clone (see docs/INSTALLATION.md)
 uv sync                    # ruptures only
-uv sync --extra bcp        # + the Bayesian detector (git dependency, pulls in torch)
+uv sync --extra bcp        # + the Bayesian detector (bayesian-changepoint, pulls in torch)
 uv sync --extra all        # every optional back end
 ```
 
@@ -372,7 +372,7 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 
 1. **Algorithm not found**: Install required dependencies
    ```bash
-   uv sync --extra bcp   # the Bayesian detector; needs `git` on PATH
+   uv sync --extra bcp   # the Bayesian detector (bayesian-changepoint + torch)
    ```
 
 2. **Memory issues**: Reduce dataset size or use different algorithm

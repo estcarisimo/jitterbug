@@ -254,7 +254,8 @@ class BayesianChangePointDetector(BaseChangePointDetector):
         except ImportError as e:
             raise ImportError(
                 "bayesian_changepoint_detection package is required for BCP detection. "
-                "Install it from: https://github.com/estcarisimo/bayesian_changepoint_detection"
+                "Install the bcp extra: pip install 'jitterbug-inference[bcp]' "
+                "(or pip install bayesian-changepoint)."
             ) from e
 
     def detect(self, dataset: MinimumRTTDataset) -> list[ChangePoint]:
@@ -291,7 +292,6 @@ class BayesianChangePointDetector(BaseChangePointDetector):
                 rtt_values,
                 prior_function,
                 self.offline_likelihoods.StudentT(device=device),
-                truncate=-40,
                 device=device,
             )
 

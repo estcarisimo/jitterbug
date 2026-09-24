@@ -53,7 +53,7 @@ pip install -e .
 
 | Extra | Installs | Use it for |
 | --- | --- | --- |
-| `bcp` | [bayesian_changepoint_detection](https://github.com/estcarisimo/bayesian_changepoint_detection) (git) | The Bayesian detector used in the paper |
+| `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | The Bayesian detector used in the paper |
 | `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
 | `visualization` | matplotlib | `jitterbug visualize` and the plotting helpers |
 | `all` | everything above | |
@@ -66,7 +66,6 @@ uv sync --extra all            # everything
 ### System requirements
 
 - Python 3.10 or higher
-- `git` on `PATH` if you install the `bcp` extra (it is a git dependency)
 
 ## 📖 Usage
 
@@ -273,7 +272,7 @@ uv run pytest --cov=jitterbug --cov-report=term-missing
 uv run pytest tests/test_cli.py -v
 ```
 
-The fast suite runs in about twenty seconds and needs no network; the Bayesian regression tests (`-m slow`) add about ten seconds and need the `bcp` extra. Coverage is about 90 % and CI fails below 75 %.
+The fast suite runs in about twenty seconds and needs no network; the Bayesian regression tests (`-m slow`) add about two seconds and need the `bcp` extra. Coverage is about 90 % and CI fails below 75 %.
 
 ### Code quality
 

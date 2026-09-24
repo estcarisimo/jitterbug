@@ -279,8 +279,10 @@ class TestBayesianChangePointDetector:
             def __init__(self, device: str = "cpu"):
                 calls["likelihood_device"] = device
 
-        def offline_changepoint_detection(data, prior, likelihood, truncate, device):
+        # Signature of bayesian-changepoint 1.2, where `truncate` is deprecated.
+        def offline_changepoint_detection(data, prior, likelihood, truncate=-np.inf, device=None):
             calls["detection_device"] = device
+            calls["truncate"] = truncate
             calls["likelihood"] = likelihood
             log_pcp = np.full((2, len(data)), -np.inf)
             log_pcp[0, 5] = 0.0  # probability 1 of a change point at index 5
@@ -313,6 +315,7 @@ class TestBayesianChangePointDetector:
         assert calls["likelihood_device"] == device
         assert calls["detection_device"] == device
         assert isinstance(calls["likelihood"], StudentT)
+        assert calls["truncate"] == -np.inf  # exact sum, no deprecated truncation
 
     def test_bcp_device_rejects_unknown_values(self):
         with pytest.raises(ValidationError):

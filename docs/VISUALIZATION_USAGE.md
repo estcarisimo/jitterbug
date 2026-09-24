@@ -126,7 +126,7 @@ and in tests. The test suite does exactly this in `tests/conftest.py`.
 `tools/generate_visualizations.py` runs both detectors on the bundled dataset, writes
 one congestion analysis figure per detector plus a comparison chart, and regenerates
 `examples/network_analysis/plots/README.md`. It needs the `bcp` extra and takes a few
-minutes (the Bayesian run is the slow part; see `bcp_device` in the configuration).
+seconds on CPU (see `bcp_device` in the configuration).
 
 ## Troubleshooting
 

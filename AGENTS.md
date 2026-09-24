@@ -45,13 +45,13 @@ docs/                    plain Markdown guides
 
 ```bash
 uv sync --extra visualization              # environment (Python 3.10–3.13 supported)
-uv sync --extra bcp                        # + Bayesian back end (git dependency)
+uv sync --extra bcp                        # + Bayesian back end (bayesian-changepoint)
 uv run pre-commit install                  # once per clone
 uv run ruff check src/ tests/ examples/ tools/
 uv run ruff format src/ tests/ examples/ tools/   # CI checks with --check
 uv run mypy src/jitterbug                  # blocking in CI (disallow_untyped_defs)
 uv run pytest -m "not slow"                # seconds
-uv run pytest                              # + Bayesian regression (~10 s more, needs --extra bcp)
+uv run pytest                              # + Bayesian regression (~2 s more, needs --extra bcp)
 uv run jitterbug analyze examples/network_analysis/data/raw.csv --output /tmp/r.json
 uv build                                   # sdist + wheel via uv_build
 ```
@@ -86,9 +86,11 @@ uv build                                   # sdist + wheel via uv_build
   request for interactivity.
 - The ruptures detector retries with a lower penalty and tags those results
   `ruptures_<model>_lowpen`.
-- The `bcp` extra is a git dependency (`bayescd`, imported as
-  `bayesian_changepoint_detection`), so a wheel carrying it cannot be uploaded to PyPI.
-  `all` includes it on purpose for now.
+- The `bcp` extra is the PyPI distribution `bayesian-changepoint` (>= 1.2), imported as
+  `bayesian_changepoint_detection`. The older PyPI names `bayescd` and
+  `bayesian-changepoint-detection` are Kulick's unmaintained releases; never depend on
+  them. Do not pass `truncate=` to `offline_changepoint_detection` (deprecated in 1.2;
+  the exact sum is as fast and gives the same result on the paper dataset).
 - Ruff 0.16 formats fenced Python blocks inside Markdown files in the paths it is
   given; `README.md` is deliberately not in the CI paths yet.
 - The `examples/` scripts and notebooks are not run in CI; `tests/test_cli.py` is the
