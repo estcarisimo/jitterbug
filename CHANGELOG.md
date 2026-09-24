@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Non-sequential (clustering) analysis mode: `analysis_mode: clustering` /
+  `jitterbug analyze --mode clustering`. Minimum-RTT intervals are clustered by
+  (minimum RTT, jitter IQR) with a Gaussian mixture (components chosen by BIC), k-means,
+  or k-means with the silhouette-best k (`clustering.algorithm`, `--clustering-algorithm`);
+  every cluster is compared with the lowest-latency one by latency jump and a KS test on
+  raw jitter, wherever its intervals fall in time; a temporal smoothing
+  (`clustering.min_period_intervals`, default 2) merges the per-interval verdicts into
+  periods. Output is the usual `CongestionInferenceResult`, with a `clustering` summary
+  in the metadata. On the PAM 2022 dataset the GMM recovers 15 of the 15 reference
+  congestion periods; its 2 extra periods are at the two ends of the data, where the
+  minimum RTT is elevated but the sequential reference cannot give a verdict (sequential
+  BCP + KS: 14/15, 0 extra). New
+  `clustering` extra (scikit-learn), included in `all`; guide in
+  `docs/CLUSTERING_MODE.md`. The sequential mode stays the default and is unchanged.
+
 - Documentation site built with MkDocs (Material theme): the guides in `docs/`, an API
   reference generated from the docstrings, and the README, changelog, contributing
   guide and citation included from the root files. CI builds it with `--strict` and

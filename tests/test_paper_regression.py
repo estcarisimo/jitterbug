@@ -108,3 +108,30 @@ class TestBayesianKSTest:
         assert total == 15
         assert recovered >= 14
         assert spurious == 0
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("sklearn") is None, reason="clustering extra not installed"
+)
+@pytest.mark.parametrize(
+    ("algorithm", "min_recovered"),
+    [("gmm", 15), ("kmeans", 14), ("kmeans_silhouette", 14)],
+)
+def test_clustering_mode_agrees_with_paper(algorithm: str, min_recovered: int) -> None:
+    """
+    Non-sequential mode (default smoothing of two intervals), compared with the KS-test
+    reference. The two periods counted as spurious are at the two ends of the data, where
+    the minimum RTT is elevated but the sequential reference has no verdict (its first
+    period has no predecessor, its last no closing change point). The bound keeps other
+    spurious detections from appearing.
+    """
+    config = JitterbugConfig(analysis_mode="clustering")
+    config.clustering.algorithm = algorithm  # type: ignore[assignment]
+    results = JitterbugAnalyzer(config).analyze_from_file(RAW_CSV)
+
+    assert len(results.inferences) == 31
+    assert len(_congested(results)) == 16
+    recovered, total, spurious = _agreement(results, "ks_test")
+    assert total == 15
+    assert recovered >= min_recovered
+    assert spurious <= 2

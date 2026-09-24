@@ -11,6 +11,7 @@ from .analysis import (
 )
 from .config import (
     ChangePointDetectionConfig,
+    ClusteringConfig,
     DataProcessingConfig,
     JitterAnalysisConfig,
     JitterbugConfig,
@@ -33,4 +34,5 @@ __all__ = [
     "JitterAnalysisConfig",
     "LatencyJumpConfig",
     "DataProcessingConfig",
+    "ClusteringConfig",
 ]

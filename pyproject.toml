@@ -55,6 +55,8 @@ bcp = [
 ]
 bayesian = ["jitterbug-inference[bcp]"]  # deprecated alias for the old extra name; remove in 3.0
 # Data sources and outputs
+# Non-sequential (clustering) analysis mode: `analysis_mode: clustering`
+clustering = ["scikit-learn>=1.3"]
 influx = ["influxdb-client>=1.30.0"]
 visualization = ["matplotlib>=3.5.0"]
 jupyter = ["ipykernel>=6.0.0", "jupyter>=1.0.0"]
@@ -62,6 +64,7 @@ jupyter = ["ipykernel>=6.0.0", "jupyter>=1.0.0"]
 all = [
     "bayesian-changepoint>=1.2",
     "torch>=2.0",
+    "scikit-learn>=1.3",
     "influxdb-client>=1.30.0",
     "matplotlib>=3.5.0",
     "ipykernel>=6.0.0",
@@ -130,6 +133,7 @@ module = [
     "ruptures.*",
     "scipy.*",
     "bayesian_changepoint_detection.*",
+    "sklearn.*",
     "influxdb_client.*",
     "matplotlib.*",
 ]
