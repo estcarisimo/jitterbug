@@ -37,6 +37,8 @@ def _apply_overrides(
     threshold: float | None = None,
     output_format: str | None = None,
     verbose: bool = False,
+    mode: str | None = None,
+    clustering_algorithm: str | None = None,
 ) -> JitterbugConfig:
     """
     Return a copy of ``base`` with the command-line overrides that were actually given.
@@ -55,6 +57,10 @@ def _apply_overrides(
         data["output_format"] = output_format
     if verbose:
         data["verbose"] = True
+    if mode is not None:
+        data["analysis_mode"] = mode
+    if clustering_algorithm is not None:
+        data["clustering"]["algorithm"] = clustering_algorithm
     return JitterbugConfig.model_validate(data)
 
 
@@ -102,6 +108,17 @@ def analyze(
     threshold: float | None = typer.Option(
         None, "--threshold", "-t", help="Change point detection threshold [default: 0.25]"
     ),
+    mode: str | None = typer.Option(
+        None,
+        "--mode",
+        help="Analysis mode (sequential, clustering) [default: sequential]",
+    ),
+    clustering_algorithm: str | None = typer.Option(
+        None,
+        "--clustering-algorithm",
+        help="Clustering algorithm for --mode clustering (gmm, kmeans, kmeans_silhouette) "
+        "[default: gmm]",
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
     summary_only: bool = typer.Option(
         False, "--summary-only", help="Show only summary statistics (no detailed periods)"
@@ -139,6 +156,8 @@ def analyze(
             threshold=threshold,
             output_format=output_format,
             verbose=verbose,
+            mode=mode,
+            clustering_algorithm=clustering_algorithm,
         )
 
         # Create analyzer
@@ -301,6 +320,17 @@ def visualize(
     threshold: float | None = typer.Option(
         None, "--threshold", "-t", help="Change point detection threshold [default: 0.25]"
     ),
+    mode: str | None = typer.Option(
+        None,
+        "--mode",
+        help="Analysis mode (sequential, clustering) [default: sequential]",
+    ),
+    clustering_algorithm: str | None = typer.Option(
+        None,
+        "--clustering-algorithm",
+        help="Clustering algorithm for --mode clustering (gmm, kmeans, kmeans_silhouette) "
+        "[default: gmm]",
+    ),
     prefix: str = typer.Option(
         "jitterbug", "--prefix", help="Filename prefix for the generated PNG files"
     ),
@@ -345,6 +375,8 @@ def visualize(
             algorithm=algorithm,
             threshold=threshold,
             verbose=verbose,
+            mode=mode,
+            clustering_algorithm=clustering_algorithm,
         )
 
         # Create analyzer

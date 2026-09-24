@@ -33,6 +33,7 @@ dependency group (pytest, ruff, mypy). Add extras as needed:
 | --- | --- | --- |
 | `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | `--algorithm bcp`, the paper's detector |
 | `visualization` | matplotlib | `jitterbug visualize`, `JitterbugPlotter` |
+| `clustering` | scikit-learn | `--mode clustering`, the non-sequential mode |
 | `influx` | influxdb-client | `DataLoader.load_from_influxdb` |
 | `jupyter` | JupyterLab, ipykernel | the notebooks in `examples/` |
 | `all` | all of the above | |

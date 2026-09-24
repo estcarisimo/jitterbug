@@ -30,6 +30,7 @@ src/jitterbug/
   detection/             change_point_detector.py (dispatch by config.algorithm),
                          algorithms.py (RupturesDetector, BayesianChangePointDetector)
   analysis/              jitter_analyzer.py (dispersion, KS test), latency_jump_analyzer.py,
+                         clustering_analyzer.py (non-sequential mode, `analysis_mode: clustering`),
                          congestion_inference_analyzer.py
   io/                    data_loader.py (CSV, scamper JSON, InfluxDB), exporters.py
   cli/main.py            Typer CLI: `jitterbug analyze|validate|config|visualize|version`
@@ -87,6 +88,11 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
   experimental `torch`, `rbeast` and `adtk` detectors were removed in 2.1; do not
   reintroduce silent fallbacks. `get_available_algorithms()` checks with
   `importlib.util.find_spec`, so it only lists what can run.
+- Two analysis modes: `sequential` (default, the paper's method; its results are pinned)
+  and `clustering` (`clustering` extra, scikit-learn imported lazily). Changing the
+  default mode or the clustering defaults changes golden values in
+  `tests/test_paper_regression.py`; update them and the table in
+  `docs/CLUSTERING_MODE.md` together.
 - Plotting is matplotlib only (`JitterbugPlotter`). The plotly dashboard and
   interactive modules were removed in 2.1; do not add plotly back without an explicit
   request for interactivity.

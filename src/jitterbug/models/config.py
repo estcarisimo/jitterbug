@@ -202,12 +202,63 @@ class DataProcessingConfig(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
 
+class ClusteringConfig(BaseModel):
+    """
+    Configuration for the non-sequential (clustering) analysis mode.
+
+    Each minimum-RTT interval becomes one point with two features, its minimum RTT and
+    the interquartile range of the jitter samples inside it. The points are clustered
+    without regard to time; the cluster with the lowest median minimum RTT is the
+    baseline, and every other cluster is congested when its median minimum RTT exceeds
+    the baseline by more than ``latency_jump.threshold`` and a Kolmogorov-Smirnov test
+    on the raw jitter samples of the two clusters is significant at
+    ``jitter_analysis.significance_level``.
+
+    Attributes
+    ----------
+    algorithm : Literal['gmm', 'kmeans', 'kmeans_silhouette']
+        ``gmm``: Gaussian mixture with the number of components chosen by BIC among
+        1..``max_clusters`` (one component means no congestion signal). ``kmeans``:
+        k-means with ``n_clusters`` clusters. ``kmeans_silhouette``: k-means with the
+        number of clusters in 2..``max_clusters`` that maximizes the silhouette score.
+    n_clusters : int
+        Number of clusters for ``kmeans``.
+    max_clusters : int
+        Largest number of clusters tried by ``gmm`` and ``kmeans_silhouette``.
+    min_period_intervals : int
+        Temporal smoothing, in intervals: gaps of at most this many non-congested
+        intervals inside congestion are filled, then congested runs of at most this
+        many intervals are dropped. ``0`` keeps the raw per-interval labels.
+    random_state : int
+        Seed for the clustering algorithms, so results are reproducible.
+    """
+
+    algorithm: Literal["gmm", "kmeans", "kmeans_silhouette"] = Field(
+        default="gmm", description="Clustering algorithm"
+    )
+    n_clusters: int = Field(default=2, ge=2, le=20, description="Clusters for kmeans")
+    max_clusters: int = Field(
+        default=6, ge=2, le=20, description="Largest number of clusters tried by model selection"
+    )
+    min_period_intervals: int = Field(
+        default=2, ge=0, description="Temporal smoothing window, in minimum-RTT intervals"
+    )
+    random_state: int = Field(default=0, description="Random seed for clustering")
+
+    model_config = ConfigDict(validate_assignment=True)
+
+
 class JitterbugConfig(BaseSettings):
     """
     Main configuration class for Jitterbug.
 
     Attributes
     ----------
+    analysis_mode : Literal['sequential', 'clustering']
+        ``sequential`` (default) is the PAM 2022 method: change points split the series
+        and each period is compared with the previous one. ``clustering`` groups
+        minimum-RTT intervals by (latency, jitter) regardless of when they occur and
+        compares each cluster with the baseline one; see ``ClusteringConfig``.
     change_point_detection : ChangePointDetectionConfig
         Configuration for change point detection.
     jitter_analysis : JitterAnalysisConfig
@@ -216,18 +267,24 @@ class JitterbugConfig(BaseSettings):
         Configuration for latency jump detection.
     data_processing : DataProcessingConfig
         Configuration for data processing.
+    clustering : ClusteringConfig
+        Configuration for the clustering mode.
     output_format : Literal['json', 'csv', 'parquet']
         Output format for results.
     verbose : bool
         Whether to enable verbose logging.
     """
 
+    analysis_mode: Literal["sequential", "clustering"] = Field(
+        default="sequential", description="Sequential (change points) or clustering mode"
+    )
     change_point_detection: ChangePointDetectionConfig = Field(
         default_factory=ChangePointDetectionConfig
     )
     jitter_analysis: JitterAnalysisConfig = Field(default_factory=JitterAnalysisConfig)
     latency_jump: LatencyJumpConfig = Field(default_factory=LatencyJumpConfig)
     data_processing: DataProcessingConfig = Field(default_factory=DataProcessingConfig)
+    clustering: ClusteringConfig = Field(default_factory=ClusteringConfig)
 
     output_format: Literal["json", "csv", "parquet"] = Field(
         default="json", description="Output format for results"
