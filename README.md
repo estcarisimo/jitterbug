@@ -3,6 +3,7 @@
 A Python framework for inferring Internet path congestion from Round-Trip Time (RTT) measurements. Jitterbug splits an RTT time series at change points, then classifies each period as congested or not by combining a latency-jump test with a jitter test (jitter dispersion or Kolmogorov–Smirnov). It implements the method from *Jitterbug: A New Framework for Jitter-Based Congestion Inference* (PAM 2022) and ships the paper's dataset so you can reproduce it in one command.
 
 [![PyPI](https://img.shields.io/pypi/v/jitterbug-inference.svg)](https://pypi.org/project/jitterbug-inference/)
+[![Docs](https://img.shields.io/badge/docs-estcarisimo.github.io%2Fjitterbug-blue.svg)](https://estcarisimo.github.io/jitterbug/)
 [![CI](https://github.com/estcarisimo/jitterbug/actions/workflows/ci.yml/badge.svg)](https://github.com/estcarisimo/jitterbug/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

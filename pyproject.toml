@@ -89,7 +89,7 @@ docs = [
 Homepage = "https://github.com/estcarisimo/jitterbug"
 Repository = "https://github.com/estcarisimo/jitterbug"
 "Bug Reports" = "https://github.com/estcarisimo/jitterbug/issues"
-Documentation = "https://github.com/estcarisimo/jitterbug/blob/main/README.md"
+Documentation = "https://estcarisimo.github.io/jitterbug/"
 
 [project.scripts]
 jitterbug = "jitterbug.cli:main"
