@@ -390,7 +390,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 ## 🔗 Related Resources
 
 - [Jitterbug paper (PAM 2022)](https://doi.org/10.1007/978-3-030-98785-5_7)
-- [bayesian_changepoint_detection](https://github.com/estcarisimo/bayesian_changepoint_detection): the Bayesian detector behind the `bcp` extra
+- [bayesian_changepoint_detection](https://github.com/hildensia/bayesian_changepoint_detection) ([docs](https://estcarisimo.github.io/bayesian_changepoint_detection/), PyPI [`bayesian-changepoint`](https://pypi.org/project/bayesian-changepoint/)): the Bayesian detector behind the `bcp` extra. Its 1.2 release made the paper's configuration about 6× faster than Jitterbug 1.0 and more accurate than the version Jitterbug used before; see [docs/PERFORMANCE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/PERFORMANCE.md#what-changed-in-the-bayesian-library)
 - [ruptures](https://centre-borelli.github.io/ruptures-docs/): the default change point library
 - [scamper](https://www.caida.org/catalog/software/scamper/): the measurement tool whose JSON output Jitterbug reads
 

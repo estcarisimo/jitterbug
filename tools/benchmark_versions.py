@@ -202,6 +202,30 @@ print(json.dumps({
 }))
 """
 
+# Prepended to the CLI and probe scripts with --hide-mps. BCP 1.0 picked Apple's MPS
+# device by default when PyTorch reported it (Jitterbug 2.0 did not pass a device); this
+# makes PyTorch report no MPS, so the same code runs on the CPU.
+HIDE_MPS = """
+try:
+    import torch
+    torch.backends.mps.is_available = lambda: False
+except ImportError:
+    pass
+"""
+
+CLI_V2 = """
+import sys
+from jitterbug.cli import main
+sys.argv = ["jitterbug", *sys.argv[1:]]
+main()
+"""
+
+CLI_V1 = """
+import runpy, sys
+sys.argv = ["jitterbug", *sys.argv[1:]]
+runpy.run_module("tools.jitterbug", run_name="__main__")
+"""
+
 RESULT_FIELDS = (
     "release",
     "deps",
@@ -295,17 +319,20 @@ def package_versions(venv: Path) -> dict[str, str]:
 
 
 def cli_command(
-    workdir: Path, release: Release, venv: Path, config: str, output: Path
+    workdir: Path, release: Release, venv: Path, config: str, output: Path, hide_mps: bool
 ) -> tuple[list[str], Path | None]:
     algorithm, method = CONFIGS[config]
     if release.api == "v1":
-        cmd = [str(env_python(venv)), "-m", "tools.jitterbug", "-r", str(DATASET)]
-        cmd += ["-i", V1_METHODS[method]]
-        cmd += ["-c", algorithm, "-o", str(output)]
-        return cmd, src_dir(workdir, release)
-    jitterbug = venv / "bin" / "jitterbug"
-    cmd = [str(jitterbug), "analyze", str(DATASET), "-a", algorithm, "-m", method]
-    return cmd + ["-o", str(output)], None
+        args = ["-r", str(DATASET), "-i", V1_METHODS[method], "-c", algorithm, "-o", str(output)]
+        if hide_mps:
+            cmd = [str(env_python(venv)), "-c", HIDE_MPS + CLI_V1]
+        else:
+            cmd = [str(env_python(venv)), "-m", "tools.jitterbug"]
+        return cmd + args, src_dir(workdir, release)
+    args = ["analyze", str(DATASET), "-a", algorithm, "-m", method, "-o", str(output)]
+    if hide_mps:
+        return [str(env_python(venv)), "-c", HIDE_MPS + CLI_V2, *args], None
+    return [str(venv / "bin" / "jitterbug"), *args], None
 
 
 def count_results(release: Release, output: Path) -> tuple[int, int]:
@@ -350,23 +377,35 @@ def run_timed(cmd: list[str], cwd: Path | None, timeout: float | None) -> tuple[
 
 
 def time_cli(
-    workdir: Path, release: Release, venv: Path, config: str, timeout: float | None
+    workdir: Path,
+    release: Release,
+    venv: Path,
+    config: str,
+    timeout: float | None,
+    hide_mps: bool = False,
 ) -> dict[str, float | int]:
     """Time one CLI run in a fresh process and count the periods it reported."""
     suffix = ".csv" if release.api == "v1" else ".json"
     with tempfile.TemporaryDirectory() as tmp:
         output = Path(tmp) / f"results{suffix}"
-        cmd, cwd = cli_command(workdir, release, venv, config, output)
+        cmd, cwd = cli_command(workdir, release, venv, config, output, hide_mps)
         _, seconds, rss = run_timed(cmd, cwd, timeout)
         periods, congested = count_results(release, output)
     return {"seconds": seconds, "max_rss_mb": rss, "periods": periods, "congested": congested}
 
 
 def time_stages(
-    workdir: Path, release: Release, venv: Path, config: str, timeout: float | None
+    workdir: Path,
+    release: Release,
+    venv: Path,
+    config: str,
+    timeout: float | None,
+    hide_mps: bool = False,
 ) -> dict[str, Any]:
     algorithm, method = CONFIGS[config]
     probe = PROBE_V1 if release.api == "v1" else PROBE_V2
+    if hide_mps:
+        probe = HIDE_MPS + probe
     cwd = src_dir(workdir, release) if release.api == "v1" else None
     cmd = [str(env_python(venv)), "-c", probe, algorithm, method, str(DATASET)]
     stdout, _, _ = run_timed(cmd, cwd, timeout)
@@ -421,9 +460,12 @@ def cmd_run(args: argparse.Namespace) -> None:
                     if release.api == "v1" and CONFIGS[config][0] != "bcp":
                         continue
                     for repeat in range(args.repeats):
-                        row = {"release": release.tag, "deps": deps, "config": config}
+                        label = f"{deps}-cpu" if args.hide_mps else deps
+                        row = {"release": release.tag, "deps": label, "config": config}
                         try:
-                            cli = time_cli(args.workdir, release, venv, config, args.timeout)
+                            cli = time_cli(
+                                args.workdir, release, venv, config, args.timeout, args.hide_mps
+                            )
                         except TimeoutError:
                             # Recorded as a lower bound; the remaining repeats would time out too.
                             logger.warning(
@@ -457,7 +499,9 @@ def cmd_run(args: argparse.Namespace) -> None:
                             cli["congested"],
                         )
                         if repeat < args.stage_repeats:
-                            probe = time_stages(args.workdir, release, venv, config, args.timeout)
+                            probe = time_stages(
+                                args.workdir, release, venv, config, args.timeout, args.hide_mps
+                            )
                             for stage, seconds in probe["stages"].items():
                                 writer.writerow(
                                     row
@@ -498,7 +542,7 @@ def cmd_report(args: argparse.Namespace) -> None:
             outcome[run] = (row["periods"], row["congested"])
             rss.setdefault(run, []).append(float(row["max_rss_mb"]))
     order = [r.tag for r in RELEASES]
-    for deps in ("era", "current"):
+    for deps in dict.fromkeys(row["deps"] for row in rows):
         for config in CONFIGS:
             cli = {k[4]: v for k, v in groups.items() if k[:4] == (deps, config, "cli", "total")}
             timeouts = {
@@ -588,6 +632,11 @@ def main() -> None:
     run.add_argument("--repeats", type=int, default=5, help="CLI runs per release and config")
     run.add_argument("--stage-repeats", type=int, default=3, help="stage probe runs (<= repeats)")
     run.add_argument("--python", default=DEFAULT_PYTHON, help="recorded in environment.json")
+    run.add_argument(
+        "--hide-mps",
+        action="store_true",
+        help="make PyTorch report no MPS device (runs are labeled <deps>-cpu)",
+    )
     run.add_argument(
         "--timeout", type=float, default=None, help="seconds per run; slower runs are a lower bound"
     )
