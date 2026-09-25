@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same holds with jitter dispersion). Raw measurements in
   `examples/network_analysis/benchmarks/`. The runtime table in `docs/ALGORITHM_USAGE.md`
   now shows measured numbers.
+- `docs/PERFORMANCE.md` credits the Bayesian change point library work behind the BCP
+  numbers (hildensia/bayesian_changepoint_detection #50, #76, #96, #100, #103, #106), with
+  Jitterbug's BCP + KS runtime and results for each library version it used. The README
+  links the library's upstream repository and documentation instead of the fork.
+- `docs/PERFORMANCE.md` correction: Jitterbug 2.0 with BCP 1.0 did not "take more than an
+  hour" because of the library alone. On the CPU it takes 118 s (34 periods); the hour was
+  on Apple's MPS, which BCP 1.0 picked by default. `tools/benchmark_versions.py run
+  --hide-mps` measures the CPU case.
 
 ## [2.3.0] - 2026-09-24
 
