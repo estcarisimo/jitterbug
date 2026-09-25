@@ -325,13 +325,15 @@ jitterbug analyze examples/network_analysis/data/raw.csv \
 
 | Detector | Method | Runtime (CLI, median) | Peak memory | Periods / congested |
 |----------|--------|----------------------:|------------:|--------------------:|
-| ruptures | KS test or jitter dispersion | 1.3 s | ~260 MiB | 22 / 11 |
-| BCP | KS test or jitter dispersion | 2.8 s | ~470 MiB | 28 / 14 |
+| ruptures | KS test | 1.32 s | ~255 MiB | 22 / 11 |
+| ruptures | Jitter dispersion | 1.21 s | ~255 MiB | 22 / 11 |
+| BCP | KS test | 2.95 s | ~470 MiB | 28 / 14 |
+| BCP | Jitter dispersion | 2.64 s | ~470 MiB | 28 / 14 |
 
 Jitterbug 2.3.0 on an Apple M1, Python 3.12, whole `jitterbug analyze` command including
-start-up. The two jitter methods take the same time within 0.1 s; about 1 s of each run is
-Python start-up and imports (PyTorch for BCP). See [PERFORMANCE.md](PERFORMANCE.md) for
-the method and for earlier releases.
+start-up, 5 runs. The KS test itself takes about 0.13 s and jitter dispersion 0.03 s;
+about 1 s of each run is Python start-up and imports (PyTorch for BCP). See
+[PERFORMANCE.md](PERFORMANCE.md) for the method and for earlier releases.
 
 ---
 

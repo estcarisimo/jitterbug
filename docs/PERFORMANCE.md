@@ -19,7 +19,9 @@ Jitterbug 2.0 with the BCP release it shipped against did not finish within an h
 - **Isolation:** one virtual environment per release and dependency set, built with `uv`.
 - **Configurations:** `bcp_ks` (BCP change points, KS test; `jitterbug analyze -a bcp -m
   ks_test`, or `-c bcp -i ks` in 1.0) and `ruptures_ks` (ruptures, KS test; 2.x only, 1.0
-  has no ruptures detector). Default parameters of each release.
+  has no ruptures detector), plus `bcp_jd` and `ruptures_jd` with jitter dispersion
+  instead of the KS test (`-m jitter_dispersion`, `-i jd` in 1.0). Default parameters of
+  each release.
 - **Dependency sets:**
     - *As released*: dependencies resolved as of the release date
       (`uv pip install --exclude-newer`), with the BCP implementation the release used:
@@ -35,7 +37,8 @@ Jitterbug 2.0 with the BCP release it shipped against did not finish within an h
   imports Jitterbug once to compile bytecode and the dataset is read once into the page
   cache.
 - **Check:** every run's results are counted. All releases give 28 periods / 14 congested
-  with BCP and 22 / 11 with ruptures, so the timings compare the same analysis.
+  with BCP and 22 / 11 with ruptures, with either jitter method, so the timings compare
+  the same analysis.
 
 ## Results
 
@@ -103,12 +106,35 @@ The whole difference is loading the CSV (0.73 s → 0.11 s), a Jitterbug change 
 current-dependency runs show the same 1.5× (1.91 s → 1.31 s). ruptures itself takes 0.06 s,
 so with this detector the runtime is dominated by start-up and imports.
 
+### Jitter dispersion instead of the KS test
+
+The same picture with the other jitter method. The 2.x runs are 0.1–0.3 s shorter than
+with the KS test: jitter dispersion takes 0.03 s where the KS test takes 0.13 s. The v2.0.0 row with BCP is
+left out: its BCP did not finish with the KS test either, and the jitter method runs after
+change point detection.
+
+| Configuration | Release | Median (s) | Min–max (s) | Speedup | Periods / congested |
+|---|---|---:|---:|---:|---:|
+| BCP + JD, as released | 1.0.0 | 16.11 | 16.07–16.25 | 1.00× | 28 / 14 |
+| | 2.1.0 | 2.73 | 2.60–3.19 | 5.90× | 28 / 14 |
+| | 2.3.0 | 2.64 | 2.60–2.93 | 6.11× | 28 / 14 |
+| BCP + JD, current dependencies | 1.0.0 | 2.38 | 2.31–2.55 | 1.00× | 28 / 14 |
+| | 2.0.0 | 3.27 | 3.23–3.78 | 0.73× | 28 / 14 |
+| | 2.3.0 | 2.60 | 2.58–3.09 | 0.91× | 28 / 14 |
+| ruptures + JD, as released | 2.0.0 | 1.94 | 1.91–1.96 | 1.00× | 22 / 11 |
+| | 2.1.0 | 1.20 | 1.18–1.25 | 1.61× | 22 / 11 |
+| | 2.3.0 | 1.21 | 1.19–1.25 | 1.60× | 22 / 11 |
+
+2.1.1 and 2.2.0 are within about 0.1 s of 2.1.0 and 2.3.0 in every configuration; all rows are
+in the raw data.
+
 ## Limitations
 
 - One machine, one dataset. The BCP cost grows faster than linearly with the number of
   intervals, so longer series widen the gap between BCP implementations.
-- The first run in each PyTorch environment is about 6 s slower (the maximum column) while
-  macOS loads PyTorch's libraries from disk; the medians are not affected.
+- The first run in each PyTorch environment is about 6 s slower (the maximum column of the
+  KS tables, which ran first) while macOS loads PyTorch's libraries from disk; the medians
+  are not affected, and the jitter dispersion runs, done later, do not show it.
 - Default thread settings, as a user would run it. PyTorch may use several cores; the
   numpy BCP of 1.0 is single-threaded.
 - "As released" resolves dependencies by date on today's Python 3.12, not the exact

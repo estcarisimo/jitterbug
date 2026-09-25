@@ -95,7 +95,10 @@ RELEASES = (
 CONFIGS = {
     "bcp_ks": ("bcp", "ks_test"),
     "ruptures_ks": ("ruptures", "ks_test"),
+    "bcp_jd": ("bcp", "jitter_dispersion"),
+    "ruptures_jd": ("ruptures", "jitter_dispersion"),
 }
+V1_METHODS = {"ks_test": "ks", "jitter_dispersion": "jd"}
 
 KEY_PACKAGES = (
     "numpy",
@@ -154,6 +157,7 @@ import json, sys, time
 t0 = time.perf_counter()
 import tools.jitterbug as cli
 stages = {"import": time.perf_counter() - t0}
+method = {"ks_test": "ks", "jitter_dispersion": "jd"}[sys.argv[2]]
 path = sys.argv[3]
 
 def timed(module, name, stage):
@@ -180,12 +184,13 @@ timed(cli, "load_and_process_rtt_data", "load")
 timed_fit(cli.BCP, "change_points")
 timed_fit(cli.LatencyJumps, "latency_jumps")
 timed(cli, "compute_ks_test", "jitter")
+timed(cli, "compute_jitter_dispersion", "jitter")
 timed_fit(cli.CongestionInference, "inference")
 start = time.perf_counter()
 rtts, mins = cli.load_and_process_rtt_data(path)
 out = cli.jitterbug_analysis(
     rtts["epoch"].values, rtts["values"].values, mins["epoch"].values, mins["values"].values,
-    "ks", "bcp", cli.DEFAULT_LATENCY_JUMP_THRESHOLD, cli.DEFAULT_JITTER_DISPERSION_THRESHOLD,
+    method, "bcp", cli.DEFAULT_LATENCY_JUMP_THRESHOLD, cli.DEFAULT_JITTER_DISPERSION_THRESHOLD,
     cli.DEFAULT_MOVING_AVERAGE_ORDER, cli.DEFAULT_MOVING_IQR_ORDER, cli.DEFAULT_CPD_THRESHOLD,
 )
 total = time.perf_counter() - start
@@ -294,7 +299,8 @@ def cli_command(
 ) -> tuple[list[str], Path | None]:
     algorithm, method = CONFIGS[config]
     if release.api == "v1":
-        cmd = [str(env_python(venv)), "-m", "tools.jitterbug", "-r", str(DATASET), "-i", "ks"]
+        cmd = [str(env_python(venv)), "-m", "tools.jitterbug", "-r", str(DATASET)]
+        cmd += ["-i", V1_METHODS[method]]
         cmd += ["-c", algorithm, "-o", str(output)]
         return cmd, src_dir(workdir, release)
     jitterbug = venv / "bin" / "jitterbug"
@@ -412,7 +418,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 run_command([str(env_python(venv)), "-c", warm], cwd=cwd)
                 DATASET.read_bytes()
                 for config in args.configs:
-                    if release.api == "v1" and config != "bcp_ks":
+                    if release.api == "v1" and CONFIGS[config][0] != "bcp":
                         continue
                     for repeat in range(args.repeats):
                         row = {"release": release.tag, "deps": deps, "config": config}
