@@ -380,6 +380,7 @@ Contributions are welcome! Please see the [Contributing Guide](https://github.co
 | [docs/ALGORITHM_SELECTION_GUIDE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_SELECTION_GUIDE.md) | Choosing a change point detector |
 | [docs/ALGORITHM_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_USAGE.md) | Per-detector options and examples |
 | [docs/VISUALIZATION_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/VISUALIZATION_USAGE.md) | `jitterbug visualize`, the five figures, `JitterbugPlotter` |
+| [docs/PERFORMANCE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/PERFORMANCE.md) | Runtime across releases, and where the speedup comes from |
 | [examples/README.md](https://github.com/estcarisimo/jitterbug/blob/main/examples/README.md) | Scripts and notebooks |
 
 ## 📄 License

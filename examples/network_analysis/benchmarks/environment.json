@@ -1,0 +1,113 @@
+{
+  "python": "3.12.11",
+  "platform": "macOS-15.7.4-arm64-arm-64bit",
+  "machine": "arm64",
+  "processor": "Apple M1",
+  "cpu_count": 8,
+  "thread_env": {},
+  "packages": {
+    "era-v1.0.0": {
+      "numpy": "1.26.4",
+      "pandas": "2.2.1",
+      "scipy": "1.12.0",
+      "bayescd": "0.4"
+    },
+    "era-v2.1.0": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.0"
+    },
+    "era-v2.1.1": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.1"
+    },
+    "era-v2.2.0": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.1"
+    },
+    "era-v2.3.0": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.1"
+    },
+    "era-v2.0.0": {
+      "numpy": "2.3.1",
+      "pandas": "2.3.1",
+      "scipy": "1.16.0",
+      "torch": "2.7.1",
+      "ruptures": "1.1.9",
+      "pydantic": "2.11.7",
+      "bayesian-changepoint-detection": "1.0.0"
+    },
+    "current-v1.0.0": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "bayesian-changepoint": "1.2.1"
+    },
+    "current-v2.0.0": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.1"
+    },
+    "current-v2.1.0": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.1"
+    },
+    "current-v2.1.1": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.1"
+    },
+    "current-v2.2.0": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.1"
+    },
+    "current-v2.3.0": {
+      "numpy": "2.5.3",
+      "pandas": "3.0.6",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "ruptures": "1.1.10",
+      "pydantic": "2.13.5",
+      "bayesian-changepoint": "1.2.1"
+    }
+  }
+}
