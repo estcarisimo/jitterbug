@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Runtime comparison across releases (`docs/PERFORMANCE.md`) and the script that produces
+  it (`tools/benchmark_versions.py`). On the paper dataset with BCP + KS, 2.3.0 takes
+  2.8 s against 16.6 s for 1.0.0 (the gain comes from `bayesian-changepoint` 1.2); with
+  ruptures + KS, 2.1 and later are 1.5× faster than 2.0 thanks to the CSV loader. Raw
+  measurements in `examples/network_analysis/benchmarks/`.
+
 ## [2.3.0] - 2026-09-24
 
 ### Added

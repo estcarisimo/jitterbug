@@ -38,6 +38,7 @@ nav:
   - Detectors and methods: ALGORITHM_USAGE.md
   - Visualization: VISUALIZATION_USAGE.md
   - Clustering mode: CLUSTERING_MODE.md
+  - Runtime across releases: PERFORMANCE.md
   - API reference:
       - Analyzer: api/analyzer.md
       - Configuration: api/config.md
