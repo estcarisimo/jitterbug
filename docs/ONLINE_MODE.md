@@ -65,12 +65,16 @@ one on average and never disagreed with it.
 
 Two findings from the parameter sweep:
 
-- The fixed-delay rules (`lag`, `window`) catch every congestion onset but miss most
-  returns to baseline, because the posterior mass spreads over several run lengths.
-  They recovered 5 to 11 of the 15 reference periods. The MAP rule recovers 14.
+- The fixed-delay rules recover 5 to 12 (`lag`) or 5 to 15 (`window`) of the 15
+  reference periods depending on the setting, but every one of the 45 settings tried
+  produces 3 to 6 spurious congested periods, against 0 for every MAP setting, and
+  they place 5 to 12 (`lag`) or 5 to 14 (`window`) of the 30 reference boundaries
+  within 30 min, against 20 for MAP. The posterior mass of a change spreads over
+  several run lengths, so thresholding one run length, or a short window of them,
+  either misses boundaries or fires on noise.
 - The MAP rule refines a boundary a few bins after first reporting it. With 30 min
   between change points those refinements become duplicate boundaries and tiny periods
-  (37 change points instead of 33); 1 h absorbs them. Thirty jitter samples make the
+  (38 change points instead of 33); 1 h absorbs them. Thirty jitter samples make the
   provisional KS p-value noisy (2 flips); 100 samples, about three bins, give none.
 
 Caveats: one path over 15 days, and the metric is agreement with the offline method, not

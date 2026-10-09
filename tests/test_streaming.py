@@ -134,7 +134,7 @@ def test_map_rule_survives_run_length_zero_being_most_probable(config_kwargs: di
     from jitterbug.streaming import OnlineJitterbug, StreamingConfig
 
     rng = np.random.default_rng(2)
-    online = OnlineJitterbug(StreamingConfig(lag=1, **config_kwargs))
+    online = OnlineJitterbug(StreamingConfig(**config_kwargs))
     t = 1_700_000_000.0
     for i in range(4000):
         online.push(t + 30.0 * i, 10.0 + 20.0 * ((i // 1500) % 2) + rng.exponential(0.5))
@@ -150,9 +150,12 @@ def test_lag_larger_than_run_length_is_rejected() -> None:
 
     with pytest.raises(ValidationError, match="max_run_length"):
         StreamingConfig(decision="lag", lag=10, max_run_length=5)
+    with pytest.raises(ValidationError, match="max_run_length"):
+        StreamingConfig(decision="window", lag=10, max_run_length=5)
     with pytest.raises(ValidationError):
         StreamingConfig(max_run_length=0)
     StreamingConfig(lag=10, max_run_length=None)  # unbounded is fine
+    StreamingConfig(decision="map", max_run_length=3)  # lag is unused by the MAP rule
 
 
 def test_buffers_are_pruned_across_many_periods() -> None:

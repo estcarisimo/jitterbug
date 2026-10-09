@@ -12,8 +12,10 @@ the period. This module runs the same decision rule one RTT sample at a time:
    a segment started ``lag`` bins ago (``lag``) or within the last ``lag`` bins
    (``window``) exceeds a threshold. On the paper dataset the MAP rule recovers 14 of the
    15 reference congestion periods with no spurious one, like the offline pipeline, and
-   reports congestion onsets one bin (15 min) after they start; the fixed-lag rules miss
-   most returns to baseline, because the posterior mass spreads over several run lengths.
+   reports congestion onsets one bin (15 min) after they start. The fixed-delay rules
+   recover 5 to 12 (``lag``) or 5 to 15 (``window``) of the 15 depending on the setting but
+   always with 3 to 6 spurious congested periods, because the posterior mass of a change
+   spreads over several run lengths (see ``docs/ONLINE_MODE.md``).
 3. The stream start opens the baseline period. When a change point opens a new period, a
    *provisional* verdict is emitted as soon as the open period holds ``min_period_samples``
    jitter samples. When the next change point closes the period, the *final* verdict is
@@ -83,7 +85,12 @@ class StreamingConfig(BaseModel):
 
     @model_validator(mode="after")
     def _lag_fits_in_run_length(self) -> StreamingConfig:
-        if self.max_run_length is not None and self.lag > self.max_run_length:
+        """``lag`` is only used by the fixed-delay rules, and must be a kept run length."""
+        if (
+            self.decision != "map"
+            and self.max_run_length is not None
+            and self.lag > self.max_run_length
+        ):
             raise ValueError(
                 f"lag ({self.lag}) must not exceed max_run_length ({self.max_run_length}): "
                 "the detector cannot report a run length it does not keep"
