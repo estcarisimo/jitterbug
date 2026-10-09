@@ -74,6 +74,7 @@ def _apply_streaming_overrides(
     base: JitterbugConfig,
     *,
     backend: str | None = None,
+    method: str | None = None,
     decision: str | None = None,
     hazard_lambda: float | None = None,
     min_period_samples: int | None = None,
@@ -84,6 +85,8 @@ def _apply_streaming_overrides(
     data = base.model_dump()
     if backend is not None:
         data["streaming"]["backend"] = backend
+    if method is not None:
+        data["jitter_analysis"]["method"] = method
     if decision is not None:
         data["streaming"]["decision"] = decision
     if hazard_lambda is not None:
@@ -520,6 +523,9 @@ def stream(
     backend: str | None = typer.Option(
         None, "--backend", help="Online back end: bocpd (incremental) or window (offline rerun)"
     ),
+    method: str | None = typer.Option(
+        None, "--method", "-m", help="Jitter method: jitter_dispersion (default) or ks_test"
+    ),
     decision: str | None = typer.Option(
         None, "--decision", help="Change point rule: map, lag, window (bocpd back end only)"
     ),
@@ -576,6 +582,7 @@ def stream(
         jitterbug_config = _apply_streaming_overrides(
             jitterbug_config,
             backend=backend,
+            method=method,
             decision=decision,
             hazard_lambda=hazard_lambda,
             min_period_samples=min_period_samples,
@@ -648,6 +655,9 @@ def replay(
     backend: str | None = typer.Option(
         None, "--backend", help="Online back end: bocpd (incremental) or window (offline rerun)"
     ),
+    method: str | None = typer.Option(
+        None, "--method", "-m", help="Jitter method: jitter_dispersion (default) or ks_test"
+    ),
     decision: str | None = typer.Option(
         None, "--decision", help="Change point rule: map, lag, window (bocpd back end only)"
     ),
@@ -690,6 +700,7 @@ def replay(
         jitterbug_config = _apply_streaming_overrides(
             jitterbug_config,
             backend=backend,
+            method=method,
             decision=decision,
             hazard_lambda=hazard_lambda,
             min_period_samples=min_period_samples,

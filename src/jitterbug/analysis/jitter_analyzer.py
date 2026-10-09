@@ -253,6 +253,70 @@ class JitterAnalyzer:
 
         return final_epochs, final_jitter
 
+    @property
+    def causal_dispersion_lag(self) -> int:
+        """
+        Jitter samples consumed before the causal dispersion series yields its first value.
+
+        The trailing IQR window holds ``2 * moving_iqr_order + 1`` jitter samples and the
+        trailing average ``moving_average_order`` IQR values, so the first dispersion value
+        exists at jitter index ``2 * moving_iqr_order + moving_average_order - 1``, and the
+        value at index ``t`` summarizes jitter samples ``t - lag .. t``.
+        """
+        return 2 * self.config.moving_iqr_order + self.config.moving_average_order - 1
+
+    @property
+    def causal_dispersion_delay(self) -> int:
+        """Samples by which the causal dispersion series lags the offline (centered) one."""
+        return self.config.moving_iqr_order + self.config.moving_average_order // 2 - 1
+
+    def compute_causal_jitter_dispersion(
+        self, epochs: np.ndarray, rtt_values: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Jitter dispersion with trailing filters, for the online mode.
+
+        Same filters and window lengths as ``_compute_jitter_dispersion`` (moving IQR of
+        ``2 * moving_iqr_order + 1`` samples, then moving average of
+        ``moving_average_order`` values), but each window ends at the sample it is assigned
+        to instead of being centered on it, so a value never depends on later samples. The
+        values are the offline ones; each is assigned to the last sample of its window
+        instead of the (rounded) middle, so the series is the offline one delayed by
+        ``causal_dispersion_delay`` samples (6 bins, 1.5 h, by default), and the threshold
+        keeps its meaning.
+
+        Parameters
+        ----------
+        epochs : np.ndarray
+            Epochs of the minimum-RTT series.
+        rtt_values : np.ndarray
+            Minimum RTT per bin.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            ``(epochs, dispersion)``: the epoch of the last sample each value depends on,
+            and the dispersion. Empty when fewer than ``causal_dispersion_lag + 2`` samples
+            are available.
+        """
+        if len(epochs) < 2:
+            return np.empty(0), np.empty(0)
+        jitter_epochs, jitter_values = self._compute_jitter(epochs, rtt_values)
+        iqr = self._trailing_iqr_filter(jitter_values, 2 * self.config.moving_iqr_order + 1)
+        dispersion = self._moving_average_filter(iqr, self.config.moving_average_order)
+        if len(dispersion) == 0:
+            return np.empty(0), np.empty(0)
+        return jitter_epochs[len(jitter_epochs) - len(dispersion) :], dispersion
+
+    @staticmethod
+    def _trailing_iqr_filter(values: np.ndarray, window: int) -> np.ndarray:
+        """Interquartile range of each window of ``window`` consecutive values, ending at it."""
+        if len(values) < window:
+            return np.array([])
+        windows = np.lib.stride_tricks.sliding_window_view(values, window)
+        q1, q3 = np.percentile(windows, [25, 75], axis=1)
+        return np.asarray(q3 - q1, dtype=float)
+
     def _moving_iqr_filter(self, values: np.ndarray, window_size: int) -> np.ndarray:
         """
         Apply moving IQR filter to values.

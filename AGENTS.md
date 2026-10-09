@@ -101,9 +101,12 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
 - The online mode (`jitterbug.streaming`, `stream`/`replay`) has two back ends. `bocpd`
   (default) uses the MAP run-length rule of `bayesian_changepoint_detection.streaming`
   (`bcp` extra); the fixed-delay rules (`decision: lag|window`) always produce spurious
-  congested periods on the paper dataset, see `docs/ONLINE_MODE.md`; only the KS jitter
-  method is causal there. `window` reruns the offline pipeline on a trailing window (any
-  detector or jitter method; the window start stands in for the index-0 change point).
+  congested periods on the paper dataset, see `docs/ONLINE_MODE.md`. Both jitter methods
+  work online: KS on raw jitter, dispersion through the trailing filters of
+  `JitterAnalyzer.compute_causal_jitter_dispersion` (offline series delayed by 6 bins;
+  provisional verdicts wait for 12 dispersion values). `window` reruns the offline pipeline
+  on a trailing window (any detector; the window start stands in for the index-0 change
+  point).
   Both are pinned on the paper dataset in `tests/test_paper_regression.py`
   (`TestOnlineReplay`, `TestSlidingWindowReplay`); changing defaults changes those goldens
   and the table in `docs/ONLINE_MODE.md` (regenerate it with

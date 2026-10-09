@@ -33,8 +33,17 @@ is described under [Back ends compared](#back-ends-compared).
    the sequential pipeline computes. The congestion state carries over between final
    verdicts as in the sequential mode.
 
-Only the KS method is supported online: it uses consecutive RTT differences and is
-causal. The jitter-dispersion filters are centered windows and look ahead.
+Both jitter methods work online, and `jitter_analysis.method` picks one as in the
+sequential mode (the config default is `jitter_dispersion`; the results below say which
+method each row used). The KS test uses consecutive RTT differences and is causal as it
+stands. Jitter dispersion uses the trailing version of the offline filters: the same
+moving IQR and moving average, each window ending at the bin it describes instead of
+being centered on it. The values are the offline ones delayed by 6 bins (1.5 h at the
+default orders), so the threshold keeps its meaning, but a dispersion value reflects the
+new period alone only after that delay. A provisional verdict with dispersion therefore
+waits until the open period holds 12 dispersion values (the delay plus one averaging
+window, 3 h); with 6 values, 11 of 31 provisional verdicts flipped on the paper dataset,
+with 12 none.
 
 ## Command line
 
@@ -64,7 +73,8 @@ jitterbug replay examples/network_analysis/data/raw.csv \
 ```
 
 Both commands take `--config` and the most common knobs as flags: `--backend`,
-`--decision`, `--hazard-lambda`, `--min-period-samples`, `--min-time-elapsed`.
+`--method` (`jitter_dispersion` or `ks_test`), `--decision`, `--hazard-lambda`,
+`--min-period-samples`, `--min-time-elapsed`.
 
 ## Configuration
 
@@ -79,7 +89,9 @@ data_processing:
 latency_jump:
   threshold: 0.5                   # ms, shared
 jitter_analysis:
-  significance_level: 0.05         # shared
+  method: jitter_dispersion        # jitter_dispersion | ks_test, shared
+  threshold: 0.25                  # dispersion rise, ms, shared
+  significance_level: 0.05         # KS test, shared
 streaming:
   backend: bocpd                   # bocpd (incremental) | window (offline rerun)
   decision: map                    # map | lag | window   (bocpd)
@@ -112,9 +124,9 @@ for epoch, rtt in stream:  # seconds, milliseconds
 ## Results on the paper dataset
 
 Replaying `examples/network_analysis/data/raw.csv` in timestamp order with the default
-settings (MAP rule, expected run length 50 bins, at least 1 h between change points,
-100 jitter samples before a provisional verdict), scored with the metric of
-`tests/test_paper_regression.py` against the paper's KS reference:
+online settings (MAP rule, expected run length 50 bins, at least 1 h between change
+points, 100 jitter samples before a provisional verdict) and the KS test, scored with the
+metric of `tests/test_paper_regression.py` against the paper's KS reference:
 
 | | Offline pipeline (BCP + KS) | Offline pipeline on growing prefixes | Online mode |
 |---|---|---|---|
@@ -170,22 +182,24 @@ chain then waits for the next emitted boundary, up to a window length, before it
 The window start opens the
 baseline period, as the stream start does in the incremental back end; once the window
 has moved past the stream start, anything touching its left edge is ignored. The open
-period gets a provisional verdict from the same two-period rule, which always uses the
-KS test, whatever `jitter_analysis.method` the final verdicts use (`jitter_method` on
-each event says which). The prefix experiment above showed why this works: the offline
+period gets a provisional verdict from the same two-period rule with the configured
+jitter method (trailing filters for dispersion; `jitter_method` on each event says which). The prefix experiment above showed why this works: the offline
 boundaries never move and verdicts rarely flip.
 
-BCP + KS on the paper dataset, scored against the paper's KS reference (`jitterbug replay`
-on the full series; the offline pipeline gives 28 periods / 14 congested, 14 of 15
-recovered, 0 spurious):
+BCP on the paper dataset, each row scored against the paper's reference for its jitter
+method (`jitterbug replay` on the full series; offline, BCP + KS gives 28 periods / 14
+congested, 14 of 15 recovered, 0 spurious, and BCP + dispersion the same counts against
+its own reference):
 
-| Back end | Periods / congested | Reference periods recovered | Spurious | Boundaries within 30 min | Onset delay, median / max | Return delay, median / max | Provisional flips | Replay wall time |
-|---|---|---|---|---|---|---|---|---|
-| Incremental Bayesian (`bocpd`, MAP rule) | 31 / 15 | 14 of 15 | 0 | 20 of 30 | 15 min / 90 min | 135 min / 255 min | 0 of 31 | 3 s |
-| Sliding window, rerun every bin (`window`) | 31 / 14 | 14 of 15 | 0 | 30 of 30 | 45 min / 120 min | 113 min / 180 min | 2 of 31 | 170 s |
-| Sliding window, rerun every 4 bins | 30 / 15 | 14 of 15 | 1 | 30 of 30 | 120 min / 225 min | 180 min / 360 min | 1 of 30 | 39 s |
+| Back end | Jitter method | Periods / congested | Reference periods recovered | Spurious | Boundaries within 30 min | Onset delay, median / max | Return delay, median / max | Provisional flips | Replay wall time |
+|---|---|---|---|---|---|---|---|---|---|
+| Incremental Bayesian (`bocpd`, MAP rule) | KS test | 31 / 15 | 14 of 15 | 0 | 20 of 30 | 15 min / 90 min | 135 min / 255 min | 0 of 31 | 2 s |
+| Sliding window, rerun every bin (`window`) | KS test | 31 / 14 | 14 of 15 | 0 | 30 of 30 | 45 min / 120 min | 113 min / 180 min | 2 of 31 | 160 s |
+| Sliding window, rerun every 4 bins | KS test | 30 / 15 | 14 of 15 | 1 | 30 of 30 | 120 min / 225 min | 180 min / 360 min | 1 of 30 | 41 s |
+| Incremental Bayesian (`bocpd`, MAP rule) | dispersion (causal) | 31 / 15 | 14 of 15 | 0 | 20 of 30 | 15 min / 90 min | 135 min / 255 min | 0 of 31 | 1 s |
+| Sliding window, rerun every 4 bins | dispersion (causal) | 30 / 15 | 14 of 15 | 1 | 30 of 30 | 120 min / 225 min | 180 min / 360 min | 1 of 30 | 34 s |
 
-Both back ends recover the same 14 of 15 reference periods. The incremental detector
+Both back ends recover the same 14 of 15 reference periods, with either jitter method. The incremental detector
 reports onsets within one bin at the median (90 min at worst), sooner than the sliding
 window, whose delay is bounded below by `stable_runs × rerun_every_bins` bins. The sliding window places every
 reference boundary within 30 min, because it sees the whole window when it decides, but
@@ -200,9 +214,11 @@ incremental detector costs a fraction of a millisecond per bin. The table is pro
 
 ```bash
 uv sync --extra bcp
-uv run jitterbug replay examples/network_analysis/data/raw.csv \
+uv run jitterbug replay examples/network_analysis/data/raw.csv --method ks_test \
   --reference examples/network_analysis/expected_results/kstest_inferences.csv
-uv run jitterbug replay examples/network_analysis/data/raw.csv --backend window \
+uv run jitterbug replay examples/network_analysis/data/raw.csv \
+  --reference examples/network_analysis/expected_results/jd_inferences.csv   # dispersion
+uv run jitterbug replay examples/network_analysis/data/raw.csv --backend window --method ks_test \
   --reference examples/network_analysis/expected_results/kstest_inferences.csv
 uv run python tools/compare_online_backends.py   # the back ends table, about 4 min
 uv run python tools/replay_online.py --sweep       # decision rule x lag x hazard x threshold

@@ -15,9 +15,9 @@ past a period before it stabilizes, that period is skipped with a warning and th
 resumes at the next emitted change point. A change point that only stabilizes after a
 later one was emitted is dropped (time order is kept), which can leave the chain waiting
 for the next emitted boundary for up to a window length. The open period after the last
-emitted change point gets a provisional verdict from the shared two-period rule (always
-the KS test) once it holds ``min_period_samples`` jitter samples, as in the incremental
-back end.
+emitted change point gets a provisional verdict from the shared two-period rule, with the
+configured jitter method (trailing filters for dispersion), once it holds
+``min_period_samples`` jitter samples, as in the incremental back end.
 
 The window start opens the baseline period, as the stream start does in the incremental
 back end: when the detector reports no change point within one bin of the first bin, one
@@ -344,12 +344,29 @@ class SlidingWindowJitterbug:
                     prev_jitter = jitter_values[
                         (jitter_epochs >= prev_start) & (jitter_epochs < cur_start)
                     ]
-                    bins = pd.Series(rtts).groupby(epochs // self._interval_s).min()
-                    bin_ids = bins.index.to_numpy()
-                    bin_values = bins.to_numpy()
+                    grouped = pd.DataFrame({"epoch": epochs, "rtt": rtts}).groupby(
+                        epochs // self._interval_s
+                    )
+                    bin_ids = grouped["rtt"].min().index.to_numpy()
+                    bin_values = grouped["rtt"].min().to_numpy()
+                    bin_epochs = grouped["epoch"].min().to_numpy()
                     prev_id, cur_id = self._bin(prev_start), self._bin(cur_start)
                     prev_bins = bin_values[(bin_ids >= prev_id) & (bin_ids < cur_id)]
                     cur_bins = bin_values[bin_ids >= cur_id]
+                    if self.config.jitter_analysis.method == "jitter_dispersion":
+                        d_epochs, d_values = (
+                            self._analyzer.jitter_analyzer.compute_causal_jitter_dispersion(
+                                bin_epochs, bin_values
+                            )
+                        )
+                        prev_jitter = d_values[(d_epochs >= prev_start) & (d_epochs < cur_start)]
+                        cur_jitter = d_values[d_epochs >= cur_start]
+                        needed = (
+                            self._analyzer.jitter_analyzer.causal_dispersion_delay
+                            + self.config.jitter_analysis.moving_average_order
+                        )
+                        if len(cur_jitter) < needed:
+                            return events  # wait until values reflect the new period
                     provisional = two_period_verdict(
                         prev_bins,
                         cur_bins,
