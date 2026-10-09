@@ -73,6 +73,7 @@ def _apply_overrides(
 def _apply_streaming_overrides(
     base: JitterbugConfig,
     *,
+    backend: str | None = None,
     decision: str | None = None,
     hazard_lambda: float | None = None,
     min_period_samples: int | None = None,
@@ -81,6 +82,8 @@ def _apply_streaming_overrides(
 ) -> JitterbugConfig:
     """Return a copy of ``base`` with the online-mode flags that were actually given."""
     data = base.model_dump()
+    if backend is not None:
+        data["streaming"]["backend"] = backend
     if decision is not None:
         data["streaming"]["decision"] = decision
     if hazard_lambda is not None:
@@ -514,22 +517,32 @@ def stream(
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Configuration file (YAML or JSON)", exists=True
     ),
+    backend: str | None = typer.Option(
+        None, "--backend", help="Online back end: bocpd (incremental) or window (offline rerun)"
+    ),
     decision: str | None = typer.Option(
-        None, "--decision", help="Change point rule: map, lag, window"
+        None, "--decision", help="Change point rule: map, lag, window (bocpd back end only)"
     ),
     hazard_lambda: float | None = typer.Option(
-        None, "--hazard-lambda", help="Expected run length in bins"
+        None, "--hazard-lambda", help="Expected run length in bins (bocpd back end only)"
     ),
     min_period_samples: int | None = typer.Option(
         None, "--min-period-samples", help="Jitter samples before a provisional verdict"
     ),
     min_time_elapsed: int | None = typer.Option(
-        None, "--min-time-elapsed", help="Minimum seconds between change points"
+        None,
+        "--min-time-elapsed",
+        help="Minimum seconds between change points (bocpd; the window back end uses "
+        "change_point_detection.min_time_elapsed)",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
 ) -> None:
     """
-    Infer congestion online from a stream of RTT samples (requires the bcp extra).
+    Infer congestion online from a stream of RTT samples.
+
+    The default back end (bocpd) needs the bcp extra; --backend window reruns the offline
+    pipeline on a trailing window instead (its cadence and window come from the streaming
+    section of --config; --decision and --hazard-lambda do not apply to it).
 
     Reads 'epoch,rtt' lines (seconds, milliseconds; a header line is skipped) and prints one
     JSON object per event: change points, provisional verdicts and final verdicts. Samples
@@ -557,18 +570,19 @@ def stream(
     if follow and source == "-":
         err_console.print("--follow has no effect on standard input", style="yellow")
     try:
-        from ..streaming import OnlineJitterbug
+        from ..streaming import create_online_analyzer
 
         jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
         jitterbug_config = _apply_streaming_overrides(
             jitterbug_config,
+            backend=backend,
             decision=decision,
             hazard_lambda=hazard_lambda,
             min_period_samples=min_period_samples,
             min_time_elapsed=min_time_elapsed,
             verbose=verbose,
         )
-        online = OnlineJitterbug(jitterbug_config)
+        online = create_online_analyzer(jitterbug_config)
         path = None if source == "-" else Path(source)
         if path is not None and not path.exists():
             raise FileNotFoundError(f"Input file not found: {path}")
@@ -631,17 +645,23 @@ def replay(
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Configuration file (YAML or JSON)", exists=True
     ),
+    backend: str | None = typer.Option(
+        None, "--backend", help="Online back end: bocpd (incremental) or window (offline rerun)"
+    ),
     decision: str | None = typer.Option(
-        None, "--decision", help="Change point rule: map, lag, window"
+        None, "--decision", help="Change point rule: map, lag, window (bocpd back end only)"
     ),
     hazard_lambda: float | None = typer.Option(
-        None, "--hazard-lambda", help="Expected run length in bins"
+        None, "--hazard-lambda", help="Expected run length in bins (bocpd back end only)"
     ),
     min_period_samples: int | None = typer.Option(
         None, "--min-period-samples", help="Jitter samples before a provisional verdict"
     ),
     min_time_elapsed: int | None = typer.Option(
-        None, "--min-time-elapsed", help="Minimum seconds between change points"
+        None,
+        "--min-time-elapsed",
+        help="Minimum seconds between change points (bocpd; the window back end uses "
+        "change_point_detection.min_time_elapsed)",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
 ) -> None:
@@ -669,6 +689,7 @@ def replay(
         jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
         jitterbug_config = _apply_streaming_overrides(
             jitterbug_config,
+            backend=backend,
             decision=decision,
             hazard_lambda=hazard_lambda,
             min_period_samples=min_period_samples,

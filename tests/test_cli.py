@@ -403,3 +403,22 @@ def test_stream_errors_do_not_go_to_stdout():
     result = runner.invoke(app, ["stream", "--events", "everything"], input="")
     assert result.exit_code == 2
     assert result.stdout == ""
+
+
+def test_stream_window_backend_needs_no_bcp_extra(tmp_path: Path):
+    """The window back end reruns the offline pipeline (ruptures by default)."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("streaming:\n  rerun_every_bins: 4\n")
+    lines = ["epoch,values"]
+    for i in range(1200):  # 10 h at 30 s: a jump with wider jitter after 5 h
+        base, spread = (10.0, 0.2) if i < 600 else (30.0, 6.0)
+        lines.append(f"{1_700_000_000 + 30 * i},{base + spread * ((i * 7919) % 97) / 97:.3f}")
+    result = runner.invoke(
+        app,
+        ["stream", "--backend", "window", "--config", str(cfg), "--events", "change-points"],
+        input="\n".join(lines) + "\n",
+    )
+    assert result.exit_code == 0, result.output
+    events = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
+    assert len(events) >= 2  # the stream start and the jump
+    assert any(abs(e["start_epoch"] - (1_700_000_000 + 5 * 3600)) <= 3 * 900 for e in events[1:])

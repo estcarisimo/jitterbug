@@ -149,6 +149,63 @@ class TestOnlineReplay:
         assert_allclose(summary["return_delay_min_max"], 255.0, atol=0.1)
 
 
+@pytest.mark.slow
+@pytest.mark.skipif(
+    importlib.util.find_spec("bayesian_changepoint_detection") is None,
+    reason="bcp extra not installed",
+)
+class TestSlidingWindowReplay:
+    """Sliding-window back end on the paper dataset: BCP + KS, 72 h window, rerun every 4 bins."""
+
+    @pytest.fixture(scope="class")
+    def events(self) -> list:
+        from jitterbug.io import DataLoader
+        from jitterbug.models import StreamingConfig
+        from jitterbug.streaming import replay
+
+        config = JitterbugConfig(streaming=StreamingConfig(backend="window", rerun_every_bins=4))
+        config.change_point_detection.algorithm = "bcp"  # type: ignore[assignment]
+        config.jitter_analysis.method = "ks_test"  # type: ignore[assignment]
+        return replay(DataLoader().load_from_file(RAW_CSV), config)
+
+    @pytest.fixture(scope="class")
+    def summary(self, events: list) -> dict:
+        from jitterbug.streaming import score
+
+        return score(events, REFERENCE["ks_test"])
+
+    def test_golden(self, summary: dict) -> None:
+        assert summary["change_points"] == 32
+        assert summary["periods"] == 30
+        assert summary["congested"] == 15
+        assert summary["provisional_pairs"] == 30
+        assert summary["provisional_flips"] == 1
+
+    def test_agrees_with_paper(self, summary: dict) -> None:
+        assert summary["recovered"] >= 14
+        # One 1.75 h period next to a real congestion episode, where the detector moved
+        # the boundary by two bins between reruns and the emitted one stood.
+        assert summary["spurious"] == 1
+        assert summary["boundaries_within_30min"] == 30
+
+    def test_detection_delays_are_bounded_by_the_cadence(self, summary: dict) -> None:
+        # Reruns every 4 bins (1 h) and two stable runs: 2 h median onset delay.
+        assert_allclose(summary["onset_delay_min_median"], 120.0, atol=0.1)
+        assert_allclose(summary["onset_delay_min_max"], 225.0, atol=0.1)
+        assert_allclose(summary["return_delay_min_median"], 180.0, atol=0.1)
+        assert_allclose(summary["return_delay_min_max"], 360.0, atol=0.1)
+
+    def test_events_are_consistent(self, events: list) -> None:
+        """Change points in time order; finals a contiguous chain over emitted change points."""
+        cps = [e.start_epoch for e in events if e.kind == "change_point"]
+        assert cps == sorted(cps) and len(cps) == len(set(cps))
+        finals = [e for e in events if e.stage == "final"]
+        for earlier, later in zip(finals, finals[1:], strict=False):
+            assert earlier.end_epoch == later.start_epoch
+        assert all(e.start_epoch in cps and e.end_epoch in cps for e in finals)
+        assert all(e.n_prev > 0 and e.n_curr > 0 for e in finals)
+
+
 @pytest.mark.skipif(
     importlib.util.find_spec("sklearn") is None, reason="clustering extra not installed"
 )

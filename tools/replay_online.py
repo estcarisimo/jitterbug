@@ -47,6 +47,10 @@ SWEEP_COLUMNS = [
 ]
 SWEEP_AXES = ("decision", "lag", "hazard_lambda", "threshold")
 FIELDS = (
+    "backend",
+    "window_hours",
+    "rerun_every_bins",
+    "stable_runs",
     "decision",
     "lag",
     "hazard_lambda",
@@ -86,6 +90,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--csv", type=Path, default=RAW_CSV)
     parser.add_argument("--reference", type=Path, default=REFERENCE)
+    parser.add_argument("--backend", choices=["bocpd", "window"])
+    parser.add_argument("--window-hours", type=float)
+    parser.add_argument("--rerun-every-bins", type=int)
+    parser.add_argument("--stable-runs", type=int)
     parser.add_argument("--decision", choices=["map", "lag", "window"])
     parser.add_argument("--lag", type=int)
     parser.add_argument("--hazard-lambda", type=float)

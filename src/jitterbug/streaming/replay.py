@@ -1,8 +1,8 @@
 """
 Replay a finite RTT dataset through the online pipeline and score the result.
 
-``replay`` feeds every sample of an ``RTTDataset`` to ``OnlineJitterbug`` in timestamp
-order and returns the events. ``score`` summarizes them: change points, periods,
+``replay`` feeds every sample of an ``RTTDataset`` to the configured online back end in
+timestamp order and returns the events. ``score`` summarizes them: change points, periods,
 detection delays, provisional-to-final agreement and, when a reference file is given,
 agreement with it using the metric of ``tests/test_paper_regression.py`` (a reference
 congested period counts as recovered when one of ours overlaps more than half of it) and
@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 
 from ..models import JitterbugConfig, RTTDataset
-from .online_analyzer import OnlineJitterbug, StreamingEvent
+from .online_analyzer import StreamingEvent
 
 Interval = tuple[float, float]
 
@@ -36,14 +36,17 @@ def replay(dataset: RTTDataset, config: JitterbugConfig | None = None) -> list[S
     dataset : RTTDataset
         Samples to replay; they are sorted by epoch (stable) before being fed.
     config : JitterbugConfig, optional
-        Configuration; ``config.streaming`` holds the online-specific settings.
+        Configuration; ``config.streaming`` holds the online-specific settings, including
+        which back end runs (``backend``).
 
     Returns
     -------
     list[StreamingEvent]
         Every change point and verdict the pipeline emitted, in order, after ``flush``.
     """
-    online = OnlineJitterbug(config)
+    from . import create_online_analyzer  # the factory lives in the package module
+
+    online = create_online_analyzer(config)
     epochs, rtts = dataset.to_arrays()
     order = np.argsort(epochs, kind="stable")
     for epoch, rtt in zip(epochs[order], rtts[order], strict=True):

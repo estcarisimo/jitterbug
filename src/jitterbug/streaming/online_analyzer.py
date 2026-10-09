@@ -38,9 +38,9 @@ from functools import partial
 from typing import Any, Literal
 
 import numpy as np
-import scipy.stats
 
 from ..models import JitterbugConfig
+from .verdict import PeriodVerdict, two_period_verdict
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,10 @@ class StreamingEvent:
     n_prev: int = 0
     n_curr: int = 0
     detector_probability: float | None = None
+    jitter_method: Literal["ks_test", "jitter_dispersion"] | None = None
+    """Jitter test behind ``has_jitter``; the KS fields are set for ``ks_test`` only."""
+    jitter_metric: float | None = None
+    """The jitter test's metric: the KS statistic, or the dispersion change."""
 
     @property
     def delay(self) -> float:
@@ -77,6 +81,34 @@ class StreamingEvent:
     def to_dict(self) -> dict[str, Any]:
         """Return the event as a plain dictionary (JSON-serializable)."""
         return dict(self.__dict__)
+
+
+def verdict_event(
+    verdict: PeriodVerdict,
+    stage: Literal["provisional", "final"],
+    emitted_at: float,
+    start_epoch: float,
+    end_epoch: float | None,
+) -> StreamingEvent:
+    """Wrap a ``PeriodVerdict`` as a verdict event."""
+    return StreamingEvent(
+        kind="verdict",
+        emitted_at=emitted_at,
+        start_epoch=start_epoch,
+        end_epoch=end_epoch,
+        stage=stage,
+        is_congested=verdict.is_congested,
+        confidence=verdict.confidence,
+        has_jump=verdict.has_jump,
+        jump_magnitude=verdict.jump_magnitude,
+        has_jitter=verdict.has_jitter,
+        ks_statistic=verdict.ks_statistic,
+        p_value=verdict.p_value,
+        n_prev=verdict.n_prev,
+        n_curr=verdict.n_curr,
+        jitter_method="ks_test",
+        jitter_metric=verdict.ks_statistic,
+    )
 
 
 class OnlineJitterbug:
@@ -316,41 +348,9 @@ class OnlineJitterbug:
         prev_jitter = jitter_values[(jitter_epochs >= prev_start) & (jitter_epochs < cur_start)]
         cur_jitter = jitter_values[(jitter_epochs >= cur_start) & (jitter_epochs <= end)]
 
-        has_jump = has_jitter = None
-        magnitude = ks_stat = p_value = None
-        if len(prev_bins) and len(cur_bins):
-            magnitude = float(np.mean(cur_bins) - np.mean(prev_bins))
-            has_jump = magnitude > self.config.latency_jump.threshold
-        if len(prev_jitter) >= 2 and len(cur_jitter) >= 2:
-            ks_stat, p_value = (float(v) for v in scipy.stats.ks_2samp(prev_jitter, cur_jitter))
-            significant = p_value < self.config.jitter_analysis.significance_level
-            has_jitter = significant and ks_stat >= self.streaming.min_ks_statistic
-
-        state = self._congestion_state
-        if has_jump is not None and has_jitter is not None:
-            if has_jump and has_jitter:
-                state = True
-            elif not has_jump:
-                state = False
-        confidence = 0.0
-        if state and magnitude is not None:
-            confidence = 0.8 + (0.1 if magnitude > 2 * self.config.latency_jump.threshold else 0.0)
-        if stage == "final":
-            self._congestion_state = state
-
-        return StreamingEvent(
-            kind="verdict",
-            emitted_at=emitted_at,
-            start_epoch=cur_start,
-            end_epoch=end_epoch,
-            stage=stage,
-            is_congested=state,
-            confidence=confidence,
-            has_jump=has_jump,
-            jump_magnitude=magnitude,
-            has_jitter=has_jitter,
-            ks_statistic=ks_stat,
-            p_value=p_value,
-            n_prev=int(len(prev_jitter)),
-            n_curr=int(len(cur_jitter)),
+        verdict = two_period_verdict(
+            prev_bins, cur_bins, prev_jitter, cur_jitter, self._congestion_state, self.config
         )
+        if stage == "final":
+            self._congestion_state = verdict.is_congested
+        return verdict_event(verdict, stage, emitted_at, cur_start, end_epoch)
