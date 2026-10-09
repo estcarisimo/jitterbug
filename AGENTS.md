@@ -32,9 +32,11 @@ src/jitterbug/
   analysis/              jitter_analyzer.py (dispersion, KS test), latency_jump_analyzer.py,
                          clustering_analyzer.py (non-sequential mode, `analysis_mode: clustering`),
                          congestion_inference_analyzer.py
-  streaming/             online_analyzer.py (OnlineJitterbug: causal bins → Bayesian online
-                         change point detection → provisional/final verdicts), replay.py
-                         (replay a dataset, score against a reference); `bcp` extra
+  streaming/             online_analyzer.py (OnlineJitterbug, `backend: bocpd`: causal bins →
+                         Bayesian online change point detection → provisional/final verdicts;
+                         `bcp` extra), window_backend.py (SlidingWindowJitterbug, `backend:
+                         window`: offline pipeline rerun on a trailing window), verdict.py
+                         (the two-period rule both share), replay.py (replay, score)
   io/                    data_loader.py (CSV, scamper JSON, InfluxDB), exporters.py
   cli/main.py            Typer CLI: `jitterbug analyze|validate|config|visualize|stream|replay|version`
   visualization/         plotter.py (JitterbugPlotter, matplotlib)
@@ -96,12 +98,16 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
   default mode or the clustering defaults changes golden values in
   `tests/test_paper_regression.py`; update them and the table in
   `docs/CLUSTERING_MODE.md` together.
-- The online mode (`jitterbug.streaming`, `stream`/`replay`) uses the MAP run-length rule of
-  `bayesian_changepoint_detection.streaming` (`bcp` extra). Its paper-dataset numbers are
-  pinned in `tests/test_paper_regression.py` (`TestOnlineReplay`); the fixed-delay rules
-  (`lag`, `window`) always produce spurious congested periods there, see
-  `docs/ONLINE_MODE.md`. Only the KS jitter method is causal; jitter dispersion is not
-  supported online.
+- The online mode (`jitterbug.streaming`, `stream`/`replay`) has two back ends. `bocpd`
+  (default) uses the MAP run-length rule of `bayesian_changepoint_detection.streaming`
+  (`bcp` extra); the fixed-delay rules (`decision: lag|window`) always produce spurious
+  congested periods on the paper dataset, see `docs/ONLINE_MODE.md`; only the KS jitter
+  method is causal there. `window` reruns the offline pipeline on a trailing window (any
+  detector or jitter method; the window start stands in for the index-0 change point).
+  Both are pinned on the paper dataset in `tests/test_paper_regression.py`
+  (`TestOnlineReplay`, `TestSlidingWindowReplay`); changing defaults changes those goldens
+  and the table in `docs/ONLINE_MODE.md` (regenerate it with
+  `tools/compare_online_backends.py`).
 - Plotting is matplotlib only (`JitterbugPlotter`). The plotly dashboard and
   interactive modules were removed in 2.1; do not add plotly back without an explicit
   request for interactivity.

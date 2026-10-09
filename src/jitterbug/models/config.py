@@ -278,6 +278,19 @@ class StreamingConfig(BaseModel):
 
     Attributes
     ----------
+    backend : Literal['bocpd', 'window']
+        ``bocpd`` (default): incremental Bayesian online change point detection, one bin
+        at a time. ``window``: rerun the offline sequential pipeline on a trailing window
+        of ``window_hours`` every ``rerun_every_bins`` closed bins and emit a verdict once
+        it has been identical in ``stable_runs`` consecutive reruns. The baseline the
+        incremental detector is compared with; heavier per bin, no new algorithm.
+    window_hours : float
+        Length of the trailing window of the ``window`` back end, in hours.
+    rerun_every_bins : int
+        Closed bins between two reruns of the ``window`` back end.
+    stable_runs : int
+        Consecutive reruns in which a change point or a verdict must be identical before
+        the ``window`` back end emits it.
     hazard_lambda : float
         Expected run length in bins (constant hazard ``1 / hazard_lambda``).
     decision : Literal['map', 'lag', 'window']
@@ -307,6 +320,17 @@ class StreamingConfig(BaseModel):
         three 15-minute bins on the paper dataset; 30 gives noisy p-values.
     """
 
+    backend: Literal["bocpd", "window"] = Field(
+        default="bocpd",
+        description="bocpd: incremental Bayesian detector; window: offline pipeline on a window",
+    )
+    window_hours: float = Field(default=72.0, gt=0, description="Trailing window (window backend)")
+    rerun_every_bins: int = Field(
+        default=1, ge=1, description="Closed bins between reruns (window backend)"
+    )
+    stable_runs: int = Field(
+        default=2, ge=1, description="Identical consecutive reruns before emitting (window backend)"
+    )
     hazard_lambda: float = Field(
         default=50.0, ge=1, description="Expected run length in bins (constant hazard)"
     )

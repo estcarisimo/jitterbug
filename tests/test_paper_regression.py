@@ -149,6 +149,46 @@ class TestOnlineReplay:
         assert_allclose(summary["return_delay_min_max"], 255.0, atol=0.1)
 
 
+@pytest.mark.slow
+@pytest.mark.skipif(
+    importlib.util.find_spec("bayesian_changepoint_detection") is None,
+    reason="bcp extra not installed",
+)
+class TestSlidingWindowReplay:
+    """Sliding-window back end on the paper dataset: BCP + KS, 72 h window, rerun every 4 bins."""
+
+    @pytest.fixture(scope="class")
+    def summary(self) -> dict:
+        from jitterbug.io import DataLoader
+        from jitterbug.models import StreamingConfig
+        from jitterbug.streaming import replay, score
+
+        config = JitterbugConfig(streaming=StreamingConfig(backend="window", rerun_every_bins=4))
+        config.change_point_detection.algorithm = "bcp"  # type: ignore[assignment]
+        config.jitter_analysis.method = "ks_test"  # type: ignore[assignment]
+        dataset = DataLoader().load_from_file(RAW_CSV)
+        return score(replay(dataset, config), REFERENCE["ks_test"])
+
+    def test_golden(self, summary: dict) -> None:
+        assert summary["change_points"] == 32
+        assert summary["periods"] == 32
+        assert summary["congested"] == 14
+        assert summary["provisional_pairs"] == 26
+        assert summary["provisional_flips"] == 0
+
+    def test_agrees_with_paper(self, summary: dict) -> None:
+        assert summary["recovered"] >= 14
+        assert summary["spurious"] == 0
+        assert summary["boundaries_within_30min"] == 30
+
+    def test_detection_delays_are_bounded_by_the_cadence(self, summary: dict) -> None:
+        # Reruns every 4 bins (1 h) and two stable runs: 2 h median onset delay.
+        assert_allclose(summary["onset_delay_min_median"], 120.0, atol=0.1)
+        assert_allclose(summary["onset_delay_min_max"], 195.0, atol=0.1)
+        assert_allclose(summary["return_delay_min_median"], 180.0, atol=0.1)
+        assert_allclose(summary["return_delay_min_max"], 225.0, atol=0.1)
+
+
 @pytest.mark.skipif(
     importlib.util.find_spec("sklearn") is None, reason="clustering extra not installed"
 )

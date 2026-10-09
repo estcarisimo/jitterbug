@@ -10,6 +10,11 @@ the `bcp` extra. Its results on the paper dataset are pinned in
 
 ## How it works
 
+Two back ends share the same events and the same decision rule; `streaming.backend`
+picks one. The default, `bocpd`, is the incremental detector described here. The other,
+`window`, reruns the offline sequential pipeline on a trailing window every few bins and
+is described under [Back ends compared](#back-ends-compared).
+
 1. **Causal binning.** A minimum-RTT bin (15 min by default) closes when a sample from a
    later bin arrives.
 2. **Online change point detection.** Each closed bin feeds
@@ -57,8 +62,8 @@ jitterbug replay examples/network_analysis/data/raw.csv \
   --output events.json
 ```
 
-Both commands take `--config` and the most common knobs as flags: `--decision`,
-`--hazard-lambda`, `--min-period-samples`, `--min-time-elapsed`.
+Both commands take `--config` and the most common knobs as flags: `--backend`,
+`--decision`, `--hazard-lambda`, `--min-period-samples`, `--min-time-elapsed`.
 
 ## Configuration
 
@@ -75,11 +80,15 @@ latency_jump:
 jitter_analysis:
   significance_level: 0.05         # shared
 streaming:
-  decision: map                    # map | lag | window
-  hazard_lambda: 50                # expected run length, in bins
+  backend: bocpd                   # bocpd (incremental) | window (offline rerun)
+  decision: map                    # map | lag | window   (bocpd)
+  hazard_lambda: 50                # expected run length, in bins   (bocpd)
+  max_run_length: 1000             # run lengths kept by the detector   (bocpd)
+  window_hours: 72                 # trailing window   (window)
+  rerun_every_bins: 1              # closed bins between reruns   (window)
+  stable_runs: 2                   # identical reruns before emitting   (window)
   min_time_elapsed: 3600           # seconds between change points
   min_period_samples: 100          # jitter samples before a provisional verdict
-  max_run_length: 1000             # run lengths kept by the detector
   min_ks_statistic: 0.0            # effect-size guard for the KS test
 ```
 
@@ -140,12 +149,49 @@ Two findings from the parameter sweep:
 Caveats: one path over 15 days, and the metric is agreement with the offline method, not
 ground truth. The stream's first period is taken as the baseline.
 
+## Back ends compared
+
+The `window` back end is the obvious alternative to a new detector: every
+`rerun_every_bins` closed bins, run the sequential pipeline (the configured detector and
+jitter method, so it also works with `ruptures` and with jitter dispersion) on the trailing
+`window_hours` of samples, and emit a change point or a closed period's verdict once it has
+come out identical, to within one bin, in `stable_runs` consecutive reruns. Emitted events
+are never retracted. The window start opens the baseline period, as the stream start does
+in the incremental back end; once the window has moved past the stream start, anything
+touching its left edge is ignored. The open period gets a provisional verdict from the
+same two-period rule. The prefix experiment above showed why this works: the offline
+boundaries never move and verdicts rarely flip.
+
+BCP + KS on the paper dataset, scored against the paper's KS reference (`jitterbug replay`
+on the full series; the offline pipeline gives 28 periods / 14 congested, 14 of 15
+recovered, 0 spurious):
+
+| Back end | Periods / congested | Reference periods recovered | Spurious | Boundaries within 30 min | Onset delay, median / max | Return delay, median / max | Provisional flips | Replay wall time |
+|---|---|---|---|---|---|---|---|---|
+| Incremental Bayesian (`bocpd`, MAP rule) | 31 / 15 | 14 of 15 | 0 | 20 of 30 | 15 min / 90 min | 135 min / 255 min | 0 of 31 | 2 s |
+| Sliding window, rerun every bin (`window`) | 33 / 14 | 14 of 15 | 0 | 29 of 30 | 45 min / 60 min | 113 min / 180 min | 0 of 25 | 163 s |
+| Sliding window, rerun every 4 bins | 32 / 14 | 14 of 15 | 0 | 30 of 30 | 120 min / 195 min | 180 min / 225 min | 0 of 26 | 41 s |
+
+Both back ends agree with the paper's reference as well as the offline pipeline does.
+The incremental detector reports onsets within one bin, three times sooner than the
+sliding window rerun every bin, whose delay is bounded below by
+`stable_runs × rerun_every_bins` bins. The sliding window places almost every reference
+boundary within 30 min, because it sees the whole window when it decides, and reports
+returns to baseline somewhat sooner. Rerunning every bin costs about 0.1 s per bin on
+this data (BCP on 72 h), cheap for one path and not for thousands; the incremental
+detector costs a fraction of a millisecond per bin. The table is produced by
+`tools/compare_online_backends.py`; the 4-bin window row is pinned in
+`tests/test_paper_regression.py` (`TestSlidingWindowReplay`).
+
 ## Reproducing
 
 ```bash
 uv sync --extra bcp
 uv run jitterbug replay examples/network_analysis/data/raw.csv \
   --reference examples/network_analysis/expected_results/kstest_inferences.csv
+uv run jitterbug replay examples/network_analysis/data/raw.csv --backend window \
+  --reference examples/network_analysis/expected_results/kstest_inferences.csv
+uv run python tools/compare_online_backends.py   # the back ends table, about 4 min
 uv run python tools/replay_online.py --sweep       # decision rule x lag x hazard x threshold
 uv run python tools/replay_online.py --min-time-elapsed 1800   # the 38-change-point figure
 uv run python tools/replay_online.py --min-period-samples 30   # the 2-flip figure
