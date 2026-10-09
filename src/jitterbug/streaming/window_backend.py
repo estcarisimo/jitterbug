@@ -14,9 +14,10 @@ emitted change points, so change points and verdicts never disagree. If the wind
 past a period before it stabilizes, that period is skipped with a warning and the chain
 resumes at the next emitted change point. A change point that only stabilizes after a
 later one was emitted is dropped (time order is kept), which can leave the chain waiting
-for the next emitted boundary for up to a window length. The open period after the last emitted change point gets a
-provisional verdict from the shared two-period rule (always the KS test) once it holds
-``min_period_samples`` jitter samples, as in the incremental back end.
+for the next emitted boundary for up to a window length. The open period after the last
+emitted change point gets a provisional verdict from the shared two-period rule (always
+the KS test) once it holds ``min_period_samples`` jitter samples, as in the incremental
+back end.
 
 The window start opens the baseline period, as the stream start does in the incremental
 back end: when the detector reports no change point within one bin of the first bin, one
