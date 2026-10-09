@@ -364,10 +364,14 @@ def test_stream_skips_bad_lines_instead_of_aborting():
 
 @pytest.mark.skipif(BCP_MISSING or not EXAMPLE_CSV.exists(), reason="bcp extra or dataset")
 def test_stream_matches_replay_on_a_prefix(tmp_path: Path):
-    """Without --follow the open bin is closed at EOF, as replay does."""
+    """Without --follow the open bin is closed at EOF, as replay does.
+
+    On the first 22000 lines of the dataset the last bin carries a change point and a
+    verdict: without the flush, ``stream`` emits 42 events and ``replay`` 44.
+    """
     prefix = tmp_path / "prefix.csv"
     with EXAMPLE_CSV.open() as src:
-        prefix.write_text("".join(next(src) for _ in range(6000)))
+        prefix.write_text("".join(next(src) for _ in range(22000)))
     streamed = tmp_path / "stream.jsonl"
     replayed = tmp_path / "replay.json"
     r1 = runner.invoke(app, ["stream", str(prefix), "--output", str(streamed)])
@@ -377,7 +381,7 @@ def test_stream_matches_replay_on_a_prefix(tmp_path: Path):
     from_stream = [json.loads(line) for line in streamed.read_text().splitlines()]
     from_replay = json.loads(replayed.read_text())
     assert from_stream == from_replay
-    assert len(from_stream) > 2
+    assert len(from_stream) == 44
 
 
 @pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")

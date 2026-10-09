@@ -1,5 +1,5 @@
 """
-Prototype of an online (streaming) Jitterbug pipeline.
+Online (streaming) Jitterbug pipeline.
 
 The sequential pipeline is retrospective twice over: the offline Bayesian detector sees
 the whole series, and the verdict for period ``i`` needs change point ``i + 1`` to close

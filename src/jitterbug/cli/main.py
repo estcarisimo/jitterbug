@@ -533,8 +533,8 @@ def stream(
 
     Reads 'epoch,rtt' lines (seconds, milliseconds; a header line is skipped) and prints one
     JSON object per event: change points, provisional verdicts and final verdicts. Samples
-    must arrive in time order; a sample older than the last one is dropped. Without
-    --follow the last bin is closed when the input ends, as 'jitterbug replay' does.
+    must arrive in time order; a sample older than the last one is dropped. The last bin is
+    closed when the input ends (or on Ctrl-C with --follow), as 'jitterbug replay' does.
 
     [bold]Examples:[/bold]
 
@@ -586,15 +586,19 @@ def stream(
                 n_events += 1
 
         try:
-            for line in _iter_lines(path, follow):
-                sample = _parse_sample(line)
-                if sample is None:
-                    n_skipped += bool(line.strip())
-                    continue
-                n_samples += 1
-                emit(online.push(*sample))
-            # The input ended (stdin EOF, or a file without --follow): close the open bin
-            # so the result matches `jitterbug replay` on the same data.
+            try:
+                for line in _iter_lines(path, follow):
+                    sample = _parse_sample(line)
+                    if sample is None:
+                        n_skipped += bool(line.strip())
+                        continue
+                    n_samples += 1
+                    emit(online.push(*sample))
+            except KeyboardInterrupt:
+                # Ctrl-C is how a --follow stream ends; close it like an EOF.
+                err_console.print("interrupted", style="yellow")
+            # The input ended (stdin EOF, a file without --follow, or Ctrl-C): close the
+            # open bin so the result matches `jitterbug replay` on the same data.
             emit(online.flush())
         finally:
             if output:

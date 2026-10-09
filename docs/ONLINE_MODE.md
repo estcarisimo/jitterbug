@@ -37,8 +37,9 @@ skipped, so is any line that does not parse) from a file or standard input and p
 JSON object per event: change points, provisional verdicts and final verdicts. `--follow`
 keeps reading a file as it grows (a half-written line is held until its newline arrives);
 `--events verdicts` or `--events change-points` filters the output. Samples must arrive in
-time order; an older sample is dropped. When the input ends without `--follow`, the open
-bin is closed, so `stream FILE` and `replay FILE` emit the same events.
+time order; an older sample is dropped. When the input ends (or on Ctrl-C with
+`--follow`), the open bin is closed and a summary line goes to standard error, so
+`stream FILE` and `replay FILE` emit the same events.
 
 ```bash
 my-probe | jitterbug stream --events verdicts
