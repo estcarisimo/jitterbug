@@ -33,7 +33,7 @@ from typing import Any, Literal
 
 import numpy as np
 import scipy.stats
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,9 @@ class StreamingConfig(BaseModel):
     )
     lag: int = Field(default=4, ge=1, description="Decision delay in bins for the lag rule")
     threshold: float = Field(default=0.5, gt=0, le=1, description="Posterior threshold (lag rule)")
-    max_run_length: int | None = Field(default=1000, description="Run-length truncation")
+    max_run_length: int | None = Field(
+        default=1000, ge=1, description="Run-length truncation; None keeps the exact posterior"
+    )
     min_time_elapsed: int = Field(
         default=3600,
         gt=0,
@@ -78,6 +80,15 @@ class StreamingConfig(BaseModel):
         "three 15-minute bins on the paper dataset; 30 gives noisy KS p-values)",
     )
     device: Literal["cpu", "cuda", "mps"] = "cpu"
+
+    @model_validator(mode="after")
+    def _lag_fits_in_run_length(self) -> StreamingConfig:
+        if self.max_run_length is not None and self.lag > self.max_run_length:
+            raise ValueError(
+                f"lag ({self.lag}) must not exceed max_run_length ({self.max_run_length}): "
+                "the detector cannot report a run length it does not keep"
+            )
+        return self
 
 
 @dataclass
@@ -110,12 +121,19 @@ class StreamingEvent:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in self.__dict__.items()}
+        """Return the event as a plain dictionary (JSON-serializable)."""
+        return dict(self.__dict__)
 
 
 class OnlineJitterbug:
     """
     Streaming congestion inference: feed RTT samples, get events.
+
+    Samples must arrive in non-decreasing epoch order; a sample earlier than the last one
+    accepted is dropped (logged at DEBUG), whatever bin it falls in. Bins are indexed by
+    the samples that arrive, so a gap in the stream does not produce empty bins: the
+    detector sees the bins before and after a gap as consecutive, as the offline pipeline
+    does after ``dropna`` in ``RTTDataset.compute_minimum_intervals``.
 
     Parameters
     ----------
@@ -176,15 +194,15 @@ class OnlineJitterbug:
         events: list[StreamingEvent] = []
         if not (rtt > 0) or not math.isfinite(rtt):
             return events
+        if self._raw_epochs and epoch < self._raw_epochs[-1]:
+            logger.debug("Out-of-order sample at %s dropped", epoch)
+            return events
         bin_id = int(epoch // self._interval_s)
         if self._bin_id is None:
             self._bin_id = bin_id
         elif bin_id > self._bin_id:
             events.extend(self._close_bin(closing_epoch=epoch))
             self._bin_id = bin_id
-        elif bin_id < self._bin_id:
-            logger.debug("Out-of-order sample at %s dropped", epoch)
-            return events
 
         if rtt < self._bin_min_rtt:
             self._bin_min_rtt = rtt
@@ -258,7 +276,10 @@ class OnlineJitterbug:
                     r = int(head.argmax())
                     candidate = (self._t - r, float(head.sum()))
         else:
-            r = int(posterior.argmax())
+            # Run length 0 means "a change at this very observation"; under a constant
+            # hazard its mass is the hazard rate, not evidence, so the MAP is taken over
+            # run lengths >= 1 (it is also one past the last bin we hold).
+            r = int(posterior[1:].argmax()) + 1
             start = self._t - r
             if start > self._map_start:
                 self._map_start = start

@@ -7,9 +7,16 @@ is already closed at that cutoff. Comparing the verdict at the cutoff with the v
 of the full run tells how often, and how long after the fact, the offline method
 changes its mind. This is the baseline any online mode has to beat.
 
+Two delays are reported for every congested period of the full run, each measured as
+the first cutoff at which a prefix run places a period boundary within one bin (15 min)
+of the boundary in question, minus the time of that boundary: *onset* for the period's
+start and *return* for its end. Cutoffs are ``--step-hours`` apart, so delays are upper
+bounds within one step.
+
 Usage::
 
-    uv run python tools/prefix_experiment.py --step-hours 12 --output /tmp/prefix.json
+    uv run python tools/prefix_experiment.py --step-hours 1 --start-hours 24 --output prefix.json
+    uv run python tools/prefix_experiment.py --from-json prefix.json   # re-score a saved run
 """
 
 from __future__ import annotations
@@ -52,6 +59,46 @@ def _match(period: tuple[float, float], others: list[tuple[float, float, bool]])
     return None
 
 
+def _boundary_delays(table: pd.DataFrame, tolerance_h: float = 0.25) -> pd.DataFrame:
+    """Onset and return delays of the congested periods of the last (full) cutoff."""
+    last = table["cutoff_h"].max()
+    full = table[(table["cutoff_h"] == last) & table["verdict"]]
+    rows = []
+    for _, period in full.iterrows():
+        delays = {}
+        for name, boundary in (("onset", period["start_h"]), ("return", period["end_h"])):
+            seen = table[
+                (abs(table["start_h"] - boundary) <= tolerance_h)
+                | (abs(table["end_h"] - boundary) <= tolerance_h)
+            ]
+            delays[name] = seen["cutoff_h"].min() - boundary if len(seen) else np.nan
+        rows.append({"start_h": period["start_h"], "end_h": period["end_h"], **delays})
+    return pd.DataFrame(rows)
+
+
+def _report(table: pd.DataFrame) -> None:
+    matched = table.dropna(subset=["final"])
+    print("\nDisagreement with the final verdict by age of the period at the cutoff:")
+    bins = [0, 6, 12, 24, 48, 96, 1e9]
+    labels = ["<6 h", "6-12 h", "12-24 h", "1-2 d", "2-4 d", ">4 d"]
+    matched = matched.assign(age_bin=pd.cut(matched["age_h"], bins=bins, labels=labels))
+    summary = matched.groupby("age_bin", observed=True)["agrees"].agg(["count", "mean"])
+    summary["disagree_frac"] = 1 - summary["mean"]
+    print(summary[["count", "disagree_frac"]].to_string())
+    unmatched = int(table["final"].isna().sum())
+    print(f"\nunmatched periods (boundaries differ from the full run): {unmatched}")
+
+    delays = _boundary_delays(table)
+    print("\nFirst appearance of each congested period's boundaries, hours after the fact:")
+    print(delays.round(2).to_string(index=False))
+    for name in ("onset", "return"):
+        d = delays[name].dropna()
+        print(
+            f"{name:6s}: median {d.median():.2f} h, p90 {d.quantile(0.9):.2f} h, "
+            f"max {d.max():.2f} h ({len(d)}/{len(delays)} periods)"
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--csv", type=Path, default=RAW_CSV)
@@ -60,7 +107,12 @@ def main() -> None:
     parser.add_argument("--step-hours", type=float, default=12.0)
     parser.add_argument("--start-hours", type=float, default=48.0)
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--from-json", type=Path, default=None, help="Re-score a saved --output")
     args = parser.parse_args()
+
+    if args.from_json:
+        _report(pd.DataFrame(json.loads(args.from_json.read_text())))
+        return
 
     df = pd.read_csv(args.csv)
     df = df.rename(columns={"values": "rtt_value"})
@@ -97,17 +149,7 @@ def main() -> None:
         )
 
     table = pd.DataFrame(rows)
-    matched = table.dropna(subset=["final"])
-    print("\nDisagreement with the final verdict by age of the period at the cutoff:")
-    bins = [0, 6, 12, 24, 48, 96, 1e9]
-    labels = ["<6 h", "6-12 h", "12-24 h", "1-2 d", "2-4 d", ">4 d"]
-    matched = matched.assign(age_bin=pd.cut(matched["age_h"], bins=bins, labels=labels))
-    summary = matched.groupby("age_bin", observed=True)["agrees"].agg(["count", "mean"])
-    summary["disagree_frac"] = 1 - summary["mean"]
-    print(summary[["count", "disagree_frac"]].to_string())
-    print(
-        f"\nunmatched periods (boundaries differ from the full run): {table['final'].isna().sum()}"
-    )
+    _report(table)
 
     if args.output:
         args.output.write_text(json.dumps(rows, indent=1))

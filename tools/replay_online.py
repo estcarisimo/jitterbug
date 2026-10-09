@@ -92,6 +92,13 @@ def score(events: list[StreamingEvent], reference: Path = REFERENCE) -> dict[str
         lead += e.emitted_at - p.emitted_at
     n_pairs = sum(e.start_epoch in provisional for e in finals)
 
+    # Detection delay = time from the change point to the sample that reported it.
+    # Onset: the change point that opens a congested final period. Return: the one that
+    # closes it (opens the next period).
+    cp_delay_min = {e.start_epoch: e.delay / 60 for e in cps}
+    congested_finals = [e for e in finals if e.is_congested]
+    onset = [cp_delay_min[e.start_epoch] for e in congested_finals if e.start_epoch in cp_delay_min]
+    back = [cp_delay_min[e.end_epoch] for e in congested_finals if e.end_epoch in cp_delay_min]
     delays_min = [e.delay / 60 for e in cps]
     return {
         "change_points": len(cps),
@@ -103,6 +110,10 @@ def score(events: list[StreamingEvent], reference: Path = REFERENCE) -> dict[str
         "boundaries_within_30min": f"{near}/{len(ref_bounds)}",
         "detection_delay_min_median": float(np.median(delays_min)) if delays_min else None,
         "detection_delay_min_max": float(np.max(delays_min)) if delays_min else None,
+        "onset_delay_min_median": float(np.median(onset)) if onset else None,
+        "onset_delay_min_max": float(np.max(onset)) if onset else None,
+        "return_delay_min_median": float(np.median(back)) if back else None,
+        "return_delay_min_max": float(np.max(back)) if back else None,
         "provisional_flips": f"{flips}/{n_pairs}",
         "provisional_lead_h_mean": (lead / n_pairs / 3600) if n_pairs else None,
     }

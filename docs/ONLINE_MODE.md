@@ -51,12 +51,17 @@ settings (MAP rule, expected run length 50 bins, at least 1 h between change poi
 | Periods / congested | 28 / 14 | same boundaries at every cutoff | 31 / 15 |
 | Reference congested periods recovered | 14 of 15 | 14 of 15 | 14 of 15 |
 | Spurious congested periods | 0 | 0 | 0 |
-| Congestion onset first reported | n/a | 1.4 h median, 13.8 h max | 15 min median, 90 min max |
-| Return to baseline first reported | n/a | same as onset | 2.5 h median, 4.25 h max |
-| Verdict changes | n/a | 2-4 % for periods under 12 h old, none older | 0 of 31 provisional verdicts flipped |
+| Congestion onset first reported | n/a | 1.0 h median, 8.5 h max (2.25 h without the first period) | 15 min median, 90 min max |
+| Return to baseline first reported | n/a | 2.0 h median, 13.75 h max | 2.25 h median, 4.25 h max |
+| Verdict changes | n/a | 3.9 % for periods under 6 h old, 2.4 % at 6-12 h, 0.3 % at 12-24 h, none older | 0 of 31 provisional verdicts flipped |
 
-The provisional verdict arrived 11 h before the final one on average and never
-disagreed with it.
+Delays are measured from the boundary to the moment it is first reported: the sample
+that triggers the change point online, or the first hourly cutoff whose prefix run places
+a boundary within one bin of it. *Onset* is the change point that opens a congested
+period, *return* the one that closes it. Both tools print these numbers
+(`onset_delay_min_*` and `return_delay_min_*` in the replay, the "First appearance"
+block in the prefix experiment). The provisional verdict arrived 11 h before the final
+one on average and never disagreed with it.
 
 Two findings from the parameter sweep:
 
@@ -77,9 +82,11 @@ ground truth. The stream's first period is taken as the baseline.
 uv sync --extra bcp
 uv run python tools/replay_online.py                # defaults; add --events out.json for every event
 uv run python tools/replay_online.py --sweep       # decision rule x lag x hazard x threshold
-uv run python tools/prefix_experiment.py --step-hours 1 --start-hours 24
+uv run python tools/prefix_experiment.py --step-hours 1 --start-hours 24 --output prefix.json
+uv run python tools/prefix_experiment.py --from-json prefix.json   # re-score without rerunning
 ```
 
 `tools/prefix_experiment.py` runs the offline pipeline on growing prefixes of the dataset
-and reports how often, and how long after the fact, its verdicts change; that is the
+(about 20 min for hourly cutoffs with BCP) and reports how often, and how long after the
+fact, its verdicts change, plus the onset and return delays defined above; that is the
 "rerun on a sliding window" baseline in the table.
