@@ -33,9 +33,12 @@ causal. The jitter-dispersion filters are centered windows and look ahead.
 ## Command line
 
 `jitterbug stream` reads `epoch,rtt` lines (seconds, milliseconds; a header line is
-skipped) from a file or standard input and prints one JSON object per event: change
-points, provisional verdicts and final verdicts. `--follow` keeps reading a file as it
-grows, `--events verdicts` or `--events change-points` filters the output.
+skipped, so is any line that does not parse) from a file or standard input and prints one
+JSON object per event: change points, provisional verdicts and final verdicts. `--follow`
+keeps reading a file as it grows (a half-written line is held until its newline arrives);
+`--events verdicts` or `--events change-points` filters the output. Samples must arrive in
+time order; an older sample is dropped. When the input ends without `--follow`, the open
+bin is closed, so `stream FILE` and `replay FILE` emit the same events.
 
 ```bash
 my-probe | jitterbug stream --events verdicts
@@ -102,7 +105,7 @@ settings (MAP rule, expected run length 50 bins, at least 1 h between change poi
 100 jitter samples before a provisional verdict), scored with the metric of
 `tests/test_paper_regression.py` against the paper's KS reference:
 
-| | Offline pipeline (BCP + KS) | Offline pipeline on growing prefixes | Online prototype |
+| | Offline pipeline (BCP + KS) | Offline pipeline on growing prefixes | Online mode |
 |---|---|---|---|
 | Periods / congested | 28 / 14 | same boundaries at every cutoff | 31 / 15 |
 | Reference congested periods recovered | 14 of 15 | 14 of 15 | 14 of 15 |

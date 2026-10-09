@@ -4,6 +4,7 @@ Main CLI application using Typer.
 
 import json
 import logging
+import math
 import sys
 import time
 from collections.abc import Iterator
@@ -30,6 +31,8 @@ except ImportError:  # pragma: no cover - only if the package itself is broken
 
 # Initialize Rich console
 console = Console()
+# `jitterbug stream` writes JSON lines to stdout, so its messages go to stderr.
+err_console = Console(stderr=True)
 
 
 def _apply_overrides(
@@ -454,18 +457,29 @@ def visualize(
 
 
 def _iter_lines(source: Path | None, follow: bool) -> Iterator[str]:
-    """Lines of ``source`` (stdin when None); with ``follow``, keep waiting for more."""
+    """
+    Complete lines of ``source`` (stdin when None); with ``follow``, keep waiting for more.
+
+    A writer that is still appending may have flushed half a line; it is held back until
+    its newline arrives. Without ``follow`` a trailing unterminated line is yielded at EOF.
+    """
     if source is None:
         yield from sys.stdin
         return
     with open_text(source) as f:
+        partial = ""
         while True:
-            line = f.readline()
-            if line:
-                yield line
+            chunk = f.readline()
+            if chunk:
+                partial += chunk
+                if partial.endswith("\n"):
+                    yield partial
+                    partial = ""
             elif follow:
                 time.sleep(0.5)
             else:
+                if partial:
+                    yield partial
                 return
 
 
@@ -475,9 +489,12 @@ def _parse_sample(line: str) -> tuple[float, float] | None:
     if len(parts) < 2:
         return None
     try:
-        return float(parts[0]), float(parts[1])
+        epoch, rtt = float(parts[0]), float(parts[1])
     except ValueError:
         return None
+    if not (math.isfinite(epoch) and math.isfinite(rtt)):
+        return None
+    return epoch, rtt
 
 
 @app.command()
@@ -515,7 +532,9 @@ def stream(
     Infer congestion online from a stream of RTT samples (requires the bcp extra).
 
     Reads 'epoch,rtt' lines (seconds, milliseconds; a header line is skipped) and prints one
-    JSON object per event: change points, provisional verdicts and final verdicts.
+    JSON object per event: change points, provisional verdicts and final verdicts. Samples
+    must arrive in time order; a sample older than the last one is dropped. Without
+    --follow the last bin is closed when the input ends, as 'jitterbug replay' does.
 
     [bold]Examples:[/bold]
 
@@ -531,8 +550,12 @@ def stream(
         stream=sys.stderr,
     )
     if events not in ("all", "verdicts", "change-points"):
-        console.print(f"❌ Error: --events must be all, verdicts or change-points, not {events}")
+        err_console.print(
+            f"❌ Error: --events must be all, verdicts or change-points, not {events}"
+        )
         raise typer.Exit(2)
+    if follow and source == "-":
+        err_console.print("--follow has no effect on standard input", style="yellow")
     try:
         from ..streaming import OnlineJitterbug
 
@@ -551,6 +574,17 @@ def stream(
             raise FileNotFoundError(f"Input file not found: {path}")
         sink = output.open("w") if output else sys.stdout
         n_samples = n_skipped = n_events = 0
+        wanted = {"all": None, "verdicts": "verdict", "change-points": "change_point"}[events]
+
+        def emit(batch: list[Any]) -> None:
+            nonlocal n_events
+            for event in batch:
+                if wanted is not None and event.kind != wanted:
+                    continue
+                sink.write(json.dumps(event.to_dict()) + "\n")
+                sink.flush()
+                n_events += 1
+
         try:
             for line in _iter_lines(path, follow):
                 sample = _parse_sample(line)
@@ -558,22 +592,18 @@ def stream(
                     n_skipped += bool(line.strip())
                     continue
                 n_samples += 1
-                for event in online.push(*sample):
-                    if events == "verdicts" and event.kind != "verdict":
-                        continue
-                    if events == "change-points" and event.kind != "change_point":
-                        continue
-                    sink.write(json.dumps(event.to_dict()) + "\n")
-                    sink.flush()
-                    n_events += 1
+                emit(online.push(*sample))
+            # The input ended (stdin EOF, or a file without --follow): close the open bin
+            # so the result matches `jitterbug replay` on the same data.
+            emit(online.flush())
         finally:
             if output:
                 sink.close()
-        Console(stderr=True).print(
+        err_console.print(
             f"{n_samples} samples read, {n_skipped} lines skipped, {n_events} events emitted"
         )
     except Exception as e:
-        console.print(f"❌ Error: {e}", style="red")
+        err_console.print(f"❌ Error: {e}", style="red")
         raise typer.Exit(1) from None
 
 

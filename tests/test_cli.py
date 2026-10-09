@@ -315,3 +315,87 @@ def test_replay_example_dataset_against_the_reference(tmp_path: Path):
     assert any(e["kind"] == "verdict" and e["stage"] == "final" for e in events)
     assert "Reference congested periods recovered" in result.stdout
     assert "Events saved to" in result.stdout
+
+
+def test_iter_lines_holds_a_half_written_line_until_its_newline(tmp_path: Path):
+    import threading
+    import time
+
+    from jitterbug.cli.main import _iter_lines
+
+    path = tmp_path / "rtts.csv"
+    path.write_text("1700000000,10.5\n1700000030,12")
+
+    def finish_line() -> None:
+        time.sleep(0.8)
+        with path.open("a") as f:
+            f.write(".75\n1700000060,11\n")
+
+    threading.Thread(target=finish_line, daemon=True).start()
+    lines = _iter_lines(path, follow=True)
+    assert next(lines) == "1700000000,10.5\n"
+    assert next(lines) == "1700000030,12.75\n"  # not "12" and then ".75"
+    assert next(lines) == "1700000060,11\n"
+
+
+def test_iter_lines_without_follow_yields_a_trailing_unterminated_line(tmp_path: Path):
+    from jitterbug.cli.main import _iter_lines
+
+    path = tmp_path / "rtts.csv"
+    path.write_text("1700000000,10.5\n1700000030,12")
+    assert list(_iter_lines(path, follow=False)) == ["1700000000,10.5\n", "1700000030,12"]
+
+
+@pytest.mark.parametrize("line", ["nan,5", "inf,5", "1700000000,nan", "epoch,values", "x", ""])
+def test_parse_sample_rejects_non_finite_and_junk_lines(line: str):
+    from jitterbug.cli.main import _parse_sample
+
+    assert _parse_sample(line) is None
+    assert _parse_sample("1700000000,10.5,extra") == (1700000000.0, 10.5)
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_skips_bad_lines_instead_of_aborting():
+    lines = ["epoch,values", "1700000000,10", "nan,5", "inf,5", "junk", "1700000930,11"]
+    result = runner.invoke(app, ["stream"], input="\n".join(lines) + "\n")
+    assert result.exit_code == 0, result.output
+    assert "2 samples read, 4 lines skipped" in result.output
+
+
+@pytest.mark.skipif(BCP_MISSING or not EXAMPLE_CSV.exists(), reason="bcp extra or dataset")
+def test_stream_matches_replay_on_a_prefix(tmp_path: Path):
+    """Without --follow the open bin is closed at EOF, as replay does."""
+    prefix = tmp_path / "prefix.csv"
+    with EXAMPLE_CSV.open() as src:
+        prefix.write_text("".join(next(src) for _ in range(6000)))
+    streamed = tmp_path / "stream.jsonl"
+    replayed = tmp_path / "replay.json"
+    r1 = runner.invoke(app, ["stream", str(prefix), "--output", str(streamed)])
+    r2 = runner.invoke(app, ["replay", str(prefix), "--output", str(replayed)])
+    assert r1.exit_code == 0, r1.output
+    assert r2.exit_code == 0, r2.output
+    from_stream = [json.loads(line) for line in streamed.read_text().splitlines()]
+    from_replay = json.loads(replayed.read_text())
+    assert from_stream == from_replay
+    assert len(from_stream) > 2
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_verdicts_filter_and_stdout_stays_json(tmp_path: Path):
+    # Two 10 h segments, 30 s apart, with a jump and wider jitter in the second.
+    lines = ["epoch,values"]
+    for i in range(2400):
+        base, spread = (10.0, 0.2) if i < 1200 else (30.0, 6.0)
+        lines.append(f"{1_700_000_000 + 30 * i},{base + spread * ((i * 7919) % 97) / 97:.3f}")
+    result = runner.invoke(app, ["stream", "--events", "verdicts"], input="\n".join(lines) + "\n")
+    assert result.exit_code == 0, result.output
+    stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+    events = [json.loads(line) for line in stdout_lines]  # every stdout line is JSON
+    assert events and all(e["kind"] == "verdict" for e in events)
+    assert "samples read" not in result.stdout  # the summary goes to stderr
+
+
+def test_stream_errors_do_not_go_to_stdout():
+    result = runner.invoke(app, ["stream", "--events", "everything"], input="")
+    assert result.exit_code == 2
+    assert result.stdout == ""

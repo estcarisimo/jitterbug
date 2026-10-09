@@ -124,7 +124,7 @@ jitterbug replay examples/network_analysis/data/raw.csv \
   --reference examples/network_analysis/expected_results/kstest_inferences.csv
 ```
 
-Congestion onsets are reported one 15-minute bin after they start; see [docs/ONLINE_MODE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ONLINE_MODE.md) for the method, the results on the paper dataset and the `streaming` configuration section.
+On the paper dataset congestion onsets are reported 15 min after they start (median; 90 min at most); see [docs/ONLINE_MODE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ONLINE_MODE.md) for the method, the results on the paper dataset and the `streaming` configuration section.
 
 ### Configuration files
 

@@ -54,7 +54,14 @@ def replay(dataset: RTTDataset, config: JitterbugConfig | None = None) -> list[S
 
 def _read_reference(path: Path) -> list[tuple[Interval, bool]]:
     with path.open() as f:
-        rows = list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        missing = {"starts", "ends", "congestion"} - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(
+                f"Reference {path} lacks the column(s) {sorted(missing)}; "
+                "expected starts,ends,congestion"
+            )
+        rows = list(reader)
     return [((float(r["starts"]), float(r["ends"])), float(r["congestion"]) == 1) for r in rows]
 
 
