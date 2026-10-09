@@ -1,5 +1,5 @@
 """
-Prototype of an online (streaming) Jitterbug pipeline.
+Online (streaming) Jitterbug pipeline.
 
 The sequential pipeline is retrospective twice over: the offline Bayesian detector sees
 the whole series, and the verdict for period ``i`` needs change point ``i + 1`` to close
@@ -23,6 +23,10 @@ the period. This module runs the same decision rule one RTT sample at a time:
 
 Only the Kolmogorov-Smirnov jitter test is supported: it uses consecutive RTT
 differences and is causal. The jitter-dispersion filters are centered and are not.
+
+Settings live in ``JitterbugConfig.streaming`` (``models.config.StreamingConfig``); the bin
+width, latency jump threshold, significance level and device come from the shared
+sections of ``JitterbugConfig``.
 """
 
 from __future__ import annotations
@@ -35,67 +39,10 @@ from typing import Any, Literal
 
 import numpy as np
 import scipy.stats
-from pydantic import BaseModel, Field, model_validator
+
+from ..models import JitterbugConfig
 
 logger = logging.getLogger(__name__)
-
-
-class StreamingConfig(BaseModel):
-    """Settings of the online pipeline (prototype; will move to ``models/config.py``)."""
-
-    interval_minutes: int = Field(default=15, gt=0, description="Minimum-RTT bin width")
-    hazard_lambda: float = Field(
-        default=50.0, ge=1, description="Expected run length in bins (constant hazard)"
-    )
-    decision: Literal["lag", "window", "map"] = Field(
-        default="map",
-        description=(
-            "Change point rule: 'lag' thresholds P(run length = lag); 'window' thresholds "
-            "P(run length <= lag) and places the change at the most probable run length; "
-            "'map' fires when the MAP run length drops"
-        ),
-    )
-    lag: int = Field(default=4, ge=1, description="Decision delay in bins for the lag rule")
-    threshold: float = Field(default=0.5, gt=0, le=1, description="Posterior threshold (lag rule)")
-    max_run_length: int | None = Field(
-        default=1000, ge=1, description="Run-length truncation; None keeps the exact posterior"
-    )
-    min_time_elapsed: int = Field(
-        default=3600,
-        gt=0,
-        description="Seconds between change points; the MAP rule refines a boundary a few bins "
-        "after first reporting it, and this spacing absorbs the refinement",
-    )
-    prior_alpha: float = Field(default=0.1, gt=0)
-    prior_beta: float = Field(default=0.1, gt=0)
-    prior_kappa: float = Field(default=1.0, gt=0)
-    prior_mu: float | None = Field(
-        default=None, description="Prior mean; None uses the first minimum RTT seen"
-    )
-    latency_jump_threshold: float = Field(default=0.5, gt=0, description="Mean min-RTT jump, ms")
-    significance_level: float = Field(default=0.05, gt=0, lt=1)
-    min_ks_statistic: float = Field(default=0.0, ge=0, le=1, description="Effect-size guard")
-    min_period_samples: int = Field(
-        default=100,
-        ge=2,
-        description="Jitter samples in the open period before a provisional verdict (about "
-        "three 15-minute bins on the paper dataset; 30 gives noisy KS p-values)",
-    )
-    device: Literal["cpu", "cuda", "mps"] = "cpu"
-
-    @model_validator(mode="after")
-    def _lag_fits_in_run_length(self) -> StreamingConfig:
-        """``lag`` is only used by the fixed-delay rules, and must be a kept run length."""
-        if (
-            self.decision != "map"
-            and self.max_run_length is not None
-            and self.lag > self.max_run_length
-        ):
-            raise ValueError(
-                f"lag ({self.lag}) must not exceed max_run_length ({self.max_run_length}): "
-                "the detector cannot report a run length it does not keep"
-            )
-        return self
 
 
 @dataclass
@@ -144,12 +91,13 @@ class OnlineJitterbug:
 
     Parameters
     ----------
-    config : StreamingConfig
-        Settings; see the class for the meaning of each field.
+    config : JitterbugConfig, optional
+        Full configuration; ``config.streaming`` holds the online-specific settings.
     """
 
-    def __init__(self, config: StreamingConfig | None = None) -> None:
-        self.config = config or StreamingConfig()
+    def __init__(self, config: JitterbugConfig | None = None) -> None:
+        self.config = config or JitterbugConfig()
+        self.streaming = self.config.streaming
         try:
             from bayesian_changepoint_detection.hazard_functions import constant_hazard
             from bayesian_changepoint_detection.online_likelihoods import StudentT
@@ -164,8 +112,8 @@ class OnlineJitterbug:
         self._OnlineDetector = OnlineChangepointDetector
         self._detector: Any = None
 
-        self._interval_s = self.config.interval_minutes * 60
-        self._min_sep_bins = max(1, math.ceil(self.config.min_time_elapsed / self._interval_s))
+        self._interval_s = self.config.data_processing.minimum_interval_minutes * 60
+        self._min_sep_bins = max(1, math.ceil(self.streaming.min_time_elapsed / self._interval_s))
 
         # Current (open) minimum-RTT bin.
         self._bin_id: int | None = None
@@ -219,7 +167,7 @@ class OnlineJitterbug:
         self._raw_rtts.append(rtt)
 
         if self._awaiting_provisional and self._open_period_jitter_count() >= (
-            self.config.min_period_samples
+            self.streaming.min_period_samples
         ):
             events.append(self._verdict("provisional", emitted_at=epoch, end_epoch=None))
             self._awaiting_provisional = False
@@ -246,18 +194,18 @@ class OnlineJitterbug:
         self._bin_min_epoch = math.inf
 
         if self._detector is None:
-            mu = self.config.prior_mu if self.config.prior_mu is not None else value
+            mu = self.streaming.prior_mu if self.streaming.prior_mu is not None else value
             self._detector = self._OnlineDetector(
-                partial(self._constant_hazard, self.config.hazard_lambda),
+                partial(self._constant_hazard, self.streaming.hazard_lambda),
                 self._StudentT(
-                    alpha=self.config.prior_alpha,
-                    beta=self.config.prior_beta,
-                    kappa=self.config.prior_kappa,
+                    alpha=self.streaming.prior_alpha,
+                    beta=self.streaming.prior_beta,
+                    kappa=self.streaming.prior_kappa,
                     mu=mu,
-                    device=self.config.device,
+                    device=self.config.change_point_detection.bcp_device,
                 ),
-                max_run_length=self.config.max_run_length,
-                device=self.config.device,
+                max_run_length=self.streaming.max_run_length,
+                device=self.config.change_point_detection.bcp_device,
             )
         posterior = self._detector.update(value)
         self._t += 1
@@ -268,18 +216,18 @@ class OnlineJitterbug:
             return events
 
         candidate: tuple[int, float] | None = None  # (global bin index, probability)
-        if self.config.decision == "lag":
-            lag = self.config.lag
+        if self.streaming.decision == "lag":
+            lag = self.streaming.lag
             if self._t > lag:
                 p = float(self._detector.changepoint_probability(lag))
-                if p > self.config.threshold:
+                if p > self.streaming.threshold:
                     candidate = (self._t - lag, p)
-        elif self.config.decision == "window":
-            lag = self.config.lag
+        elif self.streaming.decision == "window":
+            lag = self.streaming.lag
             if self._t > lag:
                 head = posterior[: lag + 1].detach().cpu().numpy()
                 head[0] = 0.0  # run length 0 is the hazard, not evidence
-                if head.sum() > self.config.threshold:
+                if head.sum() > self.streaming.threshold:
                     r = int(head.argmax())
                     candidate = (self._t - r, float(head.sum()))
         else:
@@ -372,12 +320,11 @@ class OnlineJitterbug:
         magnitude = ks_stat = p_value = None
         if len(prev_bins) and len(cur_bins):
             magnitude = float(np.mean(cur_bins) - np.mean(prev_bins))
-            has_jump = magnitude > self.config.latency_jump_threshold
+            has_jump = magnitude > self.config.latency_jump.threshold
         if len(prev_jitter) >= 2 and len(cur_jitter) >= 2:
             ks_stat, p_value = (float(v) for v in scipy.stats.ks_2samp(prev_jitter, cur_jitter))
-            has_jitter = (
-                p_value < self.config.significance_level and ks_stat >= self.config.min_ks_statistic
-            )
+            significant = p_value < self.config.jitter_analysis.significance_level
+            has_jitter = significant and ks_stat >= self.streaming.min_ks_statistic
 
         state = self._congestion_state
         if has_jump is not None and has_jitter is not None:
@@ -387,7 +334,7 @@ class OnlineJitterbug:
                 state = False
         confidence = 0.0
         if state and magnitude is not None:
-            confidence = 0.8 + (0.1 if magnitude > 2 * self.config.latency_jump_threshold else 0.0)
+            confidence = 0.8 + (0.1 if magnitude > 2 * self.config.latency_jump.threshold else 0.0)
         if stage == "final":
             self._congestion_state = state
 

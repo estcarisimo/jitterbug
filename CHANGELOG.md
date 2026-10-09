@@ -9,17 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Prototype of an online (streaming) mode, `jitterbug.streaming.OnlineJitterbug`: feed RTT
-  samples one at a time, get change points and congestion verdicts as events. Causal
-  minimum-RTT bins feed the Bayesian online change point detector of
-  `bayesian-changepoint` 1.2 (`bcp` extra); a change point is declared when the MAP run
-  length drops; each period gets a provisional verdict (latency jump + KS test on the
-  samples so far) and a final one when the next change point closes it. On the paper
-  dataset it recovers 14 of the 15 reference congestion periods with none spurious, like
-  the offline pipeline, and reports congestion onsets 15 min after they start. Not in the
-  CLI or `JitterbugConfig` yet; see `docs/ONLINE_MODE.md`. Harness: `tools/replay_online.py`
-  (replay and score the paper dataset, `--sweep`) and `tools/prefix_experiment.py` (how
-  retrospective the offline pipeline is).
+- Online (streaming) mode. `jitterbug.streaming.OnlineJitterbug` consumes RTT samples one
+  at a time and emits change points and congestion verdicts as events: causal minimum-RTT
+  bins feed the Bayesian online change point detector of `bayesian-changepoint` 1.2 (`bcp`
+  extra), a change point is declared when the MAP run length drops, and each period gets a
+  provisional verdict (latency jump + KS test on the samples so far) and a final one when
+  the next change point closes it. Settings are the `streaming` section of `JitterbugConfig`
+  (`StreamingConfig`); the bin width, latency jump threshold, significance level and device
+  come from the shared sections. `jitterbug stream` infers congestion from `epoch,rtt` lines
+  on a file or standard input (`--follow`, `--events`) and prints JSON events; `jitterbug
+  replay` runs a recorded dataset through the online pipeline and scores it against a
+  reference (`--reference`, `--output`). On the paper dataset it recovers 14 of the 15
+  reference congestion periods with none spurious, like the offline pipeline, and reports
+  congestion onsets 15 min after they start (median; 90 min max); pinned in
+  `tests/test_paper_regression.py` (`TestOnlineReplay`). See `docs/ONLINE_MODE.md`.
+  Tools: `tools/replay_online.py` (replay and score, `--sweep`, a flag for every online
+  setting) and `tools/prefix_experiment.py` (how retrospective the offline pipeline is).
 
 - Runtime comparison across releases (`docs/PERFORMANCE.md`) and the script that produces
   it (`tools/benchmark_versions.py`). On the paper dataset with BCP + KS, 2.3.0 takes

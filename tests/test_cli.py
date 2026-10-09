@@ -1,6 +1,7 @@
 """Smoke tests for the Typer CLI on the bundled PAM 2022 example dataset."""
 
 import importlib.metadata
+import importlib.util
 import json
 from pathlib import Path
 
@@ -14,6 +15,9 @@ from jitterbug.models import JitterbugConfig
 EXAMPLE_CSV = (
     Path(__file__).resolve().parents[1] / "examples" / "network_analysis" / "data" / "raw.csv"
 )
+
+REFERENCE_CSV = EXAMPLE_CSV.parents[1] / "expected_results" / "kstest_inferences.csv"
+BCP_MISSING = importlib.util.find_spec("bayesian_changepoint_detection") is None
 
 runner = CliRunner()
 
@@ -247,3 +251,155 @@ def test_analyze_reads_and_writes_zstandard(tmp_path: Path):
     assert packed_input.stat().st_size < EXAMPLE_CSV.stat().st_size / 2
     with open_text(out) as f:
         assert json.load(f)["inferences"]
+
+
+def test_config_template_has_a_streaming_section():
+    result = runner.invoke(app, ["config", "--template"])
+    assert result.exit_code == 0
+    assert "streaming:" in result.stdout
+    assert "hazard_lambda" in result.stdout
+
+
+def test_streaming_overrides_only_touch_the_flags_given(tmp_path: Path):
+    from jitterbug.cli.main import _apply_streaming_overrides
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("streaming:\n  decision: window\n  lag: 2\n")
+    base = JitterbugConfig.from_file(cfg)
+    out = _apply_streaming_overrides(base, min_period_samples=40, min_time_elapsed=1800)
+    assert out.streaming.decision == "window"
+    assert out.streaming.lag == 2
+    assert out.streaming.min_period_samples == 40
+    assert out.streaming.min_time_elapsed == 1800
+    assert out.streaming.hazard_lambda == 50.0
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_reads_stdin_and_emits_json_lines():
+    # 400 samples 30 s apart: 3.3 h, so several 15-minute bins close.
+    lines = ["epoch,values"] + [f"{1_700_000_000 + 30 * i},{10 + i % 3}" for i in range(400)]
+    result = runner.invoke(
+        app, ["stream", "--events", "change-points"], input="\n".join(lines) + "\n"
+    )
+    assert result.exit_code == 0, result.output
+    events = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
+    assert events and events[0]["kind"] == "change_point"
+    assert events[0]["start_epoch"] == 1_700_000_000.0  # the stream start opens the baseline
+    assert all(e["kind"] == "change_point" for e in events)
+
+
+def test_stream_rejects_an_unknown_event_filter():
+    result = runner.invoke(app, ["stream", "--events", "everything"], input="")
+    assert result.exit_code == 2
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_missing_file_is_an_error(tmp_path: Path):
+    result = runner.invoke(app, ["stream", str(tmp_path / "nope.csv")])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    BCP_MISSING or not EXAMPLE_CSV.exists(), reason="bcp extra or example dataset missing"
+)
+def test_replay_example_dataset_against_the_reference(tmp_path: Path):
+    out = tmp_path / "events.json"
+    result = runner.invoke(
+        app,
+        ["replay", str(EXAMPLE_CSV), "--output", str(out), "--reference", str(REFERENCE_CSV)],
+    )
+    assert result.exit_code == 0, result.output
+    events = json.loads(out.read_text())
+    assert any(e["kind"] == "verdict" and e["stage"] == "final" for e in events)
+    assert "Reference congested periods recovered" in result.stdout
+    assert "Events saved to" in result.stdout
+
+
+def test_iter_lines_holds_a_half_written_line_until_its_newline(tmp_path: Path):
+    import threading
+    import time
+
+    from jitterbug.cli.main import _iter_lines
+
+    path = tmp_path / "rtts.csv"
+    path.write_text("1700000000,10.5\n1700000030,12")
+
+    def finish_line() -> None:
+        time.sleep(0.8)
+        with path.open("a") as f:
+            f.write(".75\n1700000060,11\n")
+
+    threading.Thread(target=finish_line, daemon=True).start()
+    lines = _iter_lines(path, follow=True)
+    assert next(lines) == "1700000000,10.5\n"
+    assert next(lines) == "1700000030,12.75\n"  # not "12" and then ".75"
+    assert next(lines) == "1700000060,11\n"
+
+
+def test_iter_lines_without_follow_yields_a_trailing_unterminated_line(tmp_path: Path):
+    from jitterbug.cli.main import _iter_lines
+
+    path = tmp_path / "rtts.csv"
+    path.write_text("1700000000,10.5\n1700000030,12")
+    assert list(_iter_lines(path, follow=False)) == ["1700000000,10.5\n", "1700000030,12"]
+
+
+@pytest.mark.parametrize("line", ["nan,5", "inf,5", "1700000000,nan", "epoch,values", "x", ""])
+def test_parse_sample_rejects_non_finite_and_junk_lines(line: str):
+    from jitterbug.cli.main import _parse_sample
+
+    assert _parse_sample(line) is None
+    assert _parse_sample("1700000000,10.5,extra") == (1700000000.0, 10.5)
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_skips_bad_lines_instead_of_aborting():
+    lines = ["epoch,values", "1700000000,10", "nan,5", "inf,5", "junk", "1700000930,11"]
+    result = runner.invoke(app, ["stream"], input="\n".join(lines) + "\n")
+    assert result.exit_code == 0, result.output
+    assert "2 samples read, 4 lines skipped" in result.output
+
+
+@pytest.mark.skipif(BCP_MISSING or not EXAMPLE_CSV.exists(), reason="bcp extra or dataset")
+def test_stream_matches_replay_on_a_prefix(tmp_path: Path):
+    """Without --follow the open bin is closed at EOF, as replay does.
+
+    On the first 22000 lines of the dataset the last bin carries a change point and a
+    verdict: without the flush, ``stream`` emits 42 events and ``replay`` 44.
+    """
+    prefix = tmp_path / "prefix.csv"
+    with EXAMPLE_CSV.open() as src:
+        prefix.write_text("".join(next(src) for _ in range(22000)))
+    streamed = tmp_path / "stream.jsonl"
+    replayed = tmp_path / "replay.json"
+    r1 = runner.invoke(app, ["stream", str(prefix), "--output", str(streamed)])
+    r2 = runner.invoke(app, ["replay", str(prefix), "--output", str(replayed)])
+    assert r1.exit_code == 0, r1.output
+    assert r2.exit_code == 0, r2.output
+    from_stream = [json.loads(line) for line in streamed.read_text().splitlines()]
+    from_replay = json.loads(replayed.read_text())
+    assert from_stream == from_replay
+    assert len(from_stream) == 44
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_verdicts_filter_and_stdout_stays_json(tmp_path: Path):
+    # Two 10 h segments, 30 s apart, with a jump and wider jitter in the second.
+    lines = ["epoch,values"]
+    for i in range(2400):
+        base, spread = (10.0, 0.2) if i < 1200 else (30.0, 6.0)
+        lines.append(f"{1_700_000_000 + 30 * i},{base + spread * ((i * 7919) % 97) / 97:.3f}")
+    result = runner.invoke(app, ["stream", "--events", "verdicts"], input="\n".join(lines) + "\n")
+    assert result.exit_code == 0, result.output
+    stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+    events = [json.loads(line) for line in stdout_lines]  # every stdout line is JSON
+    assert events and all(e["kind"] == "verdict" for e in events)
+    assert "samples read" not in result.stdout  # the summary goes to stderr
+
+
+def test_stream_errors_do_not_go_to_stdout():
+    result = runner.invoke(app, ["stream", "--events", "everything"], input="")
+    assert result.exit_code == 2
+    assert result.stdout == ""

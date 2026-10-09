@@ -5,7 +5,7 @@ Configuration models using Pydantic for validation and serialization.
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -265,6 +265,94 @@ class ClusteringConfig(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
 
+class StreamingConfig(BaseModel):
+    """
+    Settings of the online (streaming) mode, ``jitterbug.streaming.OnlineJitterbug``.
+
+    The online mode reuses the sequential decision rule: minimum-RTT bins of
+    ``data_processing.minimum_interval_minutes``, the latency jump threshold of
+    ``latency_jump.threshold``, the significance level of
+    ``jitter_analysis.significance_level`` and the device of
+    ``change_point_detection.bcp_device``. The fields below are specific to the
+    Bayesian online change point detector and to the two-stage verdicts.
+
+    Attributes
+    ----------
+    hazard_lambda : float
+        Expected run length in bins (constant hazard ``1 / hazard_lambda``).
+    decision : Literal['map', 'lag', 'window']
+        Change point rule. ``map`` (default) fires when the most probable run length
+        drops; ``lag`` thresholds the posterior that a segment started exactly ``lag`` bins
+        ago; ``window`` thresholds the posterior that it started within the last ``lag``
+        bins and places the change at the most probable run length.
+    lag : int
+        Decision delay in bins for the ``lag`` and ``window`` rules.
+    threshold : float
+        Posterior threshold for the ``lag`` and ``window`` rules.
+    max_run_length : int or None
+        Run lengths kept by the detector (bounds memory and time per bin); ``None`` keeps
+        the exact posterior.
+    min_time_elapsed : int
+        Minimum seconds between change points. The MAP rule refines a boundary a few
+        bins after first reporting it; one hour absorbs those refinements.
+    prior_alpha, prior_beta, prior_kappa : float
+        Normal-Gamma prior of the Student-t predictive (see ``online_likelihoods.StudentT``).
+    prior_mu : float or None
+        Prior mean; ``None`` uses the first minimum RTT seen.
+    min_ks_statistic : float
+        Smallest Kolmogorov-Smirnov statistic that counts as a jitter change (effect-size
+        guard, 0-1); ``0`` relies on the p-value only.
+    min_period_samples : int
+        Jitter samples the open period must hold before a provisional verdict. About
+        three 15-minute bins on the paper dataset; 30 gives noisy p-values.
+    """
+
+    hazard_lambda: float = Field(
+        default=50.0, ge=1, description="Expected run length in bins (constant hazard)"
+    )
+    decision: Literal["map", "lag", "window"] = Field(
+        default="map", description="Change point rule: MAP run-length drop, fixed lag, or window"
+    )
+    lag: int = Field(default=4, ge=1, description="Decision delay in bins (lag and window rules)")
+    threshold: float = Field(
+        default=0.5, gt=0, le=1, description="Posterior threshold (lag and window rules)"
+    )
+    max_run_length: int | None = Field(
+        default=1000, ge=1, description="Run lengths kept; None keeps the exact posterior"
+    )
+    min_time_elapsed: int = Field(
+        default=3600, gt=0, description="Minimum seconds between change points"
+    )
+    prior_alpha: float = Field(default=0.1, gt=0, description="Gamma prior shape on precision")
+    prior_beta: float = Field(default=0.1, gt=0, description="Gamma prior rate on precision")
+    prior_kappa: float = Field(default=1.0, gt=0, description="Normal prior precision on mean")
+    prior_mu: float | None = Field(
+        default=None, description="Prior mean; None uses the first minimum RTT seen"
+    )
+    min_ks_statistic: float = Field(
+        default=0.0, ge=0, le=1, description="Smallest KS statistic that counts as a jitter change"
+    )
+    min_period_samples: int = Field(
+        default=100, ge=2, description="Jitter samples before a provisional verdict"
+    )
+
+    @model_validator(mode="after")
+    def _lag_fits_in_run_length(self) -> "StreamingConfig":
+        """``lag`` is only used by the fixed-delay rules, and must be a kept run length."""
+        if (
+            self.decision != "map"
+            and self.max_run_length is not None
+            and self.lag > self.max_run_length
+        ):
+            raise ValueError(
+                f"lag ({self.lag}) must not exceed max_run_length ({self.max_run_length}): "
+                "the detector cannot report a run length it does not keep"
+            )
+        return self
+
+    model_config = ConfigDict(validate_assignment=True)
+
+
 class JitterbugConfig(BaseSettings):
     """
     Main configuration class for Jitterbug.
@@ -286,6 +374,8 @@ class JitterbugConfig(BaseSettings):
         Configuration for data processing.
     clustering : ClusteringConfig
         Configuration for the clustering mode.
+    streaming : StreamingConfig
+        Configuration for the online (streaming) mode.
     output_format : Literal['json', 'csv', 'parquet']
         Output format for results.
     verbose : bool
@@ -302,6 +392,7 @@ class JitterbugConfig(BaseSettings):
     latency_jump: LatencyJumpConfig = Field(default_factory=LatencyJumpConfig)
     data_processing: DataProcessingConfig = Field(default_factory=DataProcessingConfig)
     clustering: ClusteringConfig = Field(default_factory=ClusteringConfig)
+    streaming: StreamingConfig = Field(default_factory=StreamingConfig)
 
     output_format: Literal["json", "csv", "parquet"] = Field(
         default="json", description="Output format for results"

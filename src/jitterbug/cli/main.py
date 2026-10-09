@@ -4,7 +4,10 @@ Main CLI application using Typer.
 
 import json
 import logging
+import math
 import sys
+import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +19,7 @@ from rich.table import Table
 
 from ..analyzer import JitterbugAnalyzer
 from ..io import DataLoader
+from ..io.compression import open_text
 from ..models import CongestionInferenceResult, JitterbugConfig
 
 # matplotlib is an optional dependency; the visualize command checks for it at run time.
@@ -27,6 +31,8 @@ except ImportError:  # pragma: no cover - only if the package itself is broken
 
 # Initialize Rich console
 console = Console()
+# `jitterbug stream` writes JSON lines to stdout, so its messages go to stderr.
+err_console = Console(stderr=True)
 
 
 def _apply_overrides(
@@ -61,6 +67,30 @@ def _apply_overrides(
         data["analysis_mode"] = mode
     if clustering_algorithm is not None:
         data["clustering"]["algorithm"] = clustering_algorithm
+    return JitterbugConfig.model_validate(data)
+
+
+def _apply_streaming_overrides(
+    base: JitterbugConfig,
+    *,
+    decision: str | None = None,
+    hazard_lambda: float | None = None,
+    min_period_samples: int | None = None,
+    min_time_elapsed: int | None = None,
+    verbose: bool = False,
+) -> JitterbugConfig:
+    """Return a copy of ``base`` with the online-mode flags that were actually given."""
+    data = base.model_dump()
+    if decision is not None:
+        data["streaming"]["decision"] = decision
+    if hazard_lambda is not None:
+        data["streaming"]["hazard_lambda"] = hazard_lambda
+    if min_period_samples is not None:
+        data["streaming"]["min_period_samples"] = min_period_samples
+    if min_time_elapsed is not None:
+        data["streaming"]["min_time_elapsed"] = min_time_elapsed
+    if verbose:
+        data["verbose"] = True
     return JitterbugConfig.model_validate(data)
 
 
@@ -423,6 +453,277 @@ def visualize(
             import traceback
 
             console.print(traceback.format_exc(), style="red")
+        raise typer.Exit(1) from None
+
+
+def _iter_lines(source: Path | None, follow: bool) -> Iterator[str]:
+    """
+    Complete lines of ``source`` (stdin when None); with ``follow``, keep waiting for more.
+
+    A writer that is still appending may have flushed half a line; it is held back until
+    its newline arrives. Without ``follow`` a trailing unterminated line is yielded at EOF.
+    """
+    if source is None:
+        yield from sys.stdin
+        return
+    with open_text(source) as f:
+        partial = ""
+        while True:
+            chunk = f.readline()
+            if chunk:
+                partial += chunk
+                if partial.endswith("\n"):
+                    yield partial
+                    partial = ""
+            elif follow:
+                time.sleep(0.5)
+            else:
+                if partial:
+                    yield partial
+                return
+
+
+def _parse_sample(line: str) -> tuple[float, float] | None:
+    """``epoch,rtt`` (extra columns ignored) or None for blank, header and junk lines."""
+    parts = line.strip().split(",")
+    if len(parts) < 2:
+        return None
+    try:
+        epoch, rtt = float(parts[0]), float(parts[1])
+    except ValueError:
+        return None
+    if not (math.isfinite(epoch) and math.isfinite(rtt)):
+        return None
+    return epoch, rtt
+
+
+@app.command()
+def stream(
+    source: str = typer.Argument(
+        "-", help="File with one 'epoch,rtt' sample per line, or '-' for standard input"
+    ),
+    follow: bool = typer.Option(
+        False, "--follow", "-f", help="Keep reading the file as it grows (like tail -f)"
+    ),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write events here as JSON lines instead of stdout"
+    ),
+    events: str = typer.Option(
+        "all", "--events", help="Which events to emit: all, verdicts, change-points"
+    ),
+    config: Path | None = typer.Option(
+        None, "--config", "-c", help="Configuration file (YAML or JSON)", exists=True
+    ),
+    decision: str | None = typer.Option(
+        None, "--decision", help="Change point rule: map, lag, window"
+    ),
+    hazard_lambda: float | None = typer.Option(
+        None, "--hazard-lambda", help="Expected run length in bins"
+    ),
+    min_period_samples: int | None = typer.Option(
+        None, "--min-period-samples", help="Jitter samples before a provisional verdict"
+    ),
+    min_time_elapsed: int | None = typer.Option(
+        None, "--min-time-elapsed", help="Minimum seconds between change points"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+) -> None:
+    """
+    Infer congestion online from a stream of RTT samples (requires the bcp extra).
+
+    Reads 'epoch,rtt' lines (seconds, milliseconds; a header line is skipped) and prints one
+    JSON object per event: change points, provisional verdicts and final verdicts. Samples
+    must arrive in time order; a sample older than the last one is dropped. The last bin is
+    closed when the input ends (or on Ctrl-C with --follow), as 'jitterbug replay' does.
+
+    [bold]Examples:[/bold]
+
+    • From a probe writing to standard output:
+      [cyan]my-probe | jitterbug stream[/cyan]
+
+    • Following a file that another process appends to:
+      [cyan]jitterbug stream rtts.csv --follow --events verdicts[/cyan]
+    """
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.WARNING,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        stream=sys.stderr,
+    )
+    if events not in ("all", "verdicts", "change-points"):
+        err_console.print(
+            f"❌ Error: --events must be all, verdicts or change-points, not {events}"
+        )
+        raise typer.Exit(2)
+    if follow and source == "-":
+        err_console.print("--follow has no effect on standard input", style="yellow")
+    try:
+        from ..streaming import OnlineJitterbug
+
+        jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
+        jitterbug_config = _apply_streaming_overrides(
+            jitterbug_config,
+            decision=decision,
+            hazard_lambda=hazard_lambda,
+            min_period_samples=min_period_samples,
+            min_time_elapsed=min_time_elapsed,
+            verbose=verbose,
+        )
+        online = OnlineJitterbug(jitterbug_config)
+        path = None if source == "-" else Path(source)
+        if path is not None and not path.exists():
+            raise FileNotFoundError(f"Input file not found: {path}")
+        sink = output.open("w") if output else sys.stdout
+        n_samples = n_skipped = n_events = 0
+        wanted = {"all": None, "verdicts": "verdict", "change-points": "change_point"}[events]
+
+        def emit(batch: list[Any]) -> None:
+            nonlocal n_events
+            for event in batch:
+                if wanted is not None and event.kind != wanted:
+                    continue
+                sink.write(json.dumps(event.to_dict()) + "\n")
+                sink.flush()
+                n_events += 1
+
+        try:
+            try:
+                for line in _iter_lines(path, follow):
+                    sample = _parse_sample(line)
+                    if sample is None:
+                        n_skipped += bool(line.strip())
+                        continue
+                    n_samples += 1
+                    emit(online.push(*sample))
+            except KeyboardInterrupt:
+                # Ctrl-C is how a --follow stream ends; close it like an EOF.
+                err_console.print("interrupted", style="yellow")
+            # The input ended (stdin EOF, a file without --follow, or Ctrl-C): close the
+            # open bin so the result matches `jitterbug replay` on the same data.
+            emit(online.flush())
+        finally:
+            if output:
+                sink.close()
+        err_console.print(
+            f"{n_samples} samples read, {n_skipped} lines skipped, {n_events} events emitted"
+        )
+    except Exception as e:
+        err_console.print(f"❌ Error: {e}", style="red")
+        raise typer.Exit(1) from None
+
+
+@app.command()
+def replay(
+    input_file: Path = typer.Argument(
+        ..., help="RTT data file to replay in time order", exists=True
+    ),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write every event as a JSON array to this file"
+    ),
+    reference: Path | None = typer.Option(
+        None,
+        "--reference",
+        help="CSV with starts,ends,congestion columns to score the final verdicts against",
+        exists=True,
+    ),
+    format: str | None = typer.Option(
+        None, "--format", help="Input format (csv, json, scamper); inferred from the file"
+    ),
+    config: Path | None = typer.Option(
+        None, "--config", "-c", help="Configuration file (YAML or JSON)", exists=True
+    ),
+    decision: str | None = typer.Option(
+        None, "--decision", help="Change point rule: map, lag, window"
+    ),
+    hazard_lambda: float | None = typer.Option(
+        None, "--hazard-lambda", help="Expected run length in bins"
+    ),
+    min_period_samples: int | None = typer.Option(
+        None, "--min-period-samples", help="Jitter samples before a provisional verdict"
+    ),
+    min_time_elapsed: int | None = typer.Option(
+        None, "--min-time-elapsed", help="Minimum seconds between change points"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+) -> None:
+    """
+    Replay a recorded dataset through the online pipeline and summarize the result.
+
+    [bold]Examples:[/bold]
+
+    • Paper dataset against the paper's KS reference:
+      [cyan]jitterbug replay examples/network_analysis/data/raw.csv \\
+        --reference examples/network_analysis/expected_results/kstest_inferences.csv[/cyan]
+
+    • Keep every event:
+      [cyan]jitterbug replay rtts.csv --output events.json[/cyan]
+    """
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.WARNING,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        stream=sys.stderr,
+    )
+    try:
+        from ..streaming import events_to_json, score
+        from ..streaming import replay as replay_dataset
+
+        jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
+        jitterbug_config = _apply_streaming_overrides(
+            jitterbug_config,
+            decision=decision,
+            hazard_lambda=hazard_lambda,
+            min_period_samples=min_period_samples,
+            min_time_elapsed=min_time_elapsed,
+            verbose=verbose,
+        )
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("Replaying...", total=None)
+            dataset = DataLoader().load_from_file(input_file, format)
+            events = replay_dataset(dataset, jitterbug_config)
+            progress.update(task, total=1, completed=1)
+        summary = score(events, reference)
+        if output:
+            events_to_json(events, output)
+
+        table = Table(title="Online replay", show_header=True, header_style="bold")
+        table.add_column("Metric")
+        table.add_column("Value", justify="right")
+        labels = {
+            "change_points": "Change points",
+            "periods": "Periods with a final verdict",
+            "congested": "Congested periods",
+            "onset_delay_min_median": "Onset delay, median (min)",
+            "onset_delay_min_max": "Onset delay, max (min)",
+            "return_delay_min_median": "Return delay, median (min)",
+            "return_delay_min_max": "Return delay, max (min)",
+            "provisional_flips": "Provisional verdicts that flipped",
+            "provisional_pairs": "Provisional/final pairs",
+            "provisional_lead_h_mean": "Provisional lead, mean (h)",
+            "recovered": "Reference congested periods recovered",
+            "reference_congested": "Reference congested periods",
+            "spurious": "Spurious congested periods",
+            "boundaries_within_30min": "Reference boundaries with a change point within 30 min",
+            "reference_boundaries": "Reference boundaries",
+        }
+        for key, label in labels.items():
+            if key in summary:
+                value = summary[key]
+                if value is None:
+                    text = "-"
+                elif isinstance(value, float):
+                    text = f"{value:.1f}"
+                else:
+                    text = str(value)
+                table.add_row(label, text)
+        console.print(table)
+        if output:
+            console.print(f"\n✅ Events saved to [bold]{output}[/bold]")
+    except Exception as e:
+        console.print(f"❌ Error: {e}", style="red")
         raise typer.Exit(1) from None
 
 
