@@ -39,6 +39,7 @@ nav:
   - Visualization: VISUALIZATION_USAGE.md
   - Clustering mode: CLUSTERING_MODE.md
   - Runtime across releases: PERFORMANCE.md
+  - Online mode (prototype): ONLINE_MODE.md
   - API reference:
       - Analyzer: api/analyzer.md
       - Configuration: api/config.md
