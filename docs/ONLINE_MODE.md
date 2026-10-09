@@ -164,7 +164,10 @@ boundaries within two bins) in `stable_runs` consecutive reruns and the change p
 closes it has been emitted. If the detector moves a boundary by a bin or two between
 reruns, the emitted one stands and the verdict of the offline period that contains it is
 used; if the window moves past a period before it stabilizes, that period is skipped with
-a warning and the chain resumes at the next change point. The window start opens the
+a warning and the chain resumes at the next change point. Because change points come out
+in time order, one that only stabilizes after a later one was emitted is dropped; the
+chain then waits for the next emitted boundary, up to a window length, before it skips.
+The window start opens the
 baseline period, as the stream start does in the incremental back end; once the window
 has moved past the stream start, anything touching its left edge is ignored. The open
 period gets a provisional verdict from the same two-period rule, which always uses the
@@ -183,8 +186,8 @@ recovered, 0 spurious):
 | Sliding window, rerun every 4 bins | 30 / 15 | 14 of 15 | 1 | 30 of 30 | 120 min / 225 min | 180 min / 360 min | 1 of 30 | 39 s |
 
 Both back ends recover the same 14 of 15 reference periods. The incremental detector
-reports onsets within one bin, sooner than the sliding window, whose delay is bounded
-below by `stable_runs × rerun_every_bins` bins. The sliding window places every
+reports onsets within one bin at the median (90 min at worst), sooner than the sliding
+window, whose delay is bounded below by `stable_runs × rerun_every_bins` bins. The sliding window places every
 reference boundary within 30 min, because it sees the whole window when it decides, but
 where the detector moves a boundary between reruns it can produce a short spurious period
 next to a real one (the 4-bin row has one of 1.75 h). Rerunning every bin costs about
