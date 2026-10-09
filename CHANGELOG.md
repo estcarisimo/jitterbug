@@ -27,9 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   setting) and `tools/prefix_experiment.py` (how retrospective the offline pipeline is).
 - A second online back end, `streaming.backend: window` (`jitterbug stream --backend window`):
   the offline sequential pipeline rerun on a trailing window (`window_hours`, default 72)
-  every `rerun_every_bins` closed bins, emitting a change point or verdict once it has been
-  identical in `stable_runs` consecutive reruns. It works with any detector and jitter
-  method and needs no new algorithm, at about 0.1 s per bin with BCP on the paper dataset.
+  every `rerun_every_bins` closed bins, emitting a change point once it has been placed
+  within two bins of the same spot in `stable_runs` consecutive reruns, and final verdicts
+  as a contiguous chain whose boundaries are the emitted change points. It works with any
+  detector and jitter method and needs no new algorithm, at about 0.1 s per bin with BCP on
+  the paper dataset. Events carry `jitter_method` and `jitter_metric`.
   `docs/ONLINE_MODE.md` compares the two back ends (table produced by
   `tools/compare_online_backends.py`, the 4-bin-cadence row pinned in
   `tests/test_paper_regression.py`); `jitterbug.streaming.create_online_analyzer` picks the

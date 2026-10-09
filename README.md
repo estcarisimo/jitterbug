@@ -275,8 +275,8 @@ src/jitterbug/
 │   ├── jitter_analyzer.py  #   jitter dispersion and KS test
 │   ├── congestion_inference_analyzer.py
 │   └── clustering_analyzer.py     # non-sequential mode (GMM / k-means over intervals)
-├── streaming/              # Online mode: OnlineJitterbug (causal bins, Bayesian online change
-│                           #   points, provisional/final verdicts) and replay/score
+├── streaming/              # Online mode: OnlineJitterbug (Bayesian online change points) and
+│                           #   SlidingWindowJitterbug (offline pipeline on a window); replay/score
 ├── io/                     # DataLoader (CSV, scamper JSON, InfluxDB) and exporters
 ├── cli/main.py             # Typer CLI: analyze, validate, config, visualize, stream, replay, version
 └── visualization/          # JitterbugPlotter (matplotlib): the figures behind `jitterbug visualize`

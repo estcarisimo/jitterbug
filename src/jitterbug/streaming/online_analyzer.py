@@ -66,6 +66,10 @@ class StreamingEvent:
     n_prev: int = 0
     n_curr: int = 0
     detector_probability: float | None = None
+    jitter_method: Literal["ks_test", "jitter_dispersion"] | None = None
+    """Jitter test behind ``has_jitter``; the KS fields are set for ``ks_test`` only."""
+    jitter_metric: float | None = None
+    """The jitter test's metric: the KS statistic, or the dispersion change."""
 
     @property
     def delay(self) -> float:
@@ -102,6 +106,8 @@ def verdict_event(
         p_value=verdict.p_value,
         n_prev=verdict.n_prev,
         n_curr=verdict.n_curr,
+        jitter_method="ks_test",
+        jitter_metric=verdict.ks_statistic,
     )
 
 

@@ -271,11 +271,44 @@ def test_window_backend_waits_for_stable_runs(window_events: list) -> None:
     assert cp.delay >= 2 * 4 * INTERVAL_S - INTERVAL_S  # stable_runs=2, rerun every 4 bins
 
 
-def test_window_backend_never_emits_the_same_period_twice(window_events: list) -> None:
-    starts = [e.start_epoch for e in window_events if e.stage == "final"]
-    assert starts == sorted(starts) and len(starts) == len(set(starts))
-    cps = [e.start_epoch for e in window_events if e.kind == "change_point"]
+def _assert_consistent(events: list) -> None:
+    """Change points in time order; finals a contiguous chain over emitted change points."""
+    cps = [e.start_epoch for e in events if e.kind == "change_point"]
     assert cps == sorted(cps) and len(cps) == len(set(cps))
+    finals = [e for e in events if e.stage == "final"]
+    for earlier, later in zip(finals, finals[1:], strict=False):
+        assert earlier.end_epoch == later.start_epoch
+    assert all(e.start_epoch in cps and e.end_epoch in cps for e in finals)
+
+
+def test_window_backend_events_are_consistent(window_events: list) -> None:
+    _assert_consistent(window_events)
+
+
+def test_window_backend_with_jitter_dispersion(window_events: list) -> None:
+    """The final verdicts come from the configured jitter method; provisional ones from KS."""
+    from jitterbug.streaming import SlidingWindowJitterbug
+
+    epochs, rtts = _synthetic(np.random.default_rng(0))
+    config = _window_config()
+    config.jitter_analysis.method = "jitter_dispersion"
+    online = SlidingWindowJitterbug(config)
+    for e, r in zip(epochs, rtts, strict=True):
+        online.push(float(e), float(r))
+    online.flush()
+    _assert_consistent(online.events)
+    finals = [e for e in online.events if e.stage == "final"]
+    assert finals and finals[0].is_congested
+    assert finals[0].jitter_method == "jitter_dispersion"
+    assert finals[0].ks_statistic is None and finals[0].p_value is None
+    assert finals[0].jitter_metric is not None
+    assert finals[0].n_prev > 0 and finals[0].n_curr > 0
+    provisional = [e for e in online.events if e.stage == "provisional"]
+    assert provisional and all(e.jitter_method == "ks_test" for e in provisional)
+    ks_finals = [e for e in window_events if e.stage == "final"]
+    assert ks_finals[0].jitter_method == "ks_test"
+    assert ks_finals[0].ks_statistic == ks_finals[0].jitter_metric
+    assert ks_finals[0].p_value is not None and ks_finals[0].n_curr > 0
 
 
 def test_window_backend_prunes_samples_outside_the_window() -> None:

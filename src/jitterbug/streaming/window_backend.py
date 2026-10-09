@@ -4,11 +4,17 @@ Sliding-window back end: rerun the offline pipeline as the stream grows.
 The baseline the incremental detector is measured against. Every ``rerun_every_bins``
 closed minimum-RTT bins, the sequential pipeline (``JitterbugAnalyzer``, with the
 configured detector and jitter method) runs on the trailing ``window_hours`` of raw
-samples. A change point or a closed period's verdict is emitted once it has come out
-identical, to within one bin, in ``stable_runs`` consecutive reruns; emitted events are
-never retracted. The open period after the last stable change point gets a provisional
-verdict from the shared two-period rule once it holds ``min_period_samples`` jitter
-samples, as in the incremental back end.
+samples. A change point is emitted once the detector has placed one within
+``TOLERANCE_BINS`` of the same bin in ``stable_runs`` consecutive reruns; change points are
+emitted in time order and never retracted. Final verdicts form a contiguous chain: the next
+one is emitted once the offline pipeline has judged the period at the last emitted boundary
+identically (same verdict, boundaries within the tolerance) in ``stable_runs`` consecutive
+reruns and the change point that closes it has been emitted; its boundaries are those
+emitted change points, so change points and verdicts never disagree. If the window moves
+past a period before it stabilizes, that period is skipped with a warning and the chain
+resumes at the next emitted change point. The open period after the last emitted change point gets a
+provisional verdict from the shared two-period rule (always the KS test) once it holds
+``min_period_samples`` jitter samples, as in the incremental back end.
 
 The window start opens the baseline period, as the stream start does in the incremental
 back end: when the detector reports no change point within one bin of the first bin, one
@@ -33,6 +39,13 @@ from .online_analyzer import StreamingEvent, verdict_event
 from .verdict import two_period_verdict
 
 logger = logging.getLogger(__name__)
+
+TOLERANCE_BINS = 2
+"""Two boundaries this many bins apart or closer are the same boundary (30 min at 15-min bins).
+
+The offline detector moves a change point by a bin or two as the window slides; the
+sequential pipeline keeps change points at least ``change_point_detection.min_time_elapsed``
+apart (two bins by default), so a larger tolerance would merge real boundaries."""
 
 
 class SlidingWindowJitterbug:
@@ -61,7 +74,6 @@ class SlidingWindowJitterbug:
 
         self._interval_s = self.config.data_processing.minimum_interval_minutes * 60
         self._window_s = self.streaming.window_hours * 3600
-        self._min_sep_s = self.streaming.min_time_elapsed
 
         self._raw_epochs: list[float] = []
         self._raw_rtts: list[float] = []
@@ -73,7 +85,7 @@ class SlidingWindowJitterbug:
 
         self._cp_streak: dict[int, int] = {}
         self._period_streak: dict[tuple[int, int], tuple[bool, int]] = {}
-        self._last_final_start = -math.inf
+        self._next_final_start: float | None = None  # boundary the next final must start at
         self._provisional_done: set[int] = set()
         self._congestion_state = False
 
@@ -175,6 +187,17 @@ class SlidingWindowJitterbug:
             jitter = analyzer.jitter_analyzer.analyze_ks_test(dataset, cps)
         return cps, analyzer.congestion_inference_analyzer.infer(jumps, jitter)
 
+    def _bin(self, epoch: float) -> int:
+        return int(epoch // self._interval_s)
+
+    def _emitted_near(self, epoch: float) -> float | None:
+        """The emitted change point within ``TOLERANCE_BINS`` of ``epoch``, if any."""
+        target = self._bin(epoch)
+        for cp in reversed(self.change_points):
+            if abs(self._bin(cp) - target) <= TOLERANCE_BINS:
+                return cp
+        return None
+
     def _rerun(self, now: float) -> list[StreamingEvent]:
         events: list[StreamingEvent] = []
         epochs, rtts, window_start = self._window(now)
@@ -183,21 +206,30 @@ class SlidingWindowJitterbug:
         offline_cps, inferences = self._offline(epochs, rtts)
         truncated = window_start > (self._stream_start or -math.inf)
         edge = window_start + self._interval_s if truncated else -math.inf
+        stable = self.streaming.stable_runs
 
-        # Change points: stable across reruns, after the window edge, spaced out.
+        # Change points: within the tolerance of the same bin for `stable` reruns, after
+        # the window edge, later than and not within the tolerance of an emitted one. The
+        # spacing between change points is the offline detector's
+        # (change_point_detection.min_time_elapsed); re-filtering here would leave offline
+        # periods without an emitted boundary.
+        neighbors = range(-TOLERANCE_BINS, TOLERANCE_BINS + 1)
         seen: dict[int, tuple[float, float]] = {}
         for cp in offline_cps:
-            if cp.epoch <= edge:
-                continue
-            seen[int(cp.epoch // self._interval_s)] = (cp.epoch, cp.confidence)
-        self._cp_streak = {k: self._cp_streak.get(k, 0) + 1 for k in seen}
+            if cp.epoch > edge:
+                seen[self._bin(cp.epoch)] = (cp.epoch, cp.confidence)
+        self._cp_streak = {
+            k: 1 + max(self._cp_streak.get(k + d, 0) for d in neighbors) for k in seen
+        }
         for cp_key in sorted(seen):
             cp_epoch, confidence = seen[cp_key]
-            if self._cp_streak[cp_key] < self.streaming.stable_runs:
+            if self._cp_streak[cp_key] < stable:
                 continue
-            if cp_epoch - self.change_points[-1] < self._min_sep_s:
+            if cp_epoch <= self.change_points[-1] or self._emitted_near(cp_epoch) is not None:
                 continue
             self.change_points.append(cp_epoch)
+            if self._next_final_start is None:
+                self._next_final_start = cp_epoch  # the first period that can be judged
             events.append(
                 StreamingEvent(
                     kind="change_point",
@@ -207,56 +239,103 @@ class SlidingWindowJitterbug:
                 )
             )
 
-        # Final verdicts: closed periods whose verdict is stable, in time order, once.
+        # Period streaks: same verdict with both boundaries within the tolerance.
         current: dict[tuple[int, int], tuple[bool, CongestionInference]] = {}
         for period in inferences:
-            if period.start_epoch <= edge:
-                continue
-            period_key = (
-                int(period.start_epoch // self._interval_s),
-                int(period.end_epoch // self._interval_s),
-            )
-            current[period_key] = (bool(period.is_congested), period)
+            if period.start_epoch > edge:
+                key = (self._bin(period.start_epoch), self._bin(period.end_epoch))
+                current[key] = (bool(period.is_congested), period)
         streak: dict[tuple[int, int], tuple[bool, int]] = {}
-        for period_key, (is_congested, _) in current.items():
-            prev = self._period_streak.get(period_key)
-            runs = prev[1] + 1 if prev is not None and prev[0] == is_congested else 1
-            streak[period_key] = (is_congested, runs)
+        for (sb, eb), (is_congested, _) in current.items():
+            best = 0
+            for ds in neighbors:
+                for de in neighbors:
+                    prev = self._period_streak.get((sb + ds, eb + de))
+                    if prev is not None and prev[0] == is_congested:
+                        best = max(best, prev[1])
+            streak[(sb, eb)] = (is_congested, best + 1)
         self._period_streak = streak
-        for period_key in sorted(current):
-            is_congested, period = current[period_key]
-            if streak[period_key][1] < self.streaming.stable_runs:
-                continue
-            if period.start_epoch <= self._last_final_start:
-                continue
-            self._last_final_start = period.start_epoch
+
+        # Final verdicts: a contiguous chain whose boundaries are emitted change points.
+        jitter_epochs = epochs[1:]
+        while self._next_final_start is not None:
+            start_cp = self._next_final_start
+            # The offline period at our boundary: one that starts within the tolerance, or
+            # failing that one that contains it (the detector moved the boundary; ours stands).
+            ordered = sorted(current.items())
+            match = next(
+                (
+                    (key, v, period)
+                    for key, (v, period) in ordered
+                    if abs(key[0] - self._bin(start_cp)) <= TOLERANCE_BINS
+                ),
+                None,
+            ) or next(
+                (
+                    (key, v, period)
+                    for key, (v, period) in ordered
+                    if period.start_epoch < start_cp < period.end_epoch
+                ),
+                None,
+            )
+            if match is None:
+                if start_cp <= edge:
+                    # The window left this period behind before it stabilized.
+                    later = [cp for cp in self.change_points if cp > edge]
+                    logger.warning(
+                        "Period starting at %s never stabilized before leaving the window; skipped",
+                        start_cp,
+                    )
+                    self._next_final_start = later[0] if later else None
+                    if self._next_final_start == start_cp:
+                        break
+                    continue
+                break
+            key, is_congested, period = match
+            if streak[key][1] < stable:
+                break
+            end_cp = self._emitted_near(period.end_epoch)
+            if end_cp is None or end_cp <= start_cp:
+                break  # wait for the closing change point to be emitted
+            prev_cp = next(
+                (cp for cp in reversed(self.change_points) if cp < start_cp), window_start
+            )
+            prev_start = max(prev_cp, window_start)
+            in_prev = (jitter_epochs >= prev_start) & (jitter_epochs < start_cp)
+            in_cur = (jitter_epochs >= start_cp) & (jitter_epochs <= end_cp)
             self._congestion_state = is_congested
+            self._next_final_start = end_cp
             jump = period.latency_jump
             jitter = period.jitter_analysis
+            ks = jitter is not None and jitter.method == "ks_test"
             events.append(
                 StreamingEvent(
                     kind="verdict",
                     emitted_at=now,
-                    start_epoch=period.start_epoch,
-                    end_epoch=period.end_epoch,
+                    start_epoch=start_cp,
+                    end_epoch=end_cp,
                     stage="final",
                     is_congested=is_congested,
                     confidence=float(period.confidence),
                     has_jump=None if jump is None else jump.has_jump,
                     jump_magnitude=None if jump is None else jump.magnitude,
                     has_jitter=None if jitter is None else jitter.has_significant_jitter,
-                    ks_statistic=None if jitter is None else jitter.jitter_metric,
-                    p_value=None if jitter is None else jitter.p_value,
+                    ks_statistic=jitter.jitter_metric if ks and jitter is not None else None,
+                    p_value=jitter.p_value if ks and jitter is not None else None,
+                    n_prev=int(np.count_nonzero(in_prev)),
+                    n_curr=int(np.count_nonzero(in_cur)),
+                    jitter_method=None if jitter is None else jitter.method,
+                    jitter_metric=None if jitter is None else jitter.jitter_metric,
                 )
             )
 
         # Provisional verdict for the open period after the last emitted change point.
         if len(self.change_points) >= 2:
             cur_start = self.change_points[-1]
-            open_key = int(cur_start // self._interval_s)
-            if open_key not in self._provisional_done and cur_start > self._last_final_start:
+            open_key = self._bin(cur_start)
+            if open_key not in self._provisional_done:
                 prev_start = max(self.change_points[-2], window_start)
-                jitter_epochs, jitter_values = epochs[1:], np.diff(rtts)
+                jitter_values = np.diff(rtts)
                 cur_jitter = jitter_values[jitter_epochs >= cur_start]
                 if len(cur_jitter) >= self.streaming.min_period_samples:
                     prev_jitter = jitter_values[
@@ -265,7 +344,7 @@ class SlidingWindowJitterbug:
                     bins = pd.Series(rtts).groupby(epochs // self._interval_s).min()
                     bin_ids = bins.index.to_numpy()
                     bin_values = bins.to_numpy()
-                    prev_id, cur_id = prev_start // self._interval_s, cur_start // self._interval_s
+                    prev_id, cur_id = self._bin(prev_start), self._bin(cur_start)
                     prev_bins = bin_values[(bin_ids >= prev_id) & (bin_ids < cur_id)]
                     cur_bins = bin_values[bin_ids >= cur_id]
                     provisional = two_period_verdict(
