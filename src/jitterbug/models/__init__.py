@@ -16,6 +16,7 @@ from .config import (
     JitterAnalysisConfig,
     JitterbugConfig,
     LatencyJumpConfig,
+    StreamingConfig,
 )
 from .rtt_data import MAX_RTT_MS, MinimumRTTDataset, RTTDataset, RTTMeasurement
 
@@ -35,4 +36,5 @@ __all__ = [
     "LatencyJumpConfig",
     "DataProcessingConfig",
     "ClusteringConfig",
+    "StreamingConfig",
 ]

@@ -1,6 +1,7 @@
 """Smoke tests for the Typer CLI on the bundled PAM 2022 example dataset."""
 
 import importlib.metadata
+import importlib.util
 import json
 from pathlib import Path
 
@@ -14,6 +15,9 @@ from jitterbug.models import JitterbugConfig
 EXAMPLE_CSV = (
     Path(__file__).resolve().parents[1] / "examples" / "network_analysis" / "data" / "raw.csv"
 )
+
+REFERENCE_CSV = EXAMPLE_CSV.parents[1] / "expected_results" / "kstest_inferences.csv"
+BCP_MISSING = importlib.util.find_spec("bayesian_changepoint_detection") is None
 
 runner = CliRunner()
 
@@ -247,3 +251,67 @@ def test_analyze_reads_and_writes_zstandard(tmp_path: Path):
     assert packed_input.stat().st_size < EXAMPLE_CSV.stat().st_size / 2
     with open_text(out) as f:
         assert json.load(f)["inferences"]
+
+
+def test_config_template_has_a_streaming_section():
+    result = runner.invoke(app, ["config", "--template"])
+    assert result.exit_code == 0
+    assert "streaming:" in result.stdout
+    assert "hazard_lambda" in result.stdout
+
+
+def test_streaming_overrides_only_touch_the_flags_given(tmp_path: Path):
+    from jitterbug.cli.main import _apply_streaming_overrides
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("streaming:\n  decision: window\n  lag: 2\n")
+    base = JitterbugConfig.from_file(cfg)
+    out = _apply_streaming_overrides(base, min_period_samples=40, min_time_elapsed=1800)
+    assert out.streaming.decision == "window"
+    assert out.streaming.lag == 2
+    assert out.streaming.min_period_samples == 40
+    assert out.streaming.min_time_elapsed == 1800
+    assert out.streaming.hazard_lambda == 50.0
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_reads_stdin_and_emits_json_lines():
+    # 400 samples 30 s apart: 3.3 h, so several 15-minute bins close.
+    lines = ["epoch,values"] + [f"{1_700_000_000 + 30 * i},{10 + i % 3}" for i in range(400)]
+    result = runner.invoke(
+        app, ["stream", "--events", "change-points"], input="\n".join(lines) + "\n"
+    )
+    assert result.exit_code == 0, result.output
+    events = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
+    assert events and events[0]["kind"] == "change_point"
+    assert events[0]["start_epoch"] == 1_700_000_000.0  # the stream start opens the baseline
+    assert all(e["kind"] == "change_point" for e in events)
+
+
+def test_stream_rejects_an_unknown_event_filter():
+    result = runner.invoke(app, ["stream", "--events", "everything"], input="")
+    assert result.exit_code == 2
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_missing_file_is_an_error(tmp_path: Path):
+    result = runner.invoke(app, ["stream", str(tmp_path / "nope.csv")])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    BCP_MISSING or not EXAMPLE_CSV.exists(), reason="bcp extra or example dataset missing"
+)
+def test_replay_example_dataset_against_the_reference(tmp_path: Path):
+    out = tmp_path / "events.json"
+    result = runner.invoke(
+        app,
+        ["replay", str(EXAMPLE_CSV), "--output", str(out), "--reference", str(REFERENCE_CSV)],
+    )
+    assert result.exit_code == 0, result.output
+    events = json.loads(out.read_text())
+    assert any(e["kind"] == "verdict" and e["stage"] == "final" for e in events)
+    assert "Reference congested periods recovered" in result.stdout
+    assert "Events saved to" in result.stdout

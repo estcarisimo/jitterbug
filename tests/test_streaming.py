@@ -7,12 +7,18 @@ import importlib.util
 import numpy as np
 import pytest
 
+from jitterbug.models import JitterbugConfig, StreamingConfig
+
 pytestmark = pytest.mark.skipif(
     importlib.util.find_spec("bayesian_changepoint_detection") is None,
     reason="bcp extra not installed",
 )
 
 INTERVAL_S = 15 * 60
+
+
+def _config(**streaming: object) -> JitterbugConfig:
+    return JitterbugConfig(streaming=StreamingConfig(**streaming))  # type: ignore[arg-type]
 
 
 def _synthetic(rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
@@ -34,10 +40,10 @@ def _synthetic(rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
 
 @pytest.fixture(scope="module")
 def events() -> list:
-    from jitterbug.streaming import OnlineJitterbug, StreamingConfig
+    from jitterbug.streaming import OnlineJitterbug
 
     epochs, rtts = _synthetic(np.random.default_rng(0))
-    online = OnlineJitterbug(StreamingConfig())
+    online = OnlineJitterbug()
     for e, r in zip(epochs, rtts, strict=True):
         online.push(float(e), float(r))
     online.flush()
@@ -114,10 +120,10 @@ def test_flush_on_empty_or_closed_stream_is_a_no_op() -> None:
 
 @pytest.mark.parametrize("decision", ["lag", "window"])
 def test_fixed_delay_rules_report_the_onset(decision: str) -> None:
-    from jitterbug.streaming import OnlineJitterbug, StreamingConfig
+    from jitterbug.streaming import OnlineJitterbug
 
     epochs, rtts = _synthetic(np.random.default_rng(1))
-    online = OnlineJitterbug(StreamingConfig(decision=decision, lag=2, threshold=0.3))
+    online = OnlineJitterbug(_config(decision=decision, lag=2, threshold=0.3))
     for e, r in zip(epochs, rtts, strict=True):
         online.push(float(e), float(r))
     onset = 1_700_000_000.0 + 48 * 3600
@@ -131,10 +137,10 @@ def test_fixed_delay_rules_report_the_onset(decision: str) -> None:
 @pytest.mark.parametrize("config_kwargs", [{"hazard_lambda": 1}, {"max_run_length": 3}])
 def test_map_rule_survives_run_length_zero_being_most_probable(config_kwargs: dict) -> None:
     """Regression: a tiny hazard or truncation made run length 0 the MAP and crashed."""
-    from jitterbug.streaming import OnlineJitterbug, StreamingConfig
+    from jitterbug.streaming import OnlineJitterbug
 
     rng = np.random.default_rng(2)
-    online = OnlineJitterbug(StreamingConfig(**config_kwargs))
+    online = OnlineJitterbug(_config(**config_kwargs))
     t = 1_700_000_000.0
     for i in range(4000):
         online.push(t + 30.0 * i, 10.0 + 20.0 * ((i // 1500) % 2) + rng.exponential(0.5))
@@ -145,8 +151,6 @@ def test_map_rule_survives_run_length_zero_being_most_probable(config_kwargs: di
 
 def test_lag_larger_than_run_length_is_rejected() -> None:
     from pydantic import ValidationError
-
-    from jitterbug.streaming import StreamingConfig
 
     with pytest.raises(ValidationError, match="max_run_length"):
         StreamingConfig(decision="lag", lag=10, max_run_length=5)
@@ -159,10 +163,10 @@ def test_lag_larger_than_run_length_is_rejected() -> None:
 
 
 def test_buffers_are_pruned_across_many_periods() -> None:
-    from jitterbug.streaming import OnlineJitterbug, StreamingConfig
+    from jitterbug.streaming import OnlineJitterbug
 
     rng = np.random.default_rng(3)
-    online = OnlineJitterbug(StreamingConfig())
+    online = OnlineJitterbug()
     t = 1_700_000_000.0
     n = 12 * 1200  # 12 segments of 10 h at one sample per 30 s
     for i in range(n):
@@ -174,3 +178,27 @@ def test_buffers_are_pruned_across_many_periods() -> None:
     assert len(finals) >= 9
     assert len(online._raw_epochs) < 3 * 1200  # at most the previous and open periods
     assert online._pruned_bins > 0
+
+
+def test_streaming_settings_come_from_the_shared_config_sections() -> None:
+    """Bin width, latency threshold, significance level and device are not duplicated."""
+    from jitterbug.streaming import OnlineJitterbug
+
+    config = JitterbugConfig()
+    config.data_processing.minimum_interval_minutes = 5
+    config.latency_jump.threshold = 2.0
+    online = OnlineJitterbug(config)
+    assert online._interval_s == 300
+    assert online.config.latency_jump.threshold == 2.0
+    assert online.streaming is config.streaming
+
+
+def test_streaming_section_round_trips_through_a_config_file(tmp_path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text("streaming:\n  decision: window\n  lag: 2\n  min_period_samples: 40\n")
+    loaded = JitterbugConfig.from_file(path)
+    assert loaded.streaming.decision == "window"
+    assert loaded.streaming.lag == 2
+    assert loaded.streaming.min_period_samples == 40
+    assert loaded.streaming.hazard_lambda == 50.0  # default kept
+    assert "streaming" in JitterbugConfig().model_dump()

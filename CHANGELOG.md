@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CLI or `JitterbugConfig` yet; see `docs/ONLINE_MODE.md`. Harness: `tools/replay_online.py`
   (replay and score the paper dataset, `--sweep`) and `tools/prefix_experiment.py` (how
   retrospective the offline pipeline is).
+- The online mode is now configured and driven like the rest of Jitterbug: `StreamingConfig`
+  is the `streaming` section of `JitterbugConfig` (the bin width, latency jump threshold,
+  significance level and device come from the shared sections), `jitterbug stream` infers
+  congestion from `epoch,rtt` lines on a file or standard input (`--follow`, `--events`) and
+  prints JSON events, `jitterbug replay` runs a recorded dataset through the online pipeline
+  and scores it against a reference (`--reference`, `--output`). `jitterbug.streaming.replay`
+  and `score` back both the command and `tools/replay_online.py`, which gained flags for every
+  online setting (`--min-time-elapsed`, `--min-period-samples`, ...). The online results on the
+  paper dataset are pinned in `tests/test_paper_regression.py` (`TestOnlineReplay`: 33 change
+  points, 31 periods, 15 congested, 14 of 15 reference periods recovered, 0 spurious, onset
+  delay 15 min median). `OnlineJitterbug` now takes a `JitterbugConfig` instead of a
+  `StreamingConfig`.
 
 - Runtime comparison across releases (`docs/PERFORMANCE.md`) and the script that produces
   it (`tools/benchmark_versions.py`). On the paper dataset with BCP + KS, 2.3.0 takes

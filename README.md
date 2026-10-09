@@ -51,7 +51,7 @@ See [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/do
 
 | Extra | Installs | Use it for |
 | --- | --- | --- |
-| `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | The Bayesian detector used in the paper |
+| `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | The Bayesian detector used in the paper, and the online mode (`jitterbug stream` / `replay`) |
 | `clustering` | scikit-learn | The non-sequential mode (`--mode clustering`) |
 | `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
 | `zstd` | zstandard (not needed on Python 3.14+) | Reading and writing `.zst`-compressed files |
@@ -111,6 +111,20 @@ jitterbug visualize examples/network_analysis/data/raw.csv --output-dir plots
 ```
 
 The figures are described in [docs/VISUALIZATION_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/VISUALIZATION_USAGE.md), together with the `JitterbugPlotter` API for your own scripts.
+
+### Online mode: stream and replay
+
+```bash
+# Infer congestion as samples arrive: `epoch,rtt` lines on stdin, one JSON event per line;
+# needs `uv sync --extra bcp`
+my-probe | jitterbug stream --events verdicts
+
+# Replay a recorded dataset through the online pipeline and score it against a reference
+jitterbug replay examples/network_analysis/data/raw.csv \
+  --reference examples/network_analysis/expected_results/kstest_inferences.csv
+```
+
+Congestion onsets are reported one 15-minute bin after they start; see [docs/ONLINE_MODE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ONLINE_MODE.md) for the method, the results on the paper dataset and the `streaming` configuration section.
 
 ### Configuration files
 
@@ -261,8 +275,10 @@ src/jitterbug/
 │   ├── jitter_analyzer.py  #   jitter dispersion and KS test
 │   ├── congestion_inference_analyzer.py
 │   └── clustering_analyzer.py     # non-sequential mode (GMM / k-means over intervals)
+├── streaming/              # Online mode: OnlineJitterbug (causal bins, Bayesian online change
+│                           #   points, provisional/final verdicts) and replay/score
 ├── io/                     # DataLoader (CSV, scamper JSON, InfluxDB) and exporters
-├── cli/main.py             # Typer CLI: analyze, validate, config, visualize, version
+├── cli/main.py             # Typer CLI: analyze, validate, config, visualize, stream, replay, version
 └── visualization/          # JitterbugPlotter (matplotlib): the figures behind `jitterbug visualize`
 ```
 
