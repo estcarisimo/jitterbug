@@ -167,29 +167,28 @@ ground truth. The stream's first period is taken as the baseline.
 
 ## Back ends compared
 
-The `window` back end is the obvious alternative to a new detector: every
-`rerun_every_bins` closed bins, run the sequential pipeline (the configured detector and
-jitter method, so it also works with `ruptures` and with jitter dispersion) on the trailing
-`window_hours` of samples. A change point is emitted once the detector has placed one
-within two bins of the same spot in `stable_runs` consecutive reruns; change points come
-out in time order and are never retracted. Final verdicts form a contiguous chain whose
-boundaries are the emitted change points: the next one is emitted once the offline
-pipeline has judged the period at the last emitted boundary identically (same verdict,
-boundaries within two bins) in `stable_runs` consecutive reruns and the change point that
-closes it has been emitted. If the detector moves a boundary by a bin or two between
-reruns, the emitted one stands and the verdict of the offline period that contains it is
-used; if the window moves past a period before it stabilizes, that period is skipped with
-a warning and the chain resumes at the next change point. Because change points come out
-in time order, one that only stabilizes after a later one was emitted is dropped; the
-chain then waits for the next emitted boundary, up to a window length, before it skips.
-The window start opens the
-baseline period, as the stream start does in the incremental back end; once the window
-has moved past the stream start, anything touching its left edge is ignored. The open
-period gets a provisional verdict from the same two-period rule with the configured
-jitter method (trailing filters for dispersion; `jitter_method` on each event says which).
-On every event, `n_prev` and `n_curr` count the observations the jitter test used: raw
-jitter samples for the KS test, dispersion values for dispersion. The prefix experiment above showed why this works: the offline
-boundaries never move and verdicts rarely flip.
+The `window` back end is the obvious alternative to a new detector: every `rerun_every_bins`
+closed bins, run the sequential pipeline (the configured detector and jitter method, so it
+also works with `ruptures` and with jitter dispersion) on the trailing `window_hours` of
+samples. A change point is emitted once the detector has placed one within two bins of the
+same spot in `stable_runs` consecutive reruns; change points come out in time order and are
+never retracted. Final verdicts form a contiguous chain whose boundaries are the emitted
+change points: the next one is emitted once the offline pipeline has judged the period at
+the last emitted boundary identically (same verdict, boundaries within two bins) in
+`stable_runs` consecutive reruns and the change point that closes it has been emitted. If
+the detector moves a boundary by a bin or two between reruns, the emitted one stands and the
+verdict of the offline period that contains it is used; if the window moves past a period
+before it stabilizes, that period is skipped with a warning and the chain resumes at the
+next change point. Because change points come out in time order, one that only stabilizes
+after a later one was emitted is dropped; the chain then waits for the next emitted
+boundary, up to a window length, before it skips. The window start opens the baseline
+period, as the stream start does in the incremental back end; once the window has moved past
+the stream start, anything touching its left edge is ignored. The open period gets a
+provisional verdict from the same two-period rule with the configured jitter method
+(trailing filters for dispersion; `jitter_method` on each event says which). On every event,
+`n_prev` and `n_curr` count the observations the jitter test used: raw jitter samples for
+the KS test, dispersion values for dispersion. The prefix experiment above showed why this
+works: the offline boundaries never move and verdicts rarely flip.
 
 BCP on the paper dataset, each row scored against the paper's reference for its jitter
 method (`jitterbug replay` on the full series; offline, BCP + KS gives 28 periods / 14

@@ -681,7 +681,7 @@ def replay(
     [bold]Examples:[/bold]
 
     • Paper dataset against the paper's KS reference:
-      [cyan]jitterbug replay examples/network_analysis/data/raw.csv --method ks_test \
+      [cyan]jitterbug replay examples/network_analysis/data/raw.csv --method ks_test \\
         --reference examples/network_analysis/expected_results/kstest_inferences.csv[/cyan]
 
     • Keep every event:
