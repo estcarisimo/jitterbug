@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Jitter dispersion in the online mode. `JitterAnalyzer.compute_causal_jitter_dispersion`
+  applies the offline filters (moving IQR, moving average) as trailing windows, so a value
+  never depends on later bins; the series is the offline one delayed by 6 bins at the default
+  orders and the threshold keeps its meaning. Both online back ends now follow
+  `jitter_analysis.method` for provisional and final verdicts (the config default,
+  `jitter_dispersion`, included; 2.4.0 always used the KS test online). A provisional verdict
+  with dispersion waits until the open period holds 12 dispersion values. `jitterbug stream`
+  and `jitterbug replay` take `--method`; `tools/replay_online.py` too. On the paper dataset
+  BCP + causal dispersion recovers 14 of the 15 reference periods of the paper's dispersion
+  output with none spurious, like the offline pipeline, with no provisional flips; pinned in
+  `tests/test_paper_regression.py` (`TestOnlineDispersionReplay`) and in the back ends table
+  of `docs/ONLINE_MODE.md`.
+
+### Changed
+
+- The online mode no longer forces the KS test: with the default configuration it uses jitter
+  dispersion, like `jitterbug analyze`. Pass `--method ks_test` (or set
+  `jitter_analysis.method`) for the 2.4.0 behavior.
+
 ## [2.4.0] - 2026-10-09
 
 ### Added

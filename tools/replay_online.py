@@ -3,7 +3,9 @@ Replay the paper dataset through the online mode and score it, or sweep its para
 
 Thin wrapper over ``jitterbug.streaming.replay`` / ``score`` (which ``jitterbug replay``
 also uses) that adds the parameter sweep and exposes every ``StreamingConfig`` field as
-a flag.
+a flag. Unlike the CLI, ``--method`` defaults to ``ks_test`` here: the sweep figures quoted
+in ``docs/ONLINE_MODE.md`` are KS figures. The reference file follows the method unless
+``--reference`` is given.
 
 Usage::
 
@@ -28,7 +30,10 @@ from jitterbug.streaming import events_to_json, replay, score
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW_CSV = ROOT / "examples/network_analysis/data/raw.csv"
-REFERENCE = ROOT / "examples/network_analysis/expected_results/kstest_inferences.csv"
+REFERENCES = {
+    "ks_test": ROOT / "examples/network_analysis/expected_results/kstest_inferences.csv",
+    "jitter_dispersion": ROOT / "examples/network_analysis/expected_results/jd_inferences.csv",
+}
 logging.getLogger("jitterbug").setLevel(logging.ERROR)
 
 SWEEP_COLUMNS = [
@@ -63,11 +68,16 @@ FIELDS = (
 )
 
 
-def _config(**streaming: Any) -> JitterbugConfig:
-    return JitterbugConfig(streaming=StreamingConfig(**streaming))
+def _config(method: str = "ks_test", **streaming: Any) -> JitterbugConfig:
+    config = JitterbugConfig(streaming=StreamingConfig(**streaming))
+    config.change_point_detection.algorithm = "bcp"  # the paper's detector
+    config.jitter_analysis.method = method  # type: ignore[assignment]
+    return config
 
 
-def _sweep(dataset: RTTDataset, reference: Path, fixed: dict[str, Any]) -> pd.DataFrame:
+def _sweep(
+    dataset: RTTDataset, reference: Path, method: str, fixed: dict[str, Any]
+) -> pd.DataFrame:
     grid = itertools.product(
         ["lag", "window", "map"], [2, 4, 8], [25.0, 50.0, 100.0], [0.3, 0.5, 0.7]
     )
@@ -77,7 +87,9 @@ def _sweep(dataset: RTTDataset, reference: Path, fixed: dict[str, Any]) -> pd.Da
             continue  # lag and threshold do not apply to the MAP rule
         if decision == "lag" and thr == 0.7:
             continue
-        config = _config(decision=decision, lag=lag, hazard_lambda=lam, threshold=thr, **fixed)
+        config = _config(
+            method, decision=decision, lag=lag, hazard_lambda=lam, threshold=thr, **fixed
+        )
         summary = score(replay(dataset, config), reference)
         rows.append(
             {"decision": decision, "lag": lag, "lambda": lam, "thr": thr}
@@ -89,7 +101,8 @@ def _sweep(dataset: RTTDataset, reference: Path, fixed: dict[str, Any]) -> pd.Da
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--csv", type=Path, default=RAW_CSV)
-    parser.add_argument("--reference", type=Path, default=REFERENCE)
+    parser.add_argument("--reference", type=Path, help="Defaults to the paper's file for --method")
+    parser.add_argument("--method", choices=["ks_test", "jitter_dispersion"], default="ks_test")
     parser.add_argument("--backend", choices=["bocpd", "window"])
     parser.add_argument("--window-hours", type=float)
     parser.add_argument("--rerun-every-bins", type=int)
@@ -109,16 +122,17 @@ def main() -> None:
 
     dataset = DataLoader().load_from_file(args.csv)
     given = {key: getattr(args, key) for key in FIELDS if getattr(args, key) is not None}
+    reference = args.reference or REFERENCES[args.method]
 
     if args.sweep:
         fixed = {k: v for k, v in given.items() if k not in SWEEP_AXES}
-        table = _sweep(dataset, args.reference, fixed)
+        table = _sweep(dataset, reference, args.method, fixed)
         with pd.option_context("display.width", 250, "display.max_columns", 30):
             print(table.to_string(index=False))
         return
 
-    events = replay(dataset, _config(**given))
-    for key, value in score(events, args.reference).items():
+    events = replay(dataset, _config(args.method, **given))
+    for key, value in score(events, reference).items():
         print(f"{key:28s} {value}")
     if args.events:
         events_to_json(events, args.events)

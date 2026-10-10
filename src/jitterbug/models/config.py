@@ -317,7 +317,10 @@ class StreamingConfig(BaseModel):
         guard, 0-1); ``0`` relies on the p-value only.
     min_period_samples : int
         Jitter samples the open period must hold before a provisional verdict. About
-        three 15-minute bins on the paper dataset; 30 gives noisy p-values.
+        three 15-minute bins on the paper dataset; 30 gives noisy p-values. With
+        ``jitter_analysis.method: jitter_dispersion`` the verdict also waits for enough
+        causal dispersion values (``JitterAnalyzer.causal_dispersion_delay`` plus
+        ``moving_average_order`` bins).
     """
 
     backend: Literal["bocpd", "window"] = Field(

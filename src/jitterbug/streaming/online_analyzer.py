@@ -21,8 +21,16 @@ the period. This module runs the same decision rule one RTT sample at a time:
    jitter samples. When the next change point closes the period, the *final* verdict is
    emitted with the full period, which is exactly what the sequential pipeline computes.
 
-Only the Kolmogorov-Smirnov jitter test is supported: it uses consecutive RTT
-differences and is causal. The jitter-dispersion filters are centered and are not.
+Both jitter methods work online. The Kolmogorov-Smirnov test uses consecutive RTT
+differences and is causal as it stands. Jitter dispersion uses the trailing version of
+the offline filters (``JitterAnalyzer.compute_causal_jitter_dispersion``): same window
+lengths, each ending at the bin it describes, so its series is the offline one delayed
+by ``JitterAnalyzer.causal_dispersion_delay`` bins (6 bins, 1.5 h, by default). A
+dispersion value reflects the new period alone only after that delay, so a provisional
+verdict with dispersion waits until the open period holds ``delay + moving_average_order``
+dispersion values (12 bins, 3 h, by default); with fewer, the provisional verdict is still
+dominated by the previous period's jitter (11 of 31 flipped on the paper dataset with 6,
+none with 12).
 
 Settings live in ``JitterbugConfig.streaming`` (``models.config.StreamingConfig``); the bin
 width, latency jump threshold, significance level and device come from the shared
@@ -39,6 +47,7 @@ from typing import Any, Literal
 
 import numpy as np
 
+from ..analysis.jitter_analyzer import JitterAnalyzer
 from ..models import JitterbugConfig
 from .verdict import PeriodVerdict, two_period_verdict
 
@@ -106,8 +115,8 @@ def verdict_event(
         p_value=verdict.p_value,
         n_prev=verdict.n_prev,
         n_curr=verdict.n_curr,
-        jitter_method="ks_test",
-        jitter_metric=verdict.ks_statistic,
+        jitter_method=verdict.jitter_method,
+        jitter_metric=verdict.jitter_metric,
     )
 
 
@@ -130,6 +139,7 @@ class OnlineJitterbug:
     def __init__(self, config: JitterbugConfig | None = None) -> None:
         self.config = config or JitterbugConfig()
         self.streaming = self.config.streaming
+        self._jitter_analyzer = JitterAnalyzer(self.config.jitter_analysis)
         try:
             from bayesian_changepoint_detection.hazard_functions import constant_hazard
             from bayesian_changepoint_detection.online_likelihoods import StudentT
@@ -198,9 +208,7 @@ class OnlineJitterbug:
         self._raw_epochs.append(epoch)
         self._raw_rtts.append(rtt)
 
-        if self._awaiting_provisional and self._open_period_jitter_count() >= (
-            self.streaming.min_period_samples
-        ):
+        if self._awaiting_provisional and self._provisional_ready():
             events.append(self._verdict("provisional", emitted_at=epoch, end_epoch=None))
             self._awaiting_provisional = False
 
@@ -313,6 +321,8 @@ class OnlineJitterbug:
         del self._raw_epochs[:n_raw]
         del self._raw_rtts[:n_raw]
         n_bins = int(np.searchsorted(np.asarray(self._bin_epochs), keep_from, side="left"))
+        # The causal dispersion filters look back this many bins before the period.
+        n_bins = max(0, n_bins - self._jitter_analyzer.causal_dispersion_lag - 1)
         del self._bin_epochs[:n_bins]
         del self._bin_values[:n_bins]
         self._pruned_bins += n_bins
@@ -331,6 +341,30 @@ class OnlineJitterbug:
         jitter_epochs, _ = self._jitter()
         return int(np.count_nonzero(jitter_epochs >= self.change_points[-1]))
 
+    def _dispersion(self, include_open_bin: bool) -> tuple[np.ndarray, np.ndarray]:
+        """Causal jitter dispersion over the kept bins (plus the open bin's minimum so far)."""
+        epochs = np.asarray(self._bin_epochs)
+        values = np.asarray(self._bin_values)
+        if include_open_bin and math.isfinite(self._bin_min_rtt):
+            epochs = np.append(epochs, self._bin_min_epoch)
+            values = np.append(values, self._bin_min_rtt)
+        return self._jitter_analyzer.compute_causal_jitter_dispersion(epochs, values)
+
+    def _provisional_ready(self) -> bool:
+        """Enough of the open period to judge it: jitter samples, and dispersion values."""
+        if self._open_period_jitter_count() < self.streaming.min_period_samples:
+            return False
+        if self.config.jitter_analysis.method == "ks_test":
+            return True
+        epochs, _ = self._dispersion(include_open_bin=True)
+        in_period = np.count_nonzero(epochs >= self.change_points[-1])
+        return bool(in_period >= self._provisional_dispersion_values())
+
+    def _provisional_dispersion_values(self) -> int:
+        """Dispersion values the open period needs before a provisional verdict."""
+        analyzer = self._jitter_analyzer
+        return analyzer.causal_dispersion_delay + analyzer.config.moving_average_order
+
     def _verdict(
         self, stage: Literal["provisional", "final"], emitted_at: float, end_epoch: float | None
     ) -> StreamingEvent:
@@ -344,7 +378,10 @@ class OnlineJitterbug:
         if stage == "provisional" and math.isfinite(self._bin_min_rtt):
             cur_bins = np.append(cur_bins, self._bin_min_rtt)  # the open bin counts too
 
-        jitter_epochs, jitter_values = self._jitter()
+        if self.config.jitter_analysis.method == "ks_test":
+            jitter_epochs, jitter_values = self._jitter()
+        else:
+            jitter_epochs, jitter_values = self._dispersion(include_open_bin=stage == "provisional")
         prev_jitter = jitter_values[(jitter_epochs >= prev_start) & (jitter_epochs < cur_start)]
         cur_jitter = jitter_values[(jitter_epochs >= cur_start) & (jitter_epochs <= end)]
 

@@ -117,15 +117,17 @@ class TestBayesianKSTest:
     reason="bcp extra not installed",
 )
 class TestOnlineReplay:
-    """The online mode (MAP rule, defaults) replayed over the paper dataset."""
+    """The online mode (MAP rule, defaults, KS test) replayed over the paper dataset."""
 
     @pytest.fixture(scope="class")
     def summary(self) -> dict:
         from jitterbug.io import DataLoader
         from jitterbug.streaming import replay, score
 
+        config = JitterbugConfig()
+        config.jitter_analysis.method = "ks_test"  # type: ignore[assignment]
         dataset = DataLoader().load_from_file(RAW_CSV)
-        return score(replay(dataset, JitterbugConfig()), REFERENCE["ks_test"])
+        return score(replay(dataset, config), REFERENCE["ks_test"])
 
     def test_golden(self, summary: dict) -> None:
         assert summary["change_points"] == 33
@@ -147,6 +149,38 @@ class TestOnlineReplay:
         assert_allclose(summary["onset_delay_min_max"], 90.0, atol=0.1)
         assert_allclose(summary["return_delay_min_median"], 135.0, atol=0.1)
         assert_allclose(summary["return_delay_min_max"], 255.0, atol=0.1)
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    importlib.util.find_spec("bayesian_changepoint_detection") is None,
+    reason="bcp extra not installed",
+)
+class TestOnlineDispersionReplay:
+    """The online mode with causal jitter dispersion, against the paper's dispersion reference."""
+
+    @pytest.fixture(scope="class")
+    def summary(self) -> dict:
+        from jitterbug.io import DataLoader
+        from jitterbug.streaming import replay, score
+
+        config = JitterbugConfig()
+        config.change_point_detection.algorithm = "bcp"  # type: ignore[assignment]
+        config.jitter_analysis.method = "jitter_dispersion"  # type: ignore[assignment]
+        dataset = DataLoader().load_from_file(RAW_CSV)
+        return score(replay(dataset, config), REFERENCE["jitter_dispersion"])
+
+    def test_golden(self, summary: dict) -> None:
+        assert summary["change_points"] == 33
+        assert summary["periods"] == 31
+        assert summary["congested"] == 15
+        assert summary["provisional_pairs"] == 31
+        assert summary["provisional_flips"] == 0
+
+    def test_agrees_with_paper(self, summary: dict) -> None:
+        assert summary["reference_congested"] == 15
+        assert summary["recovered"] >= 14
+        assert summary["spurious"] == 0
 
 
 @pytest.mark.slow

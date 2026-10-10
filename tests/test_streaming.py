@@ -18,7 +18,32 @@ INTERVAL_S = 15 * 60
 
 
 def _config(**streaming: object) -> JitterbugConfig:
-    return JitterbugConfig(streaming=StreamingConfig(**streaming))  # type: ignore[arg-type]
+    """Online config with the KS jitter method (the config default is dispersion)."""
+    config = JitterbugConfig(streaming=StreamingConfig(**streaming))  # type: ignore[arg-type]
+    config.jitter_analysis.method = "ks_test"
+    return config
+
+
+def _synthetic_dispersive(rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """Like ``_synthetic`` but the congested minimum RTT also wanders, bin to bin.
+
+    Jitter dispersion works on the minimum RTT per bin; an exponential tail alone barely
+    moves that minimum, so the congested segment gets Gaussian noise of 3 ms as well.
+    """
+    hours = [48, 12, 48]
+    bases = [10.0, 30.0, 10.0]
+    spreads = [0.5, 8.0, 0.5]
+    sigmas = [0.05, 3.0, 0.05]
+    epochs, rtts = [], []
+    t = 1_700_000_000.0
+    for h, base, spread, sigma in zip(hours, bases, spreads, sigmas, strict=True):
+        n = int(h * 3600 / 30)
+        e = t + np.arange(n) * 30.0
+        r = base + rng.exponential(spread, n) + np.abs(rng.normal(0.0, sigma, n)) + 0.1
+        epochs.append(e)
+        rtts.append(r)
+        t = e[-1] + 30.0
+    return np.concatenate(epochs), np.concatenate(rtts)
 
 
 def _synthetic(rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
@@ -43,7 +68,7 @@ def events() -> list:
     from jitterbug.streaming import OnlineJitterbug
 
     epochs, rtts = _synthetic(np.random.default_rng(0))
-    online = OnlineJitterbug()
+    online = OnlineJitterbug(_config())
     for e, r in zip(epochs, rtts, strict=True):
         online.push(float(e), float(r))
     online.flush()
@@ -286,10 +311,10 @@ def test_window_backend_events_are_consistent(window_events: list) -> None:
 
 
 def test_window_backend_with_jitter_dispersion(window_events: list) -> None:
-    """The final verdicts come from the configured jitter method; provisional ones from KS."""
+    """Final verdicts and provisional ones both follow the configured jitter method."""
     from jitterbug.streaming import SlidingWindowJitterbug
 
-    epochs, rtts = _synthetic(np.random.default_rng(0))
+    epochs, rtts = _synthetic_dispersive(np.random.default_rng(0))
     config = _window_config()
     config.jitter_analysis.method = "jitter_dispersion"
     online = SlidingWindowJitterbug(config)
@@ -303,8 +328,10 @@ def test_window_backend_with_jitter_dispersion(window_events: list) -> None:
     assert finals[0].ks_statistic is None and finals[0].p_value is None
     assert finals[0].jitter_metric is not None
     assert finals[0].n_prev > 0 and finals[0].n_curr > 0
+    # Counts are dispersion values (one per bin), not raw samples (one per 30 s).
+    assert finals[0].n_curr <= 12 * 4 + 2
     provisional = [e for e in online.events if e.stage == "provisional"]
-    assert provisional and all(e.jitter_method == "ks_test" for e in provisional)
+    assert provisional and all(e.jitter_method == "jitter_dispersion" for e in provisional)
     ks_finals = [e for e in window_events if e.stage == "final"]
     assert ks_finals[0].jitter_method == "ks_test"
     assert ks_finals[0].ks_statistic == ks_finals[0].jitter_metric
@@ -347,3 +374,135 @@ def test_window_settings_are_validated() -> None:
         StreamingConfig(stable_runs=0)
     with pytest.raises(ValidationError):
         StreamingConfig(backend="sliding")
+
+
+# ---------------------------------------------------------------- causal jitter dispersion
+
+
+def test_causal_dispersion_is_the_offline_series_delayed() -> None:
+    from jitterbug.analysis.jitter_analyzer import JitterAnalyzer
+    from jitterbug.models import JitterAnalysisConfig
+
+    analyzer = JitterAnalyzer(JitterAnalysisConfig(method="jitter_dispersion"))
+    rng = np.random.default_rng(0)
+    epochs = np.arange(200) * 900.0
+    values = rng.normal(10, 1, 200)
+    centered_epochs, centered = analyzer._compute_jitter_dispersion(epochs, values)
+    causal_epochs, causal = analyzer.compute_causal_jitter_dispersion(epochs, values)
+    assert len(causal) == len(centered)
+    np.testing.assert_allclose(causal, centered)
+    delay = analyzer.causal_dispersion_delay
+    assert delay == 6
+    np.testing.assert_allclose(causal_epochs - centered_epochs, delay * 900.0)
+    assert len(causal) == len(epochs) - 1 - analyzer.causal_dispersion_lag
+
+
+def test_causal_dispersion_never_depends_on_later_samples() -> None:
+    from jitterbug.analysis.jitter_analyzer import JitterAnalyzer
+    from jitterbug.models import JitterAnalysisConfig
+
+    analyzer = JitterAnalyzer(JitterAnalysisConfig(method="jitter_dispersion"))
+    rng = np.random.default_rng(1)
+    epochs = np.arange(120) * 900.0
+    values = rng.normal(10, 1, 120)
+    _, before = analyzer.compute_causal_jitter_dispersion(epochs, values)
+    changed = values.copy()
+    changed[90:] += 50.0  # a change after sample 89
+    _, after = analyzer.compute_causal_jitter_dispersion(epochs, changed)
+    # The value at jitter index t depends on samples up to t + 1 only.
+    first_affected = 89 - analyzer.causal_dispersion_lag
+    np.testing.assert_allclose(before[:first_affected], after[:first_affected])
+    assert not np.allclose(before[first_affected + 1 :], after[first_affected + 1 :])
+    short_epochs, short = analyzer.compute_causal_jitter_dispersion(epochs[:5], values[:5])
+    assert len(short) == 0 and len(short_epochs) == 0
+
+
+def test_two_period_verdict_with_dispersion_uses_the_mean_rise() -> None:
+    from jitterbug.streaming import two_period_verdict
+
+    config = JitterbugConfig()
+    config.jitter_analysis.method = "jitter_dispersion"
+    prev = np.full(20, 0.5)
+    verdict = two_period_verdict(
+        np.full(10, 10.0), np.full(10, 30.0), prev, np.full(10, 1.0), False, config
+    )
+    assert verdict.jitter_method == "jitter_dispersion"
+    assert verdict.has_jump and verdict.has_jitter and verdict.is_congested
+    np.testing.assert_allclose(verdict.jitter_metric, 0.5)
+    assert verdict.ks_statistic is None and verdict.p_value is None
+    assert verdict.n_prev == 20 and verdict.n_curr == 10
+    flat = two_period_verdict(
+        np.full(10, 10.0), np.full(10, 30.0), prev, np.full(10, 0.6), False, config
+    )
+    assert flat.has_jitter is False and flat.is_congested is False
+    too_few = two_period_verdict(np.full(10, 10.0), np.full(10, 30.0), prev, prev[:1], True, config)
+    assert too_few.has_jitter is None and too_few.is_congested is True  # state carried over
+
+
+@pytest.fixture(scope="module")
+def dispersion_events() -> list:
+    from jitterbug.streaming import OnlineJitterbug
+
+    epochs, rtts = _synthetic_dispersive(np.random.default_rng(0))
+    config = JitterbugConfig()  # the config default method is jitter_dispersion
+    assert config.jitter_analysis.method == "jitter_dispersion"
+    online = OnlineJitterbug(config)
+    for e, r in zip(epochs, rtts, strict=True):
+        online.push(float(e), float(r))
+    online.flush()
+    return online.events
+
+
+def test_incremental_backend_with_dispersion_judges_the_segment(dispersion_events: list) -> None:
+    onset = 1_700_000_000.0 + 48 * 3600
+    finals = [e for e in dispersion_events if e.stage == "final"]
+    congested = [e for e in finals if abs(e.start_epoch - onset) <= 2 * INTERVAL_S]
+    assert congested and congested[0].is_congested
+    assert congested[0].jitter_method == "jitter_dispersion"
+    assert congested[0].has_jump and congested[0].has_jitter
+    assert congested[0].ks_statistic is None and congested[0].jitter_metric is not None
+    later = [
+        e
+        for e in dispersion_events
+        if e.stage == "provisional" and e.start_epoch > onset + 6 * 3600
+    ]
+    assert later and not any(e.is_congested for e in later)
+
+
+def test_dispersion_provisional_waits_for_values_that_reflect_the_new_period(
+    dispersion_events: list,
+) -> None:
+    from jitterbug.analysis.jitter_analyzer import JitterAnalyzer
+    from jitterbug.models import JitterAnalysisConfig
+
+    analyzer = JitterAnalyzer(JitterAnalysisConfig(method="jitter_dispersion"))
+    needed = analyzer.causal_dispersion_delay + analyzer.config.moving_average_order
+    assert needed == 12
+    onset = 1_700_000_000.0 + 48 * 3600
+    provisional = {e.start_epoch: e for e in dispersion_events if e.stage == "provisional"}
+    cps = [e for e in dispersion_events if e.kind == "change_point"]
+    cp = min(cps, key=lambda e: abs(e.start_epoch - onset))
+    prov = provisional[cp.start_epoch]
+    assert prov.emitted_at - cp.start_epoch >= (needed - 1) * INTERVAL_S
+    assert prov.n_curr >= needed
+    finals = {e.start_epoch: e for e in dispersion_events if e.stage == "final"}
+    assert prov.is_congested == finals[cp.start_epoch].is_congested
+
+
+def test_window_backend_provisional_follows_the_dispersion_method() -> None:
+    from jitterbug.streaming import SlidingWindowJitterbug
+
+    epochs, rtts = _synthetic_dispersive(np.random.default_rng(0))
+    config = _window_config()
+    config.jitter_analysis.method = "jitter_dispersion"
+    online = SlidingWindowJitterbug(config)
+    for e, r in zip(epochs, rtts, strict=True):
+        online.push(float(e), float(r))
+    online.flush()
+    provisional = [e for e in online.events if e.stage == "provisional"]
+    assert provisional and all(e.jitter_method == "jitter_dispersion" for e in provisional)
+    assert all(e.ks_statistic is None and e.jitter_metric is not None for e in provisional)
+    finals = {e.start_epoch: e for e in online.events if e.stage == "final"}
+    for prov in provisional:
+        if prov.start_epoch in finals:
+            assert prov.is_congested == finals[prov.start_epoch].is_congested
