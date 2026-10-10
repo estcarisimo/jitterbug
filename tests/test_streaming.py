@@ -328,6 +328,8 @@ def test_window_backend_with_jitter_dispersion(window_events: list) -> None:
     assert finals[0].ks_statistic is None and finals[0].p_value is None
     assert finals[0].jitter_metric is not None
     assert finals[0].n_prev > 0 and finals[0].n_curr > 0
+    # Counts are dispersion values (one per bin), not raw samples (one per 30 s).
+    assert finals[0].n_curr <= 12 * 4 + 2
     provisional = [e for e in online.events if e.stage == "provisional"]
     assert provisional and all(e.jitter_method == "jitter_dispersion" for e in provisional)
     ks_finals = [e for e in window_events if e.stage == "final"]

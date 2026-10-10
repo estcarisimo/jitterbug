@@ -120,7 +120,7 @@ The figures are described in [docs/VISUALIZATION_USAGE.md](https://github.com/es
 my-probe | jitterbug stream --events verdicts
 
 # Replay a recorded dataset through the online pipeline and score it against a reference
-jitterbug replay examples/network_analysis/data/raw.csv \
+jitterbug replay examples/network_analysis/data/raw.csv --method ks_test \
   --reference examples/network_analysis/expected_results/kstest_inferences.csv
 ```
 

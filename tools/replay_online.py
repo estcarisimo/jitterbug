@@ -3,7 +3,9 @@ Replay the paper dataset through the online mode and score it, or sweep its para
 
 Thin wrapper over ``jitterbug.streaming.replay`` / ``score`` (which ``jitterbug replay``
 also uses) that adds the parameter sweep and exposes every ``StreamingConfig`` field as
-a flag.
+a flag. Unlike the CLI, ``--method`` defaults to ``ks_test`` here: the sweep figures quoted
+in ``docs/ONLINE_MODE.md`` are KS figures. The reference file follows the method unless
+``--reference`` is given.
 
 Usage::
 

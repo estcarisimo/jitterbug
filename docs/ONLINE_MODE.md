@@ -6,7 +6,8 @@ point to close it. The online mode (`jitterbug.streaming`, commands `jitterbug s
 and `jitterbug replay`) runs the same decision rule one RTT sample at a time. Its default
 back end needs the `bcp` extra; the sliding-window back end runs with any detector. The
 results on the paper dataset are pinned in `tests/test_paper_regression.py`
-(`TestOnlineReplay`, `TestSlidingWindowReplay`); the numbers below come from
+(`TestOnlineReplay`, `TestOnlineDispersionReplay`, `TestSlidingWindowReplay`); the numbers
+below come from
 `jitterbug replay` and the tools described at the end.
 
 ## How it works
@@ -27,11 +28,13 @@ is described under [Back ends compared](#back-ends-compared).
    started within the last `lag` bins.
 3. **Two-stage verdicts.** The stream start opens the baseline period. When a change
    point opens a new period, a *provisional* verdict (latency jump against the previous
-   period plus the Kolmogorov-Smirnov test on the jitter so far) is emitted once the open
-   period holds `min_period_samples` jitter samples. When the next change point closes
-   the period, the *final* verdict is emitted with the whole period, which is exactly what
-   the sequential pipeline computes. The congestion state carries over between final
-   verdicts as in the sequential mode.
+   period plus the configured jitter test on the observations so far) is emitted once the
+   open period holds `min_period_samples` jitter samples and, with dispersion, 12
+   dispersion values (see below). When the next change point closes the period, the
+   *final* verdict is emitted with the whole period: with the KS test it is exactly what
+   the sequential pipeline computes; with dispersion it uses the causal series described
+   below, the offline one delayed by 6 bins. The congestion state carries over between
+   final verdicts as in the sequential mode.
 
 Both jitter methods work online, and `jitter_analysis.method` picks one as in the
 sequential mode (the config default is `jitter_dispersion`; the results below say which
@@ -67,7 +70,7 @@ final verdicts against a `starts,ends,congestion` CSV such as the paper's
 `expected_results`.
 
 ```bash
-jitterbug replay examples/network_analysis/data/raw.csv \
+jitterbug replay examples/network_analysis/data/raw.csv --method ks_test \
   --reference examples/network_analysis/expected_results/kstest_inferences.csv \
   --output events.json
 ```
@@ -183,7 +186,9 @@ The window start opens the
 baseline period, as the stream start does in the incremental back end; once the window
 has moved past the stream start, anything touching its left edge is ignored. The open
 period gets a provisional verdict from the same two-period rule with the configured
-jitter method (trailing filters for dispersion; `jitter_method` on each event says which). The prefix experiment above showed why this works: the offline
+jitter method (trailing filters for dispersion; `jitter_method` on each event says which).
+On every event, `n_prev` and `n_curr` count the observations the jitter test used: raw
+jitter samples for the KS test, dispersion values for dispersion. The prefix experiment above showed why this works: the offline
 boundaries never move and verdicts rarely flip.
 
 BCP on the paper dataset, each row scored against the paper's reference for its jitter

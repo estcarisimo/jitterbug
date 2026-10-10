@@ -260,7 +260,17 @@ class SlidingWindowJitterbug:
         self._period_streak = streak
 
         # Final verdicts: a contiguous chain whose boundaries are emitted change points.
+        # n_prev / n_curr count what the jitter test looked at: raw jitter samples for the
+        # KS test, causal dispersion values for dispersion (as the provisional verdicts do).
         jitter_epochs = epochs[1:]
+        obs_epochs = jitter_epochs
+        if self.config.jitter_analysis.method == "jitter_dispersion":
+            grouped = pd.DataFrame({"epoch": epochs, "rtt": rtts}).groupby(
+                epochs // self._interval_s
+            )
+            obs_epochs, _ = self._analyzer.jitter_analyzer.compute_causal_jitter_dispersion(
+                grouped["epoch"].min().to_numpy(), grouped["rtt"].min().to_numpy()
+            )
         while self._next_final_start is not None:
             start_cp = self._next_final_start
             # The offline period at our boundary: one that starts within the tolerance, or
@@ -304,8 +314,8 @@ class SlidingWindowJitterbug:
                 (cp for cp in reversed(self.change_points) if cp < start_cp), window_start
             )
             prev_start = max(prev_cp, window_start)
-            in_prev = (jitter_epochs >= prev_start) & (jitter_epochs < start_cp)
-            in_cur = (jitter_epochs >= start_cp) & (jitter_epochs <= end_cp)
+            in_prev = (obs_epochs >= prev_start) & (obs_epochs < start_cp)
+            in_cur = (obs_epochs >= start_cp) & (obs_epochs <= end_cp)
             self._congestion_state = is_congested
             self._next_final_start = end_cp
             jump = period.latency_jump

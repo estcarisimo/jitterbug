@@ -108,7 +108,8 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
   on a trailing window (any detector; the window start stands in for the index-0 change
   point).
   Both are pinned on the paper dataset in `tests/test_paper_regression.py`
-  (`TestOnlineReplay`, `TestSlidingWindowReplay`); changing defaults changes those goldens
+  (`TestOnlineReplay`, `TestOnlineDispersionReplay`, `TestSlidingWindowReplay`); changing
+  defaults changes those goldens
   and the table in `docs/ONLINE_MODE.md` (regenerate it with
   `tools/compare_online_backends.py`).
 - Plotting is matplotlib only (`JitterbugPlotter`). The plotly dashboard and

@@ -422,3 +422,27 @@ def test_stream_window_backend_needs_no_bcp_extra(tmp_path: Path):
     events = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
     assert len(events) >= 2  # the stream start and the jump
     assert any(abs(e["start_epoch"] - (1_700_000_000 + 5 * 3600)) <= 3 * 900 for e in events[1:])
+
+
+@pytest.mark.skipif(BCP_MISSING or not EXAMPLE_CSV.exists(), reason="bcp extra or dataset")
+def test_replay_method_flag_selects_the_jitter_test(tmp_path: Path):
+    prefix = tmp_path / "prefix.csv"
+    with EXAMPLE_CSV.open() as src:
+        prefix.write_text("".join(next(src) for _ in range(12000)))
+    by_method = {}
+    for method in ("ks_test", "jitter_dispersion"):
+        out = tmp_path / f"{method}.json"
+        result = runner.invoke(
+            app, ["replay", str(prefix), "--method", method, "--output", str(out)]
+        )
+        assert result.exit_code == 0, result.output
+        verdicts = [e for e in json.loads(out.read_text()) if e["kind"] == "verdict"]
+        assert verdicts and all(e["jitter_method"] == method for e in verdicts)
+        by_method[method] = verdicts
+    assert all(e["ks_statistic"] is not None for e in by_method["ks_test"])
+    assert all(e["ks_statistic"] is None for e in by_method["jitter_dispersion"])
+    default = tmp_path / "default.json"
+    result = runner.invoke(app, ["replay", str(prefix), "--output", str(default)])
+    assert result.exit_code == 0, result.output
+    verdicts = [e for e in json.loads(default.read_text()) if e["kind"] == "verdict"]
+    assert all(e["jitter_method"] == "jitter_dispersion" for e in verdicts)  # config default
