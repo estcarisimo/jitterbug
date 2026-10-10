@@ -9,7 +9,7 @@ authors:
     affiliation: Northwestern University
 repository-code: https://github.com/estcarisimo/jitterbug
 license: MIT
-version: 2.4.0
+version: 2.5.0
 date-released: "2026-10-09"
 preferred-citation:
   type: conference-paper
