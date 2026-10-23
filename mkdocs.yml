@@ -2,7 +2,8 @@
 # Build it with `uv run --group docs mkdocs build --strict` (CI does on every PR).
 # The home, changelog, contributing and citing pages include the files at the
 # repository root, so the site and the README cannot drift apart; the API pages are
-# generated from the docstrings.
+# generated from the docstrings. The llmstxt plugin writes /llms.txt (an index for
+# language models) and /llms-full.txt (the same pages in one file) at the site root.
 site_name: Jitterbug
 site_description: Jitter-based congestion inference from RTT time series (PAM 2022)
 site_url: https://estcarisimo.github.io/jitterbug/
@@ -79,3 +80,39 @@ plugins:
             members_order: source
             heading_level: 2
             filters: ["!^_"]
+  # https://llmstxt.org/ — index at /llms.txt, expanded pages at /llms-full.txt.
+  # site_url above is required. Paths are relative to docs/.
+  - llmstxt:
+      markdown_description: >
+        Jitterbug infers Internet path congestion from Round-Trip Time (RTT)
+        time series. The PyPI distribution is jitterbug-inference; the import
+        package and the CLI are jitterbug. It computes minimum-RTT intervals,
+        detects change points, and classifies each period with a latency jump
+        plus either jitter dispersion or a Kolmogorov–Smirnov test. The method
+        is the one in the PAM 2022 paper
+        (https://doi.org/10.1007/978-3-030-98785-5_7).
+      full_output: llms-full.txt
+      sections:
+        Guides:
+          - index.md: Project overview, installation, CLI, and Python API
+          - INSTALLATION.md: Install from PyPI or a clone, extras, and troubleshooting
+          - INPUT_FORMATS.md: CSV, scamper JSON, DataFrame, and InfluxDB input
+          - ALGORITHM_SELECTION_GUIDE.md: Choosing between the ruptures and bcp detectors
+          - ALGORITHM_USAGE.md: Detector options, examples, and measured runtimes
+          - VISUALIZATION_USAGE.md: jitterbug visualize and the JitterbugPlotter API
+          - CLUSTERING_MODE.md: Non-sequential analysis by clustering intervals
+          - PERFORMANCE.md: Runtime across releases
+          - ONLINE_MODE.md: Streaming and replay back ends
+        API reference:
+          - api/analyzer.md: JitterbugAnalyzer
+          - api/config.md: JitterbugConfig and per-stage settings
+          - api/models.md: RTT datasets and analysis result models
+          - api/detection.md: Change point detectors
+          - api/analysis.md: Latency jumps, jitter tests, and congestion inference
+          - api/io.md: Loading measurements and exporting results
+          - api/visualization.md: Plotting helpers
+          - api/streaming.md: Online analyzers, verdicts, and replay
+        Project:
+          - changelog.md: Release history
+          - contributing.md: Development setup and pull request workflow
+          - citing.md: How to cite the PAM 2022 paper
