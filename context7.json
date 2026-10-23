@@ -1,0 +1,14 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Jitterbug",
+  "description": "Infers Internet path congestion from Round-Trip Time series by detecting change points and classifying each period with a latency jump and a jitter test.",
+  "folders": ["docs", "examples"],
+  "excludeFolders": ["tests", "build", "dist", "site", "htmlcov", ".venv"],
+  "rules": [
+    "Install with `pip install jitterbug-inference`. The PyPI name `jitterbug` is an unrelated project; import `jitterbug` and run the `jitterbug` command.",
+    "CSV rows need `epoch` in Unix seconds and an RTT in milliseconds (`values`, or `rtt_value`, `rtt`, or `latency`). RTT must be greater than 0 and at most 10000 ms.",
+    "The default pipeline is sequential: ruptures change points and jitter dispersion. Reproduce the paper with `--algorithm bcp --method ks_test` after installing the `bcp` extra.",
+    "Online mode is `jitterbug stream` and `jitterbug replay`. Backend `bocpd` (the default) needs the `bcp` extra; `window` reruns the offline pipeline on a trailing window.",
+    "`jitterbug visualize` needs the `visualization` extra and uses matplotlib. Non-sequential analysis is `--mode clustering` and needs the `clustering` extra."
+  ]
+}

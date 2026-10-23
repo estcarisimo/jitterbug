@@ -2,15 +2,22 @@ cff-version: 1.2.0
 message: "If you use Jitterbug in your research, please cite the PAM 2022 paper below."
 type: software
 title: "Jitterbug: Framework for Jitter-Based Congestion Inference"
+abstract: "Jitterbug infers network congestion from Round-Trip Time (RTT) time series. It computes minimum-RTT intervals, detects change points, and classifies each period as congested or not using a latency jump and either jitter dispersion or a Kolmogorov-Smirnov test."
 authors:
   - family-names: Carisimo
     given-names: Esteban
     email: esteban.carisimo@northwestern.edu
     affiliation: Northwestern University
-repository-code: https://github.com/estcarisimo/jitterbug
+keywords:
+  - network measurement
+  - congestion inference
+  - round-trip time
+  - jitter
+  - change-point detection
 license: MIT
 version: 2.5.0
 date-released: "2026-10-09"
+repository-code: "https://github.com/estcarisimo/jitterbug"
 preferred-citation:
   type: conference-paper
   title: "Jitterbug: A New Framework for Jitter-Based Congestion Inference"
