@@ -9,6 +9,8 @@ A Python framework for inferring Internet path congestion from Round-Trip Time (
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
+Documentation for language models: [`llms.txt`](https://estcarisimo.github.io/jitterbug/llms.txt) (page index) and [`llms-full.txt`](https://estcarisimo.github.io/jitterbug/llms-full.txt) (the same pages in one file).
+
 ## ✨ Features
 
 - 📉 **Congestion inference from RTTs alone**: no active probing beyond the pings you already have
@@ -386,6 +388,7 @@ Contributions are welcome! Please see the [Contributing Guide](https://github.co
 
 | Document | Contents |
 | --- | --- |
+| [llms.txt](https://estcarisimo.github.io/jitterbug/llms.txt) | Documentation index for language models |
 | [CONTRIBUTING.md](https://github.com/estcarisimo/jitterbug/blob/main/CONTRIBUTING.md) | Development setup, workflow, PR expectations |
 | [CHANGELOG.md](https://github.com/estcarisimo/jitterbug/blob/main/CHANGELOG.md) | Release history |
 | [AGENTS.md](https://github.com/estcarisimo/jitterbug/blob/main/AGENTS.md) | Guidance for AI coding agents working in this repo |

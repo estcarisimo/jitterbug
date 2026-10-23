@@ -33,7 +33,8 @@ uv run --group docs mkdocs build --strict   # the documentation site; warnings f
 
 The documentation site (`mkdocs.yml`, Material theme) is built from `docs/`; its home,
 changelog, contributing and citing pages include the root files, and the API reference
-is generated from the docstrings. Preview it with `uv run --group docs mkdocs serve`.
+is generated from the docstrings. The same build writes `llms.txt` and `llms-full.txt`
+at the site root for language models. Preview it with `uv run --group docs mkdocs serve`.
 Pushes to `main` publish it to GitHub Pages (`.github/workflows/pages.yml`).
 
 `uv run pre-commit run --all-files` runs the lint and hygiene hooks on the whole tree.

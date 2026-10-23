@@ -14,7 +14,25 @@ authors = [
 maintainers = [
     {name = "Esteban Carisimo", email = "esteban.carisimo@northwestern.edu"}
 ]
-keywords = ["network", "congestion", "rtt", "jitter", "analysis", "changepoint", "detection"]
+keywords = [
+    "network",
+    "congestion",
+    "congestion-inference",
+    "rtt",
+    "round-trip-time",
+    "minimum-rtt",
+    "latency",
+    "jitter",
+    "jitter-dispersion",
+    "analysis",
+    "changepoint",
+    "change-point-detection",
+    "detection",
+    "time-series",
+    "network-measurement",
+    "internet-measurement",
+    "kolmogorov-smirnov",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -87,6 +105,7 @@ dev = [
 ]
 docs = [
     "mkdocs>=1.6,<2",
+    "mkdocs-llmstxt>=0.5",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
 ]
@@ -96,6 +115,9 @@ Homepage = "https://github.com/estcarisimo/jitterbug"
 Repository = "https://github.com/estcarisimo/jitterbug"
 "Bug Reports" = "https://github.com/estcarisimo/jitterbug/issues"
 Documentation = "https://estcarisimo.github.io/jitterbug/"
+Paper = "https://doi.org/10.1007/978-3-030-98785-5_7"
+Changelog = "https://estcarisimo.github.io/jitterbug/changelog/"
+"llms.txt" = "https://estcarisimo.github.io/jitterbug/llms.txt"
 
 [project.scripts]
 jitterbug = "jitterbug.cli:main"
@@ -174,6 +196,13 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+
+[tool.uv]
+# mkdocs-llmstxt depends on mdformat-tables, whose latest release pins mdformat<0.8,
+# and mdformat 0.7 pins markdown-it-py<4. That downgrades markdown-it-py for the whole
+# lock, including rich. mdformat 1 supports markdown-it-py 4; this override keeps the
+# runtime pin while the docs plugin still formats tables.
+override-dependencies = ["mdformat>=1"]
 
 [[tool.uv.index]]
 # torch is only pulled in by the `bcp` extra. On Linux the default index resolves to the
