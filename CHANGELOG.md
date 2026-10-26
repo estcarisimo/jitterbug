@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Locked transitive dependencies that `pip-audit` newly flags: Pillow 13.0.0 on
   Python 3.11 and newer (Pillow 13 publishes no Python 3.10 wheels, so the
   visualization extra on 3.10 stays on Pillow 12.3.0) and virtualenv 21.14.13.
+- Locked filelock 4.2.4 on Python 3.11 and newer. filelock 3.32.6 is flagged by
+  `pip-audit` (CVE-2026-112907, CVE-2026-112913, CVE-2026-112940); the fixed
+  release, 4.2.1, requires Python 3.11. Python 3.10 stays on filelock 4.1.0,
+  the newest release that still installs there. virtualenv requires
+  filelock >= 3.24.2, already inside the affected range, so that fork cannot
+  take a fixed version. The lint job audits on Python 3.12, where the marker
+  selects 4.2.4.
 
 ## [2.5.0] - 2026-10-09
 
