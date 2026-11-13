@@ -1,5 +1,5 @@
 # Temporary: regenerates uv.lock for PR #78 (the authoring session cannot reach the
-# pytorch-cpu index). Removed again in the next commit on this branch.
+# pytorch-cpu index). Removed again before the PR is ready.
 name: regenerate uv.lock (temporary)
 
 on:
