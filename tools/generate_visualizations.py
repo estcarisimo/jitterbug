@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -30,7 +30,7 @@ def generate_algorithm_visualization(algorithm_name, output_dir):
 
         # Convert epochs to datetime
         def epoch_to_datetime(epoch_series):
-            return [datetime.fromtimestamp(t, tz=timezone.utc) for t in epoch_series]
+            return [datetime.fromtimestamp(t, tz=UTC) for t in epoch_series]
 
         raw_times = epoch_to_datetime(raw_df["epoch"])
         mins_times = epoch_to_datetime(mins_df["epoch"])
@@ -68,8 +68,8 @@ def generate_algorithm_visualization(algorithm_name, output_dir):
         congested_periods = []
 
         for inference in results.inferences:
-            start_dt = datetime.fromtimestamp(inference.start_epoch, tz=timezone.utc)
-            end_dt = datetime.fromtimestamp(inference.end_epoch, tz=timezone.utc)
+            start_dt = datetime.fromtimestamp(inference.start_epoch, tz=UTC)
+            end_dt = datetime.fromtimestamp(inference.end_epoch, tz=UTC)
             congestion_value = 1.0 if inference.is_congested else 0.0
 
             # Add points for step plot

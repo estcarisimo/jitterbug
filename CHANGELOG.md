@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   take a fixed version. The lint job audits on Python 3.12, where the marker
   selects 4.2.4.
 
+### Removed
+
+- **Python 3.11 or newer is required** (was 3.10). Python 3.10 reached end of life in
+  October 2026, and the fixed releases of Pillow (13.0.0), tornado (6.6), soupsieve
+  (4.0.0) and filelock (4.2.1) no longer install on it, so the Python 3.10 fork of the
+  lockfile kept every open Dependabot alert alive (Pillow through the `visualization`
+  extra, tornado and soupsieve through `jupyter`, filelock through `bcp` and the `dev`
+  group). The lockfile now resolves those packages to fixed releases only. CI tests
+  3.11–3.13, and ruff targets `py311` (`datetime.UTC` replaces `timezone.utc`).
+
 ## [2.5.0] - 2026-10-09
 
 ### Added
