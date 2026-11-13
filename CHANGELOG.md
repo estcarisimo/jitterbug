@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   extra, tornado and soupsieve through `jupyter`, filelock through `bcp` and the `dev`
   group). The lockfile now resolves those packages to fixed releases only. CI tests
   3.11–3.13, and ruff targets `py311` (`datetime.UTC` replaces `timezone.utc`).
+  The lockfile covers Python 3.11.5 and newer (`[tool.uv] environments`), because
+  soupsieve 4 needs 3.11.5; emscripten is left out of it, since torch has no wheels
+  there.
 
 ## [2.5.0] - 2026-10-09
 
