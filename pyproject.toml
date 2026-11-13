@@ -202,6 +202,9 @@ exclude_lines = [
 # lock, including rich. mdformat 1 supports markdown-it-py 4; this override keeps the
 # runtime pin while the docs plugin still formats tables.
 override-dependencies = ["mdformat>=1"]
+# soupsieve 4 (the first release without GHSA-mmhr-3c5m-f64f) requires Python 3.11.5, so
+# without this the lock keeps a vulnerable soupsieve 2.x fork for 3.11.0-3.11.4.
+environments = ["python_full_version >= '3.11.5'"]
 
 [[tool.uv.index]]
 # torch is only pulled in by the `bcp` extra. On Linux the default index resolves to the
