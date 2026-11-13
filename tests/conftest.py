@@ -1,7 +1,7 @@
 """Shared fixtures: small synthetic RTT series with known structure."""
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pytest
@@ -25,7 +25,7 @@ os.environ["MPLBACKEND"] = "Agg"
 # "'epoch' column" across two lines).
 os.environ["COLUMNS"] = "200"
 
-T0 = datetime(2024, 1, 1, tzinfo=timezone.utc)
+T0 = datetime(2024, 1, 1, tzinfo=UTC)
 
 
 def make_measurements(
@@ -75,8 +75,8 @@ def three_segment_raw(rng: np.random.Generator) -> RTTDataset:
 
 def jump(start: float, end: float, has_jump: bool, magnitude: float = 10.0) -> LatencyJump:
     return LatencyJump(
-        start_timestamp=datetime.fromtimestamp(start, tz=timezone.utc),
-        end_timestamp=datetime.fromtimestamp(end, tz=timezone.utc),
+        start_timestamp=datetime.fromtimestamp(start, tz=UTC),
+        end_timestamp=datetime.fromtimestamp(end, tz=UTC),
         start_epoch=start,
         end_epoch=end,
         has_jump=has_jump,
@@ -87,8 +87,8 @@ def jump(start: float, end: float, has_jump: bool, magnitude: float = 10.0) -> L
 
 def jitter(start: float, end: float, significant: bool) -> JitterAnalysis:
     return JitterAnalysis(
-        start_timestamp=datetime.fromtimestamp(start, tz=timezone.utc),
-        end_timestamp=datetime.fromtimestamp(end, tz=timezone.utc),
+        start_timestamp=datetime.fromtimestamp(start, tz=UTC),
+        end_timestamp=datetime.fromtimestamp(end, tz=UTC),
         start_epoch=start,
         end_epoch=end,
         has_significant_jitter=significant,

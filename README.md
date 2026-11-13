@@ -5,7 +5,7 @@ A Python framework for inferring Internet path congestion from Round-Trip Time (
 [![PyPI](https://img.shields.io/pypi/v/jitterbug-inference.svg)](https://pypi.org/project/jitterbug-inference/)
 [![Docs](https://img.shields.io/badge/docs-estcarisimo.github.io%2Fjitterbug-blue.svg)](https://estcarisimo.github.io/jitterbug/)
 [![CI](https://github.com/estcarisimo/jitterbug/actions/workflows/ci.yml/badge.svg)](https://github.com/estcarisimo/jitterbug/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
@@ -68,7 +68,7 @@ uv sync --extra all                                     # from a clone: everythi
 
 ### System requirements
 
-- Python 3.10 or higher
+- Python 3.11 or higher
 
 ## 📖 Usage
 

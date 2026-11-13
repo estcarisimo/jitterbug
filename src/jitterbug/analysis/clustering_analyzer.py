@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import numpy as np
@@ -472,8 +472,8 @@ class ClusteringCongestionAnalyzer:
                 dominant = clusters[int(np.bincount(labels[pool]).argmax())]
                 start_epoch = float(features.starts[idx[0]])
                 end_epoch = float(features.starts[idx[-1]] + step)
-                start_ts = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
-                end_ts = datetime.fromtimestamp(end_epoch, tz=timezone.utc)
+                start_ts = datetime.fromtimestamp(start_epoch, tz=UTC)
+                end_ts = datetime.fromtimestamp(end_epoch, tz=UTC)
                 inferences.append(
                     CongestionInference(
                         start_timestamp=start_ts,

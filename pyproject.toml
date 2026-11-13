@@ -39,7 +39,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -48,8 +47,8 @@ classifiers = [
     "Topic :: Internet :: Log Analysis",
     "Typing :: Typed",
 ]
-requires-python = ">=3.10"
-# Floors are the oldest releases with Python 3.10 wheels that the code base is known to
+requires-python = ">=3.11"
+# Floors are the oldest releases with Python 3.11 wheels that the code base is known to
 # work with; the lockfile pins what CI actually runs.
 dependencies = [
     "numpy>=1.24",
@@ -124,7 +123,7 @@ jitterbug = "jitterbug.cli:main"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 extend-exclude = ["examples/*.ipynb"]
 
 [tool.ruff.lint]
@@ -137,8 +136,8 @@ ignore = [
 known-first-party = ["jitterbug"]
 
 [tool.mypy]
-# 3.12 so mypy can parse numpy 2.5's stubs (they use the `type` statement); the 3.10
-# language floor is enforced by ruff (target-version = "py310").
+# 3.12 so mypy can parse numpy 2.5's stubs (they use the `type` statement); the 3.11
+# language floor is enforced by ruff (target-version = "py311").
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
@@ -203,6 +202,10 @@ exclude_lines = [
 # lock, including rich. mdformat 1 supports markdown-it-py 4; this override keeps the
 # runtime pin while the docs plugin still formats tables.
 override-dependencies = ["mdformat>=1"]
+# soupsieve 4 (the first release without GHSA-mmhr-3c5m-f64f) requires Python 3.11.5, so
+# without this the lock keeps a vulnerable soupsieve 2.x fork for 3.11.0-3.11.4. Listing
+# environments makes uv require wheels for each one, and torch has none for emscripten.
+environments = ["python_full_version >= '3.11.5' and sys_platform != 'emscripten'"]
 
 [[tool.uv.index]]
 # torch is only pulled in by the `bcp` extra. On Linux the default index resolves to the
