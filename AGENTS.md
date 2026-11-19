@@ -50,7 +50,7 @@ docs/                    Markdown guides + API stubs, built into the MkDocs site
 ## Commands
 
 ```bash
-uv sync --extra visualization              # environment (Python 3.10–3.13 supported)
+uv sync --extra visualization              # environment (Python 3.11–3.13 supported)
 uv sync --extra bcp                        # + Bayesian back end (bayesian-changepoint)
 uv run pre-commit install                  # once per clone
 uv run ruff check src/ tests/ examples/ tools/
@@ -65,7 +65,7 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
 
 ## Conventions
 
-- Python 3.10+: `X | None`, `list[str]`, no `typing.Optional/List`. Ruff target `py310`.
+- Python 3.11+: `X | None`, `list[str]`, no `typing.Optional/List`. Ruff target `py311`.
 - Line length 100. Ruff is the only linter/formatter (no black/isort/flake8).
   `[tool.ruff.lint] ignore` lists temporary exceptions with counts; remove entries as
   you fix them, never add new ones.

@@ -41,8 +41,8 @@ Pushes to `main` publish it to GitHub Pages (`.github/workflows/pages.yml`).
 
 ## Project conventions
 
-- Python 3.10+ code: `X | None` unions, `list[str]` generics, `match` is fine. Ruff's
-  `UP` rules enforce the 3.10 target.
+- Python 3.11+ code: `X | None` unions, `list[str]` generics, `match` is fine. Ruff's
+  `UP` rules enforce the 3.11 target.
 - Line length 100, ruff formatter, imports sorted by ruff (`I`). The temporary
   `ignore` entries in `[tool.ruff.lint]` each name a follow-up; remove an entry when
   its findings are fixed, and do not add new ones.

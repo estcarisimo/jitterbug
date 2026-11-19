@@ -5,7 +5,7 @@ Comprehensive tests for all change point detection algorithms.
 import importlib.util
 import sys
 import types
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pytest
@@ -142,7 +142,7 @@ class TestRupturesDetector:
         change_points = detector.detect(three_segment_min_rtt)
         assert change_points, "the three-segment series has two clear jumps"
         for cp in change_points:
-            assert cp.timestamp.tzinfo == timezone.utc
+            assert cp.timestamp.tzinfo == UTC
             assert cp.timestamp.timestamp() == cp.epoch
 
     def test_ruptures_penalty_effects(self):
@@ -311,7 +311,7 @@ class TestBayesianChangePointDetector:
         change_points = BayesianChangePointDetector(config).detect(three_segment_min_rtt)
 
         assert [cp.epoch for cp in change_points] == [three_segment_min_rtt.measurements[5].epoch]
-        assert change_points[0].timestamp.tzinfo == timezone.utc
+        assert change_points[0].timestamp.tzinfo == UTC
         assert calls["likelihood_device"] == device
         assert calls["detection_device"] == device
         assert isinstance(calls["likelihood"], StudentT)

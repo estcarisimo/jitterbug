@@ -4,7 +4,7 @@ Data loading utilities for various input formats.
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -147,7 +147,7 @@ class DataLoader:
         destinations = self._optional_column(frame, "destination")
         measurements = [
             RTTMeasurement(
-                timestamp=datetime.fromtimestamp(epoch, tz=timezone.utc),
+                timestamp=datetime.fromtimestamp(epoch, tz=UTC),
                 epoch=epoch,
                 rtt_value=rtt,
                 source=src,
@@ -296,7 +296,7 @@ class DataLoader:
                                     tx_time = response.get("tx", {})
                                     if "sec" in tx_time and "usec" in tx_time:
                                         epoch = tx_time["sec"] + tx_time["usec"] / 1e6
-                                        timestamp = datetime.fromtimestamp(epoch, tz=timezone.utc)
+                                        timestamp = datetime.fromtimestamp(epoch, tz=UTC)
                                         rtt_value = float(response["rtt"])
                                         # Same bounds as the DataFrame contract
                                         if not 0 < rtt_value <= MAX_RTT_MS:

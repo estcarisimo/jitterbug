@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -175,7 +175,7 @@ class SlidingWindowJitterbug:
             cps.insert(
                 0,
                 ChangePoint(
-                    timestamp=datetime.fromtimestamp(first_epoch, tz=timezone.utc),
+                    timestamp=datetime.fromtimestamp(first_epoch, tz=UTC),
                     epoch=first_epoch,
                     confidence=1.0,
                     algorithm="window_start",

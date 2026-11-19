@@ -4,7 +4,7 @@ The distribution is named `jitterbug-inference` on PyPI (the name `jitterbug` th
 belongs to an unrelated project); the import is `import jitterbug` and the command is
 `jitterbug`.
 
-Requirements: Python 3.10 or newer.
+Requirements: Python 3.11 or newer.
 
 ## From PyPI
 

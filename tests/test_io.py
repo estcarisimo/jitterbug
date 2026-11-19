@@ -5,7 +5,7 @@ import importlib.util
 import json
 import sys
 import types
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -66,7 +66,7 @@ class TestCSV:
         assert len(ds) == 3
         assert_allclose([m.rtt_value for m in ds.measurements], [20.5, 21.0, 19.5])
         assert ds.measurements[0].epoch == 1700000000.0
-        assert ds.measurements[0].timestamp == datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        assert ds.measurements[0].timestamp == datetime.fromtimestamp(1700000000, tz=UTC)
         assert ds.metadata["source"] == "csv"
         assert ds.metadata["file_path"] == str(csv_file)
 
@@ -269,7 +269,7 @@ class TestInfluxDB:
         client.query_api.return_value.query_data_frame.assert_called_once_with("q")
         client.close.assert_called_once()
         assert [m.rtt_value for m in ds.measurements] == [30.0, 31.0]
-        assert ds.measurements[0].epoch == datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp()
+        assert ds.measurements[0].epoch == datetime(2024, 1, 1, tzinfo=UTC).timestamp()
 
     def test_epoch_is_exact_at_microsecond_resolution(self, loader: DataLoader) -> None:
         """Regression: `astype(int) / 1e9` assumed nanoseconds and was 1000x off when
@@ -336,8 +336,8 @@ def results() -> CongestionInferenceResult:
     periods = [(0.0, 600.0, True), (600.0, 1200.0, False), (1200.0, 1500.0, True)]
     inferences = [
         CongestionInference(
-            start_timestamp=datetime.fromtimestamp(s, tz=timezone.utc),
-            end_timestamp=datetime.fromtimestamp(e, tz=timezone.utc),
+            start_timestamp=datetime.fromtimestamp(s, tz=UTC),
+            end_timestamp=datetime.fromtimestamp(e, tz=UTC),
             start_epoch=s,
             end_epoch=e,
             is_congested=c,

@@ -45,7 +45,7 @@ maintainer would be: concrete, evidence-based findings with file:line, and no pr
   hunk in your worktree if unsure.
 - Contract with the rest of the codebase: callers of changed functions, docstrings and
   docs that describe the old behavior, README/CHANGELOG consistency.
-- Conventions from `AGENTS.md`: py310 syntax, `pathlib`, `logging` not `print` in `src/`
+- Conventions from `AGENTS.md`: py311 syntax, `pathlib`, `logging` not `print` in `src/`
   outside `cli/`, NumPy docstrings on public API, type hints, a CHANGELOG bullet under
   `[Unreleased]` for user-visible changes, no generated outputs committed, American
   English in new identifiers, comments and docs.
