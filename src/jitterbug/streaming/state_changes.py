@@ -47,7 +47,6 @@ import json
 import logging
 import math
 import shlex
-# CommandHook runs the operator's own command, without a shell.
 import subprocess  # nosec B404
 import time
 from dataclasses import dataclass, field
