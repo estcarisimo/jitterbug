@@ -636,6 +636,25 @@ class TestInputMapping:
         with pytest.raises(ValueError, match="holds datetimes, not s numbers"):
             _load(pd.DataFrame({"epoch": times, "values": [1.0]}))
 
+    @pytest.mark.parametrize(
+        ("values", "unit"),
+        [([1.0, np.inf], "s"), ([1.0, 1e300], "s"), ([1e22, 1e22], "auto"), ([-1e14], "s")],
+    )
+    def test_times_outside_the_datetime_range_are_errors(
+        self, values: list[float], unit: str
+    ) -> None:
+        df = pd.DataFrame({"epoch": values, "values": [1.0] * len(values)})
+        with pytest.raises(ValueError, match="Column 'epoch' has 1 time.*outside the years"):
+            _load(df.iloc[-1:], time_unit=unit)
+        with pytest.raises(ValueError, match="check time_unit"):
+            _load(df, time_unit=unit)
+
+    def test_file_with_an_infinite_time_names_the_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "r.csv"
+        path.write_text("epoch,values\n1,2\ninf,3\n")
+        with pytest.raises(ValueError, match=r"Failed to load CSV file .*r\.csv.*'epoch'"):
+            DataLoader().load_from_file(path)
+
     def test_iso_blank_cells_are_missing(self) -> None:
         df = pd.DataFrame({"epoch": ["2024-01-01T00:00:00Z", ""], "values": [1.0, 2.0]})
         ds = _load(df, time_unit="iso")

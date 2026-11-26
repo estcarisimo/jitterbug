@@ -58,7 +58,8 @@ would be read as seconds.
 
 A value that cannot be read in its unit (`"12:00"` in a numeric column, `"yesterday"`
 with `iso`, numbers with `iso`) is an error naming the column and the first offending
-value. Jitterbug does not guess per row.
+value. Jitterbug does not guess per row. So is a time that is infinite or falls outside the years
+1–9999 once converted (usually a sign of the wrong `time_unit`).
 
 ## Row policies
 

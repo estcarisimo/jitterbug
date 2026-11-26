@@ -76,6 +76,7 @@ def normalize(df: pd.DataFrame, config: InputConfig | None = None) -> RTTDataset
     rtt_column = resolve_rtt_column(df, config)
 
     epochs, time_unit = epoch_seconds(df[time_column], config.time_unit, time_column)
+    _check_time_range(epochs, time_column, time_unit)
     rtts = numeric_column(df[rtt_column], rtt_column)
     multiplier, divisor = RTT_UNIT_SCALES[config.rtt_unit]
     if multiplier != 1.0:
@@ -160,6 +161,26 @@ def normalize(df: pd.DataFrame, config: InputConfig | None = None) -> RTTDataset
         "duplicates_removed": duplicate_rows if selected is not None else 0,
     }
     return RTTDataset(measurements=measurements, metadata=metadata)
+
+
+EPOCH_RANGE = (
+    datetime(1, 1, 2, tzinfo=UTC).timestamp(),
+    datetime(9999, 12, 30, tzinfo=UTC).timestamp(),
+)
+"""Unix seconds a timestamp can hold (``datetime`` years 1 to 9999, a day of margin on
+each side for local-time conversions)."""
+
+
+def _check_time_range(epochs: pd.Series, name: str, time_unit: str) -> None:
+    """Reject infinite times and times ``datetime`` cannot represent, naming the column;
+    such values usually mean the wrong ``time_unit``."""
+    present = epochs.dropna()
+    bad = ~np.isfinite(present) | (present < EPOCH_RANGE[0]) | (present > EPOCH_RANGE[1])
+    if bad.any():
+        raise ValueError(
+            f"Column '{name}' has {int(bad.sum())} time(s) outside the years 1-9999 when read "
+            f"as {time_unit}, e.g. {float(present[bad].iloc[0])!r} s; check time_unit"
+        )
 
 
 def resolve_rtt_column(df: pd.DataFrame, config: InputConfig) -> str:
