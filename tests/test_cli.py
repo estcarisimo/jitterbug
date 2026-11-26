@@ -493,7 +493,15 @@ def test_invalid_time_unit_flag_is_rejected(tmp_path: Path):
 
 
 @pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
-@pytest.mark.parametrize("command", ["analyze", "replay"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "analyze",
+        pytest.param(
+            "replay", marks=pytest.mark.skipif(BCP_MISSING, reason="replay needs the bcp extra")
+        ),
+    ],
+)
 def test_remapped_dataset_gives_the_same_result(tmp_path: Path, command: str):
     """The paper dataset with ms timestamps, us RTTs and other column names, read through
     the input flags, gives exactly the result of the original file."""
