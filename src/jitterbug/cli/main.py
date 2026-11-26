@@ -663,9 +663,9 @@ def stream(
     Reads 'epoch,rtt' lines (seconds, milliseconds; a header line is skipped) and prints one
     JSON object per event: change points, provisional verdicts and final verdicts, plus
     change point revisions with --revise-change-points ("kind": "revision"; listed with
-    --events change-points). Samples
-    must arrive in time order; a sample older than the last one is dropped. The last bin is
-    closed when the input ends (or on Ctrl-C with --follow), as 'jitterbug replay' does.
+    --events change-points). Samples must arrive in time order; a sample older than the
+    last one is dropped. The last bin is closed when the input ends (or on Ctrl-C with
+    --follow), as 'jitterbug replay' does.
 
     --state-changes adds state-change events ("kind": "state_change") after the events of
     the sample that caused them; with --events none only those are printed.

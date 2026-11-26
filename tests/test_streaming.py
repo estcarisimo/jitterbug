@@ -608,10 +608,14 @@ def test_refinements_beyond_the_separation_or_of_the_stream_start_are_not_revisi
     assert cps == [t0, t0 + 41 * INTERVAL_S, t0 + 50 * INTERVAL_S]
 
 
-def test_revisions_only_apply_to_the_map_rule() -> None:
-    from jitterbug.streaming import OnlineJitterbug
+def test_revisions_only_apply_to_the_map_rule(caplog: pytest.LogCaptureFixture) -> None:
+    from jitterbug.streaming import OnlineJitterbug, SlidingWindowJitterbug
 
-    online = OnlineJitterbug(_config(decision="lag", revise_change_points=True))
+    with caplog.at_level("WARNING", logger="jitterbug.streaming"):
+        online = OnlineJitterbug(_config(decision="lag", revise_change_points=True))
+        SlidingWindowJitterbug(_config(backend="window", revise_change_points=True))
+    assert "ignored with decision=lag" in caplog.text
+    assert "ignored with backend=window" in caplog.text
     online._cp_bin_index = [0, 10]
     assert not online._revisable(12)
     online.streaming.decision = "map"

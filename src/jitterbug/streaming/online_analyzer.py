@@ -188,6 +188,12 @@ class OnlineJitterbug:
 
         self._interval_s = self.config.data_processing.minimum_interval_minutes * 60
         self._min_sep_bins = max(1, math.ceil(self.streaming.min_time_elapsed / self._interval_s))
+        if self.streaming.revise_change_points and self.streaming.decision != "map":
+            logger.warning(
+                "streaming.revise_change_points only applies to the map decision rule; "
+                "ignored with decision=%s",
+                self.streaming.decision,
+            )
 
         # Current (open) minimum-RTT bin.
         self._bin_id: int | None = None
