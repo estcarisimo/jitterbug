@@ -98,9 +98,14 @@ jitterbug analyze rtts.csv --output results.csv --output-format csv
 jitterbug analyze rtts.csv.zst --output results.json.zst
 ```
 
-### Validate input before analyzing
+### Check input before analyzing
 
 ```bash
+# Dry run of loading: format, column mapping, what each row policy would drop,
+# and the series in the file (sources/destinations, time range, sampling interval)
+jitterbug inspect pings.json
+
+# Data quality of the one series analyze would see
 jitterbug validate rtts.csv --verbose
 ```
 
@@ -188,6 +193,15 @@ Other column names and units are settings (`input` in the configuration file) or
 ```bash
 jitterbug analyze rtts.tsv --time-column ts --time-unit ms --rtt-column rtt_us --rtt-unit us
 jitterbug analyze export.csv.gz --time-column timestamp --time-unit iso
+```
+
+A file with several sources, destinations or probes is analyzed one series at a time with
+`--group-by`, or reduced to one series with `--series`:
+
+```bash
+jitterbug analyze pings.json --group-by destination --output results.json
+jitterbug analyze rtts.csv --group-by source,destination --output results.csv --output-format csv
+jitterbug analyze pings.json --series destination=8.8.8.8
 ```
 
 **JSON lines**: one flat object per line, fields mapped like CSV columns.

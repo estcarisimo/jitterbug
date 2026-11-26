@@ -41,9 +41,12 @@ src/jitterbug/
                          CommandHook), replay.py (replay, score, score_state_changes)
   io/                    data_loader.py (DataLoader: file/DataFrame/InfluxDB entry points),
                          readers/ (one reader per format → raw DataFrame, registered by name
-                         and extension), normalize.py (the only place for column mapping,
-                         units and row policies of `InputConfig`), compression.py, exporters.py
-  cli/main.py            Typer CLI: `jitterbug analyze|validate|config|visualize|stream|replay|version`
+                         and extension), series.py (`series` filters and `group_by` keys on
+                         raw rows), normalize.py (the only place for column mapping,
+                         units and row policies of `InputConfig`), inspection.py (`inspect`
+                         dry run), compression.py, exporters.py
+  cli/main.py            Typer CLI: `jitterbug analyze|inspect|validate|config|visualize|stream|replay|
+                         version`
   visualization/         plotter.py (JitterbugPlotter, matplotlib)
 tests/                   pytest; test_cli.py runs the CLI on the bundled dataset;
                          test_paper_regression.py pins the paper-dataset results

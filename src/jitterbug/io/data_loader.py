@@ -7,6 +7,7 @@ column mapping, units and row policies of ``InputConfig``.
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,16 @@ import pandas as pd
 
 from ..models import RTTDataset
 from ..models.config import RTT_COLUMN_SYNONYMS, InputConfig
-from .normalize import datetimes_to_epoch, normalize
-from .readers import get_reader, infer_format
+from .normalize import NoValidRowsError, datetimes_to_epoch, infer_time_unit, normalize
+from .readers import RawData, Reader, get_reader, infer_format
+from .series import (
+    SeriesKey,
+    describe_keys,
+    filter_rows,
+    format_series_key,
+    series_key_dict,
+    split_series,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +71,59 @@ class DataLoader:
         -------
         RTTDataset
             Loaded RTT dataset; ``metadata`` records the source, the file path, the
-            format and what normalization did.
+            format and what normalization did. Rows not matching ``input.series`` are
+            left out; with ``input.group_by``, the rows must form a single series.
 
         Raises
         ------
         FileNotFoundError
             If the file does not exist.
         ValueError
-            If the format is unknown or the content does not satisfy the input contract.
+            If the format is unknown, the content does not satisfy the input contract, a
+            ``series`` filter matches nothing, or ``group_by`` finds several series (the
+            message lists them; use :meth:`load_series`).
+        ImportError
+            If the file is compressed with a codec that is not installed.
+        """
+        reader, raw, config = self.read_raw(file_path, file_format)
+        key, frame = _single_series(split_series(raw.frame, config), config, str(file_path))
+        return self._normalize_file_series(Path(file_path), reader, raw, config, key, frame)
+
+    def read_raw(
+        self,
+        file_path: str | Path,
+        file_format: str | None = None,
+        apply_series_filter: bool = True,
+    ) -> tuple[Reader, RawData, InputConfig]:
+        """
+        Read a file into raw rows, without normalizing them; ``series`` filters applied.
+
+        This is the first half of :meth:`load_from_file`, shared with :meth:`load_series`
+        and ``jitterbug inspect``.
+
+        Parameters
+        ----------
+        file_path : str | Path
+            Path to the data file (possibly compressed).
+        file_format : str | None
+            A registered format, or ``None`` to infer it.
+        apply_series_filter : bool
+            Whether to keep only the rows matching ``input.series``.
+
+        Returns
+        -------
+        tuple[Reader, RawData, InputConfig]
+            The reader used; its raw data, with ``frame`` reduced to the rows matching
+            ``series``; and the input settings in effect for the file (this loader's,
+            with the fields the format fixes, as for scamper).
+
+        Raises
+        ------
+        FileNotFoundError
+            If the file does not exist.
+        ValueError
+            If the format is unknown, the file cannot be read, or a ``series`` filter
+            names a missing column or matches no row.
         ImportError
             If the file is compressed with a codec that is not installed.
         """
@@ -87,12 +141,84 @@ class DataLoader:
         config = (
             self.input_config.model_copy(update=raw.schema) if raw.schema else self.input_config
         )
+        if not apply_series_filter:
+            return reader, raw, config
         try:
-            dataset = normalize(raw.frame, config)
+            raw.frame = filter_rows(raw.frame, config)
+        except ValueError as e:
+            raise ValueError(f"Failed to load {reader.label} file {file_path}: {e}") from e
+        return reader, raw, config
+
+    def load_series(
+        self,
+        file_path: str | Path,
+        file_format: str | None = None,
+        skipped: dict[SeriesKey, str] | None = None,
+    ) -> dict[SeriesKey, RTTDataset]:
+        """
+        Load a file as one dataset per series (``InputConfig.group_by``).
+
+        The ``series`` filters are applied first; the rows are then split by the
+        ``group_by`` columns and each series is normalized on its own, so duplicates,
+        sorting and drops are handled per series. ``time_unit: auto`` is inferred once,
+        on all the rows, so every series is read in the same unit. Without ``group_by``
+        the result has one entry, under the key ``()``.
+
+        Parameters
+        ----------
+        file_path : str | Path
+            Path to the data file (possibly compressed).
+        file_format : str | None
+            A registered format, or ``None`` to infer it.
+        skipped : dict[SeriesKey, str] | None
+            If given, receives the series left out because the row policies dropped
+            every one of their rows, with the reason. They are logged either way.
+
+        Returns
+        -------
+        dict[SeriesKey, RTTDataset]
+            Datasets in order of first appearance in the file. Each dataset's
+            ``metadata["series"]`` is its key as a ``{name: value}`` mapping.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the file does not exist.
+        ValueError
+            As :meth:`load_from_file`, except that several series are expected; a row
+            policy set to ``error`` that one series violates fails the whole file.
+        ImportError
+            If the file is compressed with a codec that is not installed.
+        """
+        reader, raw, config = self.read_raw(file_path, file_format)
+
+        def load(key: SeriesKey, frame: pd.DataFrame, config: InputConfig) -> RTTDataset:
+            return self._normalize_file_series(Path(file_path), reader, raw, config, key, frame)
+
+        datasets = _load_each_series(raw.frame, config, load, skipped)
+        logger.info(f"Loaded {len(datasets)} series from {file_path}")
+        return datasets
+
+    def _normalize_file_series(
+        self,
+        file_path: Path,
+        reader: Reader,
+        raw: RawData,
+        config: InputConfig,
+        key: SeriesKey,
+        frame: pd.DataFrame,
+    ) -> RTTDataset:
+        """Normalize the raw rows of one series and attach the file metadata."""
+        try:
+            dataset = normalize(frame, config)
+        except NoValidRowsError as e:
+            raise NoValidRowsError(f"Failed to load {reader.label} file {file_path}: {e}") from e
         except ValueError as e:
             raise ValueError(f"Failed to load {reader.label} file {file_path}: {e}") from e
         dataset.metadata.update({"source": reader.name, "file_path": str(file_path)})
         dataset.metadata.update(raw.metadata)
+        if key:
+            dataset.metadata["series"] = series_key_dict(key)
         if raw.finish is not None:
             raw.finish(dataset)
         return dataset
@@ -105,7 +231,8 @@ class DataLoader:
         ``docs/INPUT_FORMATS.md``); with the defaults: an ``epoch`` column with Unix
         seconds (UTC) and one RTT column named ``values``, ``rtt_value``, ``rtt`` or
         ``latency`` holding milliseconds; ``source`` and ``destination`` are optional.
-        Validation happens once, on the whole frame (``jitterbug.io.normalize``):
+        Rows not matching ``input.series`` are left out first. Validation happens once,
+        on the whole frame (``jitterbug.io.normalize``):
 
         - a missing column or a value that cannot be read in its unit raises
           ``ValueError``;
@@ -130,10 +257,43 @@ class DataLoader:
         ------
         ValueError
             If a required column is missing, a value cannot be read, a policy set to
-            ``error`` is violated, or no valid rows remain.
+            ``error`` is violated, no valid rows remain, a ``series`` filter matches
+            nothing, or ``group_by`` finds several series (use
+            :meth:`load_series_from_dataframe`).
         """
         logger.info(f"Loading data from DataFrame with {len(df)} rows")
-        return normalize(df, self.input_config)
+        frame = filter_rows(df, self.input_config)
+        key, frame = _single_series(
+            split_series(frame, self.input_config), self.input_config, "The DataFrame"
+        )
+        return _normalize_frame_series(key, frame, self.input_config)
+
+    def load_series_from_dataframe(
+        self, df: pd.DataFrame, skipped: dict[SeriesKey, str] | None = None
+    ) -> dict[SeriesKey, RTTDataset]:
+        """
+        Load a DataFrame as one dataset per series; see :meth:`load_series`.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Raw rows, mapped through this loader's ``InputConfig``.
+        skipped : dict[SeriesKey, str] | None
+            If given, receives the series whose rows were all dropped, with the reason.
+
+        Returns
+        -------
+        dict[SeriesKey, RTTDataset]
+            Datasets in order of first appearance.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`load_from_dataframe`, except that several series are expected.
+        """
+        logger.info(f"Loading series from DataFrame with {len(df)} rows")
+        frame = filter_rows(df, self.input_config)
+        return _load_each_series(frame, self.input_config, _normalize_frame_series, skipped)
 
     def _infer_format(self, file_path: Path) -> str:
         """
@@ -289,3 +449,63 @@ class DataLoader:
                 },
             },
         }
+
+
+SKIPPED_NO_VALID_ROWS = "no valid RTT rows (every row was missing, non-positive or too large)"
+"""Reason recorded for a series whose rows the row policies all dropped."""
+
+
+def _single_series(
+    frames: dict[SeriesKey, pd.DataFrame], config: InputConfig, origin: str
+) -> tuple[SeriesKey, pd.DataFrame]:
+    """The only series of ``frames``; an error listing the keys when there are several."""
+    if len(frames) > 1:
+        raise ValueError(
+            f"{origin} holds {len(frames)} series under group_by {config.group_by}: "
+            f"{describe_keys(list(frames))}. Select one with series (--series NAME=VALUE), "
+            "or load each with load_series / analyze_series_from_file "
+            "(jitterbug analyze --group-by)"
+        )
+    ((key, frame),) = frames.items()
+    return key, frame
+
+
+def _normalize_frame_series(key: SeriesKey, frame: pd.DataFrame, config: InputConfig) -> RTTDataset:
+    """Normalize the rows of one DataFrame series, recording its key."""
+    dataset = normalize(frame, config)
+    if key:
+        dataset.metadata["series"] = series_key_dict(key)
+    return dataset
+
+
+def _load_each_series(
+    frame: pd.DataFrame,
+    config: InputConfig,
+    load: Callable[[SeriesKey, pd.DataFrame, InputConfig], RTTDataset],
+    skipped: dict[SeriesKey, str] | None,
+) -> dict[SeriesKey, RTTDataset]:
+    """
+    Split filtered raw rows by ``group_by`` and normalize each series with ``load``.
+
+    ``time_unit: auto`` is resolved once on all the rows, so every series is read in the
+    same unit; a series whose rows are all dropped is skipped (logged, and recorded in
+    ``skipped`` when given).
+    """
+    frames = split_series(frame, config)
+    inferred = config.time_unit == "auto" and config.time_column in frame.columns
+    if inferred:
+        unit = infer_time_unit(frame[config.time_column], config.time_column)
+        config = config.model_copy(update={"time_unit": unit})
+    datasets: dict[SeriesKey, RTTDataset] = {}
+    for key, rows in frames.items():
+        try:
+            dataset = load(key, rows, config)
+        except NoValidRowsError:
+            logger.warning(f"Skipping series {format_series_key(key)}: {SKIPPED_NO_VALID_ROWS}")
+            if skipped is not None:
+                skipped[key] = SKIPPED_NO_VALID_ROWS
+            continue
+        if inferred:
+            dataset.metadata["time_unit_inferred"] = True
+        datasets[key] = dataset
+    return datasets

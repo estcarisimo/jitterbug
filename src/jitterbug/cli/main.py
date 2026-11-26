@@ -21,7 +21,7 @@ from ..analyzer import JitterbugAnalyzer
 from ..io import DataLoader
 from ..io.compression import open_text
 from ..io.readers import available_formats
-from ..models import CongestionInferenceResult, JitterbugConfig
+from ..models import CongestionInferenceResult, JitterbugConfig, MultiSeriesResult
 
 # matplotlib is an optional dependency; the visualize command checks for it at run time.
 try:
@@ -57,6 +57,40 @@ TIME_UNIT_OPTION = typer.Option(
 RTT_UNIT_OPTION = typer.Option(
     None, "--rtt-unit", help="Unit of the RTT column (ms, us, s, ns) [default: ms]"
 )
+GROUP_BY_OPTION = typer.Option(
+    None,
+    "--group-by",
+    help="Analyze each series separately, keyed by these columns (repeatable or "
+    "comma-separated; source and destination name the mapped columns)",
+)
+SERIES_OPTION = typer.Option(
+    None,
+    "--series",
+    help="Keep only rows where COLUMN equals VALUE (COLUMN=VALUE, repeatable; source and "
+    "destination name the mapped columns)",
+)
+
+
+def _parse_group_by(values: list[str] | None) -> list[str] | None:
+    """``--group-by a,b --group-by c`` as ``["a", "b", "c"]``; ``None`` when not given."""
+    if not values:
+        return None
+    return [name.strip() for value in values for name in value.split(",") if name.strip()]
+
+
+def _parse_series(values: list[str] | None) -> dict[str, str] | None:
+    """``--series name=value`` pairs as a mapping; ``None`` when not given."""
+    if not values:
+        return None
+    filters: dict[str, str] = {}
+    for value in values:
+        name, sep, wanted = value.partition("=")
+        if not sep or not name.strip():
+            raise typer.BadParameter(
+                f"expected COLUMN=VALUE, got {value!r}", param_hint="'--series'"
+            )
+        filters[name.strip()] = wanted
+    return filters
 
 
 def _apply_input_overrides(
@@ -66,21 +100,28 @@ def _apply_input_overrides(
     rtt_column: str | None = None,
     time_unit: str | None = None,
     rtt_unit: str | None = None,
+    group_by: list[str] | None = None,
+    series: list[str] | None = None,
 ) -> JitterbugConfig:
     """
     Return a copy of ``base`` with the input mapping flags that were actually given.
 
     Values are re-validated by Pydantic, so an unknown unit is rejected with the same
-    message as in a configuration file.
+    message as in a configuration file. ``--group-by`` replaces ``input.group_by``;
+    each ``--series`` filter replaces the one for the same column in ``input.series``.
     """
     data = base.model_dump()
-    given = {
+    given: dict[str, Any] = {
         "time_column": time_column,
         "rtt_column": rtt_column,
         "time_unit": time_unit,
         "rtt_unit": rtt_unit,
+        "group_by": _parse_group_by(group_by),
     }
     data["input"].update({k: v for k, v in given.items() if v is not None})
+    filters = _parse_series(series)
+    if filters is not None:
+        data["input"]["series"] = {**data["input"].get("series", {}), **filters}
     return JitterbugConfig.model_validate(data)
 
 
@@ -181,6 +222,8 @@ def analyze(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    group_by: list[str] | None = GROUP_BY_OPTION,
+    series: list[str] | None = SERIES_OPTION,
     output_format: str | None = typer.Option(
         None, "--output-format", help="Output format (json, csv, parquet) [default: json]"
     ),
@@ -228,6 +271,10 @@ def analyze(
 
     • Using KS-test method:
       [cyan]jitterbug analyze rtts.csv --method ks_test --algorithm bcp[/cyan]
+
+    • One analysis per destination, or one destination only:
+      [cyan]jitterbug analyze pings.json --group-by destination -o results.json[/cyan]
+      [cyan]jitterbug analyze pings.json --series destination=8.8.8.8[/cyan]
     """
     # Set up logging
     logging.basicConfig(
@@ -256,10 +303,16 @@ def analyze(
             rtt_column=rtt_column,
             time_unit=time_unit,
             rtt_unit=rtt_unit,
+            group_by=group_by,
+            series=series,
         )
 
         # Create analyzer
         analyzer = JitterbugAnalyzer(jitterbug_config)
+
+        if jitterbug_config.input.group_by:
+            _analyze_grouped(analyzer, input_file, format, output)
+            return
 
         # Show progress
         with Progress(
@@ -293,9 +346,42 @@ def analyze(
                 f"--output results.{jitterbug_config.output_format}[/cyan]"
             )
 
+    except typer.BadParameter:
+        raise
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
         raise typer.Exit(1) from None
+
+
+def _analyze_grouped(
+    analyzer: JitterbugAnalyzer, input_file: Path, file_format: str | None, output: Path | None
+) -> None:
+    """``analyze --group-by``: one analysis per series, one summary row per series."""
+    output_format = analyzer.config.output_format
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Loading and analyzing series...", total=None)
+        results = analyzer.analyze_series_from_file(input_file, file_format)
+        if output:
+            progress.update(task, description="Saving results...")
+            analyzer.save_series_results(results, output, output_format)
+        progress.update(task, description="Analysis complete!", total=1, completed=1)
+
+    _display_series_results(results, analyzer)
+    if output:
+        console.print(
+            f"\n✅ Results of {len(results.series)} series saved to [bold]{output}[/bold]"
+        )
+    else:
+        console.print(
+            f"\n💡 [dim]Tip: To save full results, use --output flag:[/dim]\n"
+            f"   [cyan]jitterbug analyze {input_file} --group-by "
+            f"{','.join(analyzer.config.input.group_by)} --output results.{output_format}[/cyan]"
+        )
 
 
 @app.command()
@@ -352,6 +438,7 @@ def validate(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    series: list[str] | None = SERIES_OPTION,
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ) -> None:
     """
@@ -367,6 +454,9 @@ def validate(
 
     • Millisecond timestamps in a column named ts:
       [cyan]jitterbug validate rtts.csv --time-column ts --time-unit ms[/cyan]
+
+    • One destination of a file that holds several:
+      [cyan]jitterbug validate pings.json --series destination=8.8.8.8[/cyan]
     """
     try:
         jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
@@ -376,6 +466,7 @@ def validate(
             rtt_column=rtt_column,
             time_unit=time_unit,
             rtt_unit=rtt_unit,
+            series=series,
         )
         data_loader = DataLoader(jitterbug_config.input)
 
@@ -395,9 +486,77 @@ def validate(
         # Display validation results
         _display_validation_results(validation_results, verbose)
 
+    except typer.BadParameter:
+        raise
     except Exception as e:
         console.print(f"❌ Validation failed: {e}", style="red")
         raise typer.Exit(1) from None
+
+
+@app.command()
+def inspect(
+    input_file: Path = typer.Argument(..., help="Path to RTT data file to inspect", exists=True),
+    config: Path | None = typer.Option(
+        None, "--config", "-c", help="Configuration file path (YAML or JSON); only `input` is used"
+    ),
+    format: str | None = typer.Option(None, "--format", "-f", help=INPUT_FORMAT_HELP),
+    time_column: str | None = TIME_COLUMN_OPTION,
+    rtt_column: str | None = RTT_COLUMN_OPTION,
+    time_unit: str | None = TIME_UNIT_OPTION,
+    rtt_unit: str | None = RTT_UNIT_OPTION,
+    group_by: list[str] | None = GROUP_BY_OPTION,
+    series: list[str] | None = SERIES_OPTION,
+    as_json: bool = typer.Option(False, "--json", help="Print the report as JSON"),
+) -> None:
+    """
+    Show what loading a file would do, without analyzing it.
+
+    Reports the detected format and compression, the column mapping and units in effect
+    (including what --time-unit auto inferred), how many rows each row policy would drop
+    or reorder, and the series found: under --group-by, or the distinct source and
+    destination pairs otherwise, each with its sample count, time range, median sampling
+    interval, largest gap and duplicate timestamps. Exits with status 1 when loading
+    would fail (the report says why).
+
+    [bold]Examples:[/bold]
+
+    • What is in this file?
+      [cyan]jitterbug inspect pings.json[/cyan]
+
+    • The series `analyze --group-by` would analyze, as JSON:
+      [cyan]jitterbug inspect rtts.csv --group-by source,destination --json[/cyan]
+    """
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        stream=sys.stderr,
+    )
+    try:
+        from ..io.inspection import inspect_file
+
+        jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
+        jitterbug_config = _apply_input_overrides(
+            jitterbug_config,
+            time_column=time_column,
+            rtt_column=rtt_column,
+            time_unit=time_unit,
+            rtt_unit=rtt_unit,
+            group_by=group_by,
+            series=series,
+        )
+        report = inspect_file(input_file, format, jitterbug_config.input)
+    except typer.BadParameter:
+        raise
+    except Exception as e:
+        err_console.print(f"❌ Error: {e}", style="red")
+        raise typer.Exit(1) from None
+
+    if as_json:
+        print(json.dumps(report, indent=2, default=str))
+    else:
+        _display_inspection(report)
+    if report["errors"]:
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -426,6 +585,7 @@ def visualize(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    series: list[str] | None = SERIES_OPTION,
     method: str | None = typer.Option(
         None,
         "--method",
@@ -505,6 +665,7 @@ def visualize(
             rtt_column=rtt_column,
             time_unit=time_unit,
             rtt_unit=rtt_unit,
+            series=series,
         )
 
         # Create analyzer
@@ -545,6 +706,8 @@ def visualize(
         console.print(f"   • Congestion ratio: {stats['congestion_ratio']:.1%}")
         console.print(f"   • Change points: {len(analyzer.change_points or [])}")
 
+    except typer.BadParameter:
+        raise
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
         if verbose:
@@ -786,6 +949,7 @@ def replay(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    series: list[str] | None = SERIES_OPTION,
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Configuration file (YAML or JSON)", exists=True
     ),
@@ -849,6 +1013,7 @@ def replay(
             rtt_column=rtt_column,
             time_unit=time_unit,
             rtt_unit=rtt_unit,
+            series=series,
         )
         with Progress(
             SpinnerColumn(),
@@ -910,6 +1075,8 @@ def replay(
         console.print(table)
         if output:
             console.print(f"\n✅ Events saved to [bold]{output}[/bold]")
+    except typer.BadParameter:
+        raise
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
         raise typer.Exit(1) from None
@@ -995,6 +1162,151 @@ def _display_results(
             console.print(detail_table)
         else:
             console.print("No congestion periods found", style="yellow")
+
+
+def _display_series_results(results: MultiSeriesResult, analyzer: JitterbugAnalyzer) -> None:
+    """One summary row per series of a grouped analysis."""
+    meta = results.metadata
+    console.print(
+        f"\n📊 [bold]Analysis Summary[/bold]: {meta['series_count']} series, "
+        f"{meta['analyzed']} analyzed, {meta['skipped']} skipped"
+    )
+    table = Table()
+    for name in results.group_by:
+        table.add_column(name, style="cyan")
+    table.add_column("Samples", justify="right")
+    table.add_column("Periods", justify="right")
+    table.add_column("Congested", justify="right")
+    table.add_column("Congestion Ratio", justify="right")
+    table.add_column("Status")
+    for entry in results.series:
+        key = ["-" if entry.key.get(n) is None else str(entry.key[n]) for n in results.group_by]
+        if entry.result is None:
+            table.add_row(*key, "-", "-", "-", "-", f"[yellow]skipped: {entry.skipped_reason}")
+            continue
+        stats = analyzer.get_summary_statistics(entry.result)
+        table.add_row(
+            *key,
+            str(entry.result.metadata.get("total_measurements", "-")),
+            str(stats["total_periods"]),
+            str(stats["congested_periods"]),
+            f"{stats['congestion_ratio']:.2%}",
+            "[green]analyzed",
+        )
+    console.print(table)
+
+
+def _display_inspection(report: dict[str, Any]) -> None:
+    """Human-readable form of an ``inspect_file`` report."""
+    compression = report["compression"] or "none"
+    detail = f" ({report['format_detail']})" if report.get("format_detail") else ""
+    console.print(f"📄 [bold]{report['file']}[/bold]")
+    console.print(f"   Format: {report['format']}{detail}, compression: {compression}")
+    for key, value in report["reader"].items():
+        console.print(f"   {key.replace('_', ' ').capitalize()}: {value!r}")
+    console.print(f"   Columns: {', '.join(report['columns'])}")
+
+    mapping = report.get("mapping")
+    if mapping is not None:
+        table = Table(title="Mapping in effect", show_header=False)
+        table.add_column("Setting", style="cyan")
+        table.add_column("Value", style="bold")
+        unit = mapping["time_unit_applied"]
+        if mapping["time_unit"] == "auto":
+            unit = f"{unit} (inferred by auto)"
+        rtt_column = mapping["rtt_column"]
+        if mapping["rtt_column_configured"] is None:
+            rtt_column = f"{rtt_column} (first synonym found)"
+        table.add_row("Time column", f"{mapping['time_column']} [{unit}]")
+        table.add_row("RTT column", f"{rtt_column} [{mapping['rtt_unit']} -> ms]")
+        table.add_row("Source column", mapping["source_column"] or "(absent)")
+        table.add_row("Destination column", mapping["destination_column"] or "(absent)")
+        if mapping["series"]:
+            filters = ", ".join(f"{k}={v}" for k, v in mapping["series"].items())
+            table.add_row("Series filter", filters)
+        table.add_row("Group by", ", ".join(mapping["group_by"]) or "(none: one series)")
+        if mapping["fixed_by_format"]:
+            table.add_row("Fixed by format", ", ".join(mapping["fixed_by_format"]))
+        console.print(table)
+
+    rows = report.get("rows")
+    if rows is not None:
+        policies = report["policies"]
+        table = Table(title="Rows and row policies")
+        table.add_column("Step", style="cyan")
+        table.add_column("Setting")
+        table.add_column("Rows", justify="right")
+        table.add_column("Effect")
+        table.add_row("Read", "", str(rows["read"]), "")
+        if rows["selected"] != rows["read"]:
+            table.add_row("Series filter", "", str(rows["selected"]), "kept")
+        table.add_row("Missing time or RTT", "", str(rows["missing"]), "dropped")
+        out_of_range = policies["out_of_range"]
+        table.add_row(
+            "RTT out of range",
+            out_of_range["setting"],
+            str(out_of_range["rows"]),
+            out_of_range["effect"],
+        )
+        unsorted = policies["unsorted"]
+        table.add_row(
+            "Out of time order",
+            unsorted["setting"],
+            f"{unsorted['rows']} in {unsorted['series_affected']} series",
+            unsorted["effect"],
+        )
+        duplicates = policies["duplicates"]
+        table.add_row(
+            "Duplicate timestamps",
+            duplicates["setting"],
+            str(duplicates["rows"]),
+            duplicates["effect"],
+        )
+        table.add_row("Valid", "", str(rows["valid"]), "")
+        console.print(table)
+
+    entries = report.get("series")
+    if entries is not None:
+        names = report["series_by"]
+        title = (
+            f"Series by {', '.join(names)}"
+            if report["grouped"]
+            else "Source/destination pairs (analyzed as one series)"
+            if names
+            else "Series (no source or destination column)"
+        )
+        table = Table(title=f"{title}: {len(entries)}")
+        for name in names:
+            table.add_column(name, style="cyan")
+        for column in ("Samples", "Start (UTC)", "End (UTC)", "Median step", "Max gap", "Dup."):
+            table.add_column(column, justify="right" if column != "Start (UTC)" else "left")
+
+        def seconds(value: float | None) -> str:
+            return "-" if value is None else f"{value:g}s"
+
+        for entry in entries:
+            key = ["-" if entry["key"].get(n) is None else str(entry["key"][n]) for n in names]
+            table.add_row(
+                *key,
+                str(entry["samples"]),
+                (entry["start"] or "-")[:19],
+                (entry["end"] or "-")[:19],
+                seconds(entry["median_interval_seconds"]),
+                seconds(entry["max_gap_seconds"]),
+                str(entry["duplicate_timestamps"]),
+            )
+        console.print(table)
+        if not report["grouped"] and len(entries) > 1:
+            console.print(
+                "⚠️  Several pairs would be analyzed as one mixed series; separate them with "
+                "--group-by source,destination or keep one with --series destination=VALUE",
+                style="yellow",
+            )
+
+    for error in report["errors"]:
+        console.print(f"❌ Loading would fail: {error}", style="red")
+    if not report["errors"]:
+        console.print("✅ Loading would succeed", style="green")
 
 
 def _display_validation_results(results: dict[str, Any], verbose: bool = False) -> None:

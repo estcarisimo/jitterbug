@@ -17,12 +17,15 @@ from .detection import ChangePointDetector
 from .io import DataLoader
 from .io.compression import open_text
 from .io.exporters import reject_compressed_parquet
+from .io.series import SeriesKey, format_series_key, series_key_dict
 from .models import (
     ChangePoint,
     CongestionInferenceResult,
     JitterbugConfig,
     MinimumRTTDataset,
+    MultiSeriesResult,
     RTTDataset,
+    SeriesResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,6 +162,103 @@ class JitterbugAnalyzer:
 
         # Perform analysis
         return self.analyze(rtt_data)
+
+    def analyze_series_from_file(
+        self, file_path: str | Path, file_format: str | None = None
+    ) -> MultiSeriesResult:
+        """
+        Analyze each series of a file on its own (``config.input.group_by``).
+
+        Rows are filtered by ``input.series``, split by ``input.group_by`` and loaded per
+        series (``DataLoader.load_series``); each series is then analyzed as
+        :meth:`analyze` would analyze it alone. A series that cannot be analyzed (all
+        rows dropped, fewer than two minimum-RTT intervals, an analysis error) is
+        reported as skipped with its reason; the others are unaffected. After the call,
+        ``raw_data``, ``min_rtt_data`` and ``change_points`` belong to the last series
+        analyzed.
+
+        Parameters
+        ----------
+        file_path : str | Path
+            Path to the RTT data file.
+        file_format : str | None
+            Input format; inferred when ``None``.
+
+        Returns
+        -------
+        MultiSeriesResult
+            One entry per series: series analyzed, in order of first appearance, then
+            series whose rows were all dropped while loading.
+
+        Raises
+        ------
+        ValueError
+            If the file cannot be loaded, a key column is missing or a ``series`` filter
+            matches no row.
+        """
+        logger.info(f"Loading RTT series from {file_path}")
+        skipped: dict[SeriesKey, str] = {}
+        datasets = self.data_loader.load_series(file_path, file_format, skipped)
+        return self._analyze_each(datasets, skipped)
+
+    def analyze_series_from_dataframe(self, df: pd.DataFrame) -> MultiSeriesResult:
+        """
+        Analyze each series of a DataFrame on its own; see
+        :meth:`analyze_series_from_file`.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Raw rows, mapped through ``config.input``.
+
+        Returns
+        -------
+        MultiSeriesResult
+            One entry per series.
+        """
+        skipped: dict[SeriesKey, str] = {}
+        datasets = self.data_loader.load_series_from_dataframe(df, skipped)
+        return self._analyze_each(datasets, skipped)
+
+    def _analyze_each(
+        self, datasets: dict[SeriesKey, RTTDataset], skipped: dict[SeriesKey, str]
+    ) -> MultiSeriesResult:
+        """Analyze loaded series one by one; series that fail are skipped with a reason."""
+        entries: list[SeriesResult] = []
+        for key, dataset in datasets.items():
+            label = format_series_key(key)
+            logger.info(f"Analyzing series {label} ({len(dataset)} samples)")
+            self.raw_data = dataset
+            try:
+                result = self.analyze(dataset)
+            except ValueError as e:
+                reason = f"analysis failed: {e}"
+                logger.warning(f"Skipping series {label}: {reason}")
+                entries.append(SeriesResult(key=series_key_dict(key), skipped_reason=reason))
+                continue
+            if "error" in result.metadata:
+                reason = (
+                    f"{result.metadata['min_intervals']} minimum-RTT interval(s) of "
+                    f"{self.config.data_processing.minimum_interval_minutes} min, "
+                    "need at least 2"
+                )
+                logger.warning(f"Skipping series {label}: {reason}")
+                entries.append(SeriesResult(key=series_key_dict(key), skipped_reason=reason))
+                continue
+            entries.append(SeriesResult(key=series_key_dict(key), result=result))
+        for key, reason in skipped.items():
+            entries.append(SeriesResult(key=series_key_dict(key), skipped_reason=reason))
+        analyzed = sum(entry.result is not None for entry in entries)
+        return MultiSeriesResult(
+            group_by=list(self.config.input.group_by),
+            series=entries,
+            metadata={
+                "series_count": len(entries),
+                "analyzed": analyzed,
+                "skipped": len(entries) - analyzed,
+                "series_filter": dict(self.config.input.series),
+            },
+        )
 
     def analyze(self, rtt_data: RTTDataset) -> CongestionInferenceResult:
         """
@@ -350,6 +450,49 @@ class JitterbugAnalyzer:
             raise ValueError(f"Unsupported output format: {format}")
 
         logger.info(f"Results saved to {output_path}")
+
+    def save_series_results(
+        self, results: MultiSeriesResult, output_path: str | Path, format: str | None = None
+    ) -> None:
+        """
+        Save the results of a grouped analysis.
+
+        JSON is one document, ``{"group_by": [...], "series": [{"key": {...}, "result":
+        {...}} | {"key": {...}, "skipped_reason": "..."}, ...], "metadata": {...}}``, each
+        ``result`` as :meth:`save_results` writes it. CSV and Parquet hold every period
+        of every analyzed series, with the key columns first.
+
+        Parameters
+        ----------
+        results : MultiSeriesResult
+            Results to save.
+        output_path : str | Path
+            Destination; JSON and CSV are compressed for ``.zst``, ``.gz``, ``.bz2`` or
+            ``.xz``.
+        format : str | None
+            ``json``, ``csv`` or ``parquet``; ``None`` uses ``config.output_format``.
+
+        Raises
+        ------
+        ValueError
+            If the format is unknown, or Parquet is requested with a compressed path.
+        """
+        output_path = Path(output_path)
+        format = format or self.config.output_format
+        if format == "json":
+            import json
+
+            with open_text(output_path, "w") as f:
+                json.dump(results.to_dict(), f, indent=2, default=str)
+        elif format == "csv":
+            with open_text(output_path, "w", newline="") as f:
+                results.to_dataframe().to_csv(f, index=False)
+        elif format == "parquet":
+            reject_compressed_parquet(output_path)
+            results.to_dataframe().to_parquet(output_path)
+        else:
+            raise ValueError(f"Unsupported output format: {format}")
+        logger.info(f"Results of {len(results.series)} series saved to {output_path}")
 
     def get_summary_statistics(self, results: CongestionInferenceResult) -> dict:
         """

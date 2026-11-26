@@ -12,6 +12,10 @@ end here, so the input contract is enforced in one place. The steps, in order:
 3. **Row policies.** Drop rows with a missing time or RTT; drop (or reject) RTTs outside
    ``(0, MAX_RTT_MS]``; sort (or reject) rows out of time order; keep, thin out or reject
    rows that share a timestamp. Nothing is imputed or resampled.
+
+Selecting series (``InputConfig.series`` and ``group_by``) happens before, on the raw
+rows (``jitterbug.io.series``), so these steps apply to each series on its own. When
+neither is set and the rows hold several (source, destination) pairs, a warning says so.
 """
 
 import logging
@@ -23,6 +27,7 @@ import pandas as pd
 
 from ..models import MAX_RTT_MS, RTTDataset, RTTMeasurement
 from ..models.config import RTT_COLUMN_SYNONYMS, InputConfig
+from .series import count_source_destination_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +37,13 @@ TIME_UNIT_DIVISORS = {"s": 1.0, "ms": 1e3, "us": 1e6, "ns": 1e9}
 RTT_UNIT_SCALES = {"ms": (1.0, 1.0), "s": (1e3, 1.0), "us": (1.0, 1e3), "ns": (1.0, 1e6)}
 """``(multiplier, divisor)`` that turn an RTT in this unit into milliseconds. Dividing,
 rather than multiplying by a fraction, keeps e.g. 1500 us at exactly 1.5 ms."""
+
+
+class NoValidRowsError(ValueError):
+    """Every row was dropped by the row policies (missing, non-positive or too large
+    RTTs). A ``ValueError``, so callers that catch that keep working; per-series loading
+    uses it to skip one series instead of failing the whole input."""
+
 
 AUTO_TIME_UNIT_LIMITS = ((1e11, "s"), (1e14, "ms"), (1e17, "us"))
 """``time_unit: auto`` picks the first unit whose limit exceeds the median absolute time:
@@ -59,7 +71,8 @@ def normalize(df: pd.DataFrame, config: InputConfig | None = None) -> RTTDataset
         ``rtt_column``, ``time_column``, ``time_unit`` (the unit used, inferred or not),
         ``time_unit_inferred``, ``rtt_unit``, ``total_rows``, ``dropped_rows`` (counts by
         reason), ``sorted_on_load``, ``duplicate_rows`` (rows sharing a timestamp with
-        an earlier one) and ``duplicates_removed``.
+        an earlier one), ``duplicates_removed`` and ``source_destination_pairs`` (distinct
+        (source, destination) pairs among the kept rows).
 
     Raises
     ------
@@ -104,9 +117,19 @@ def normalize(df: pd.DataFrame, config: InputConfig | None = None) -> RTTDataset
         if count:
             logger.warning(f"Dropping {count} row(s) with {reason.replace('_', '-')} RTT")
     if not keep.any():
-        raise ValueError("No valid RTT rows: every row was missing, non-positive or too large")
+        raise NoValidRowsError(
+            "No valid RTT rows: every row was missing, non-positive or too large"
+        )
 
     frame = df.loc[keep]
+    pairs = count_source_destination_pairs(frame, config)
+    if pairs > 1 and not config.group_by and not config.series:
+        logger.warning(
+            f"Input holds {pairs} distinct (source, destination) pairs, analyzed as one mixed "
+            "series. To separate them, group with --group-by source,destination "
+            "(input.group_by) or keep one with --series destination=VALUE (input.series); "
+            "'jitterbug inspect' lists them"
+        )
     epoch_values = epochs[keep].to_numpy(dtype=float)
     rtt_values = rtts[keep].to_numpy(dtype=float)
 
@@ -159,6 +182,7 @@ def normalize(df: pd.DataFrame, config: InputConfig | None = None) -> RTTDataset
         "sorted_on_load": needs_sort,
         "duplicate_rows": duplicate_rows,
         "duplicates_removed": duplicate_rows if selected is not None else 0,
+        "source_destination_pairs": pairs,
     }
     return RTTDataset(measurements=measurements, metadata=metadata)
 

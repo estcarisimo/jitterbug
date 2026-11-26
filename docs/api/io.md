@@ -4,6 +4,10 @@
 
 ::: jitterbug.io.normalize
 
+::: jitterbug.io.series
+
+::: jitterbug.io.inspection
+
 ::: jitterbug.io.readers.base
 
 ::: jitterbug.io.readers.delimited
