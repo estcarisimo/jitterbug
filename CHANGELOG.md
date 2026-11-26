@@ -44,9 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   thin wrapper around it. `--format` lists the registered formats (`csv`, `tsv`,
   `json`, `scamper`, `jsonl`). Error messages for a missing column now list the
   columns that exist, and an infinite time or one outside the years 1–9999 is a
-  `ValueError` naming the column instead of an `OverflowError`. Dataset metadata gains `time_column`, `time_unit`,
-  `time_unit_inferred`, `rtt_unit`, `duplicate_rows` and `duplicates_removed`
-  (and `delimiter` or `invalid_lines`, depending on the reader).
+  `ValueError` naming the column instead of an `OverflowError`. Dataset metadata
+  gains `time_column`, `time_unit`, `time_unit_inferred`, `rtt_unit`,
+  `duplicate_rows` and `duplicates_removed` (and `delimiter` or `invalid_lines`,
+  depending on the reader).
 - A `.json`/`.jsonl` file without any scamper record is now read as generic JSON
   lines instead of failing with "No valid RTT measurements".
 - `CITATION.cff` has a top-level `repository-code`, an abstract, and keywords. The
