@@ -141,7 +141,10 @@ class TestOnlineReplay:
         assert summary["recovered"] >= 14
         assert summary["spurious"] == 0
         assert summary["boundaries_within_30min"] == 20
+        assert summary["boundaries_within_5min"] == 8
+        assert_allclose(summary["boundary_offset_min_mean"], 18.1, atol=0.05)
         assert summary["reference_boundaries"] == 30
+        assert summary["revisions"] == 0
 
     def test_detection_delays(self, summary: dict) -> None:
         # One bin is 15 min; delays are measured to the sample that closes the bin.
@@ -273,6 +276,84 @@ class TestStateChangeReplay:
             verdicts.append(events[-1])  # the open period at the end of the data
         states = [False] + [bool(e.is_congested) for e in verdicts]
         assert len(last) == sum(a != b for a, b in zip(states, states[1:], strict=False))
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    importlib.util.find_spec("bayesian_changepoint_detection") is None,
+    reason="bcp extra not installed",
+)
+@pytest.mark.parametrize("method", ["ks_test", "jitter_dispersion"])
+class TestRevisionReplay:
+    """``streaming.revise_change_points`` on the incremental back end (defaults otherwise).
+
+    Against the default replay (``TestOnlineReplay``): the same change points, periods,
+    recovered and spurious counts and no provisional flip; 13 instead of 8 reference
+    boundaries within 5 min, 19 instead of 20 within 30 min (one revision moves a boundary
+    from 15 to 60 min after the reference), and the same state changes, 6 of them revised.
+    """
+
+    GOLDEN = {
+        "change_points": 33,
+        "periods": 31,
+        "congested": 15,
+        "provisional_pairs": 31,
+        "provisional_flips": 0,
+        "revisions": 8,
+        "revised_change_points": 7,
+        "provisional_superseded_changed": 0,
+        "recovered": 14,
+        "spurious": 0,
+        "boundaries_within_30min": 19,
+        "boundaries_within_5min": 13,
+        "reference_boundaries": 30,
+    }
+    SUPERSEDED = {"ks_test": 8, "jitter_dispersion": 7}
+    STATE_CHANGES = {
+        "ks_test": {"state_changes": 29, "state_changes_revised": 6, "suspected_confirmed": 14},
+        "jitter_dispersion": {
+            "state_changes": 29,
+            "state_changes_revised": 6,
+            "suspected_confirmed": 24,
+        },
+    }
+
+    def _get(self, runs: dict, method: str) -> tuple[dict, dict]:
+        from jitterbug.io import DataLoader
+        from jitterbug.streaming import replay_state_changes, score, score_state_changes
+
+        key = ("revise_change_points", method)
+        if key not in runs:
+            config = JitterbugConfig()
+            config.jitter_analysis.method = method  # type: ignore[assignment]
+            config.streaming.revise_change_points = True
+            events, changes = replay_state_changes(DataLoader().load_from_file(RAW_CSV), config)
+            runs[key] = (
+                score(events, REFERENCE[method]),
+                score_state_changes(events, changes, REFERENCE[method]),
+            )
+        return runs[key]
+
+    def test_golden(self, runs: dict, method: str) -> None:
+        summary, changes = self._get(runs, method)
+        for key, value in self.GOLDEN.items():
+            assert summary[key] == value, key
+        assert summary["provisional_superseded"] == self.SUPERSEDED[method]
+        for key, value in self.STATE_CHANGES[method].items():
+            assert changes[key] == value, key
+        assert changes["suspected_retracted"] == 0
+
+    def test_revisions_and_placement(self, runs: dict, method: str) -> None:
+        summary, _ = self._get(runs, method)
+        # Shifts in minutes (later in time); lags after the first report.
+        assert_allclose(summary["revision_shift_min_median"], 30.0, atol=0.1)
+        assert_allclose(summary["revision_shift_min_max"], 45.0, atol=0.1)
+        assert_allclose(summary["revision_lag_min_median"], 285.0, atol=0.1)
+        assert_allclose(summary["revision_lag_min_max"], 960.0, atol=0.1)
+        assert_allclose(summary["boundary_offset_min_mean"], 15.2, atol=0.05)
+        # Delays are those of the first report, as without revisions.
+        assert_allclose(summary["onset_delay_min_median"], 15.0, atol=0.1)
+        assert_allclose(summary["return_delay_min_median"], 135.0, atol=0.1)
 
 
 @pytest.mark.slow

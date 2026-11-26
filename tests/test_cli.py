@@ -267,6 +267,9 @@ def test_streaming_overrides_only_touch_the_flags_given(tmp_path: Path):
     cfg.write_text("streaming:\n  decision: window\n  lag: 2\n")
     base = JitterbugConfig.from_file(cfg)
     out = _apply_streaming_overrides(base, min_period_samples=40, min_time_elapsed=1800)
+    assert out.streaming.revise_change_points is False
+    revised = _apply_streaming_overrides(base, revise_change_points=True)
+    assert revised.streaming.revise_change_points is True
     assert out.streaming.decision == "window"
     assert out.streaming.lag == 2
     assert out.streaming.min_period_samples == 40
@@ -385,6 +388,40 @@ def test_stream_matches_replay_on_a_prefix(tmp_path: Path):
     from_replay = json.loads(replayed.read_text())
     assert from_stream == from_replay
     assert len(from_stream) == 44
+
+
+@pytest.mark.skipif(BCP_MISSING or not EXAMPLE_CSV.exists(), reason="bcp extra or dataset")
+def test_stream_and_replay_report_change_point_revisions(tmp_path: Path):
+    """On the first 22000 lines the MAP rule refines three change points."""
+    prefix = tmp_path / "prefix.csv"
+    with EXAMPLE_CSV.open() as src:
+        prefix.write_text("".join(next(src) for _ in range(22000)))
+    streamed = tmp_path / "stream.jsonl"
+    r1 = runner.invoke(
+        app,
+        [
+            "stream",
+            str(prefix),
+            "--revise-change-points",
+            "--events",
+            "change-points",
+            "--output",
+            str(streamed),
+        ],
+    )
+    assert r1.exit_code == 0, r1.output
+    events = [json.loads(line) for line in streamed.read_text().splitlines()]
+    assert {e["kind"] for e in events} == {"change_point", "revision"}
+    revisions = [e for e in events if e["kind"] == "revision"]
+    assert len(revisions) == 3
+    assert all(e["start_epoch"] > e["revised_from"] for e in revisions)
+    r2 = runner.invoke(app, ["replay", str(prefix), "--revise-change-points"])
+    assert r2.exit_code == 0, r2.output
+    assert "Change point revisions" in r2.stdout
+    plain = tmp_path / "plain.jsonl"
+    r3 = runner.invoke(app, ["stream", str(prefix), "--output", str(plain)])
+    assert r3.exit_code == 0, r3.output
+    assert all(json.loads(line)["kind"] != "revision" for line in plain.read_text().splitlines())
 
 
 @pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")

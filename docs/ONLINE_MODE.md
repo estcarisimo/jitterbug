@@ -6,7 +6,8 @@ point to close it. The online mode (`jitterbug.streaming`, commands `jitterbug s
 and `jitterbug replay`) runs the same decision rule one RTT sample at a time. Its default
 back end needs the `bcp` extra; the sliding-window back end runs with any detector. The
 results on the paper dataset are pinned in `tests/test_paper_regression.py`
-(`TestOnlineReplay`, `TestOnlineDispersionReplay`, `TestSlidingWindowReplay`); the numbers
+(`TestOnlineReplay`, `TestOnlineDispersionReplay`, `TestSlidingWindowReplay`,
+`TestStateChangeReplay`, `TestRevisionReplay`); the numbers
 below come from
 `jitterbug replay` and the tools described at the end.
 
@@ -52,9 +53,11 @@ with 12 none.
 
 `jitterbug stream` reads `epoch,rtt` lines (seconds, milliseconds; a header line is
 skipped, so is any line that does not parse) from a file or standard input and prints one
-JSON object per event: change points, provisional verdicts and final verdicts. `--follow`
+JSON object per event: change points, provisional verdicts and final verdicts, plus
+[change point revisions](#change-point-revisions) with `--revise-change-points`. `--follow`
 keeps reading a file as it grows (a half-written line is held until its newline arrives);
-`--events verdicts` or `--events change-points` filters the output. Samples must arrive in
+`--events verdicts` or `--events change-points` (change points and their revisions) filters
+the output. Samples must arrive in
 time order; an older sample is dropped. When the input ends (or on Ctrl-C with
 `--follow`), the open bin is closed and a summary line goes to standard error, so
 `stream FILE` and `replay FILE` emit the same events.
@@ -77,7 +80,7 @@ jitterbug replay examples/network_analysis/data/raw.csv --method ks_test \
 
 Both commands take `--config` and the most common knobs as flags: `--backend`,
 `--method` (`jitter_dispersion` or `ks_test`), `--decision`, `--hazard-lambda`,
-`--min-period-samples`, `--min-time-elapsed`.
+`--min-period-samples`, `--min-time-elapsed`, `--revise-change-points`.
 
 `stream --state-changes` adds [state changes](#state-changes) to the output, each line
 after the events of the sample that caused it, with `"kind": "state_change"`;
@@ -120,6 +123,7 @@ streaming:
   rerun_every_bins: 1              # closed bins between reruns   (window)
   stable_runs: 2                   # identical reruns before emitting   (window)
   min_time_elapsed: 3600           # seconds between change points
+  revise_change_points: false      # report MAP refinements as revisions   (bocpd, map)
   min_period_samples: 100          # jitter samples before a provisional verdict
   min_ks_statistic: 0.0            # effect-size guard for the KS test
   state_change_bins: 1             # closed bins of a new period the early rule uses
@@ -187,11 +191,78 @@ Two findings from the parameter sweep:
   either misses boundaries or fires on noise.
 - The MAP rule refines a boundary a few bins after first reporting it. With 30 min
   between change points those refinements become duplicate boundaries and tiny periods
-  (38 change points instead of 33); 1 h absorbs them. Thirty jitter samples make the
+  (38 change points instead of 33); 1 h absorbs them, and by default drops them.
+  `revise_change_points` reports them as revisions of the boundary instead (see
+  [Change point revisions](#change-point-revisions)). Thirty jitter samples make the
   provisional KS p-value noisy (2 flips); 100 samples, about three bins, give none.
 
 Caveats: one path over 15 days, and the metric is agreement with the offline method, not
 ground truth. The stream's first period is taken as the baseline.
+
+## Change point revisions
+
+The MAP rule refines a boundary after first reporting it: some bins later, the most
+probable start of the current segment moves one to three bins later. A refinement is
+closer than `min_time_elapsed` to the change point it refines, so by default it is
+dropped, which is why the default replay places only 20 of the 30 reference boundaries
+within 30 min. With `streaming.revise_change_points: true` (`--revise-change-points`;
+`bocpd` back end, `map` rule) it is reported as a `revision` event instead:
+
+```json
+{"kind": "revision", "emitted_at": 1512478810.0, "start_epoch": 1512413109.0,
+ "revised_from": 1512412210.0, "detector_probability": 0.426, "end_epoch": null, ...}
+```
+
+`start_epoch` is the revised epoch and `revised_from` the one it replaces (`revised_from`
+is `null` on every other event). From then on the open period starts at the revised
+epoch: its provisional verdict is emitted again, judged on the revised period, and its
+final verdict and the change point that follows use it. A revision only moves the last
+change point, only later in time, and never the stream start; a further refinement
+within `min_time_elapsed` of the revised epoch revises it again. The final verdict of the
+period before was emitted when the change point was first reported and keeps that
+`end_epoch`; follow `revised_from` to the revised end. `score` (and `jitterbug replay`)
+applies the revisions before scoring and keeps each boundary's delay from its first
+report.
+
+`StateChangeTracker` keeps a change's `id` across revisions: the epoch in the `id` is the
+one the change point was first reported at, `change_epoch` follows the revision, and each
+change of that period that is not retracted gets one update with its current status and
+`revised_from` set to the epoch it had before.
+
+Measured with `tools/boundary_revisions.py` on the paper dataset (defaults otherwise),
+each method against its own reference. *Within 5 min* is the same 15-minute bin;
+*boundary offset* is the distance from a reference boundary to the nearest change point;
+*superseded* counts provisional verdicts judged on a boundary that was revised later, and
+in parentheses those the provisional verdict on the revised boundary contradicted:
+
+| Jitter method | Min. separation | Revisions (change points moved) | Change points / periods / congested | Recovered / spurious | Boundaries within 30 min / 5 min | Boundary offset, mean | Provisional flips | Provisional verdicts superseded (changed) | Revision shift, median / max | Revision after first report, median / max | State changes (revised) | Reference congested periods suspected |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| KS test | 60 min | off | 33 / 31 / 15 | 14 of 15 / 0 | 20 / 8 of 30 | 18.1 min | 0 of 31 | 0 (0) | - / - min | - / - min | 29 (0) | 13 of 15 |
+| KS test | 60 min | 8 (7) | 33 / 31 / 15 | 14 of 15 / 0 | 19 / 13 of 30 | 15.2 min | 0 of 31 | 8 (0) | 30 / 45 min | 285 / 960 min | 29 (6) | 13 of 15 |
+| dispersion | 60 min | off | 33 / 31 / 15 | 14 of 15 / 0 | 20 / 8 of 30 | 18.1 min | 0 of 31 | 0 (0) | - / - min | - / - min | 29 (0) | 14 of 15 |
+| dispersion | 60 min | 8 (7) | 33 / 31 / 15 | 14 of 15 / 0 | 19 / 13 of 30 | 15.2 min | 0 of 31 | 7 (0) | 30 / 45 min | 285 / 960 min | 29 (6) | 14 of 15 |
+
+Revisions add no change point, no spurious congested period and no provisional flip, and
+no re-judged provisional verdict disagrees with the one it replaces; onset and return
+delays (15 and 135 min median) and every state-change count are unchanged. Six of the
+eight revisions put a boundary in the reference's bin: the MAP rule first reports these
+boundaries (five of them returns to baseline) 15 to 30 min early and moves them onto the
+reference later. One of the six is revised again a bin later, to 15 min after the
+reference; the eighth moves a boundary from 15 to 60 min after the reference, which is
+why 19 instead of 20 boundaries are within 30 min. The ten boundaries still 30 min off are
+reported 30 min late, and a revision cannot move a boundary earlier. Revisions arrive
+late, 4.75 h after the first report at the median and up to 16 h, so they mostly correct
+the record rather than the live signal; re-judging the earlier period's final verdict on
+the revised boundary would not have changed any of them (checked by hand with the KS
+test; the jump and the p-value barely move). With 30 min between change points, 3
+refinements become revisions, but the other 5 still become change points of their own
+(38 change points, 36 periods).
+
+The setting is therefore off by default: it improves placement (mean offset 18.1 to
+15.2 min, 8 to 13 boundaries in the right bin) without changing any verdict, at the cost
+of one boundary within 30 min, more events and a second provisional verdict per revised
+period. Turn it on where the boundary epochs themselves matter, for example when the
+congested periods are exported or compared with another source.
 
 ## State changes
 
@@ -336,6 +407,7 @@ uv run python tools/replay_online.py --sweep       # decision rule x lag x hazar
 uv run python tools/replay_online.py --min-time-elapsed 1800   # the 38-change-point figure
 uv run python tools/replay_online.py --min-period-samples 30   # the 2-flip figure
 uv run python tools/state_change_sweep.py   # the state-change table, about 30 s
+uv run python tools/boundary_revisions.py   # the revisions table, about 10 s
 uv run python tools/state_change_sweep.py --bins 1 --backend window   # window figures
 uv run python tools/prefix_experiment.py --step-hours 1 --start-hours 24 --output prefix.json
 uv run python tools/prefix_experiment.py --from-json prefix.json   # re-score without rerunning

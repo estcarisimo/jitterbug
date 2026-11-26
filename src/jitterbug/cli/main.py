@@ -128,6 +128,7 @@ def _apply_streaming_overrides(
     hazard_lambda: float | None = None,
     min_period_samples: int | None = None,
     min_time_elapsed: int | None = None,
+    revise_change_points: bool | None = None,
     verbose: bool = False,
 ) -> JitterbugConfig:
     """Return a copy of ``base`` with the online-mode flags that were actually given."""
@@ -144,6 +145,8 @@ def _apply_streaming_overrides(
         data["streaming"]["min_period_samples"] = min_period_samples
     if min_time_elapsed is not None:
         data["streaming"]["min_time_elapsed"] = min_time_elapsed
+    if revise_change_points is not None:
+        data["streaming"]["revise_change_points"] = revise_change_points
     if verbose:
         data["verbose"] = True
     return JitterbugConfig.model_validate(data)
@@ -643,6 +646,11 @@ def stream(
         help="Minimum seconds between change points (bocpd; the window back end uses "
         "change_point_detection.min_time_elapsed)",
     ),
+    revise_change_points: bool | None = typer.Option(
+        None,
+        "--revise-change-points/--no-revise-change-points",
+        help="Report MAP refinements of the last change point as revisions (bocpd, map rule)",
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
 ) -> None:
     """
@@ -653,7 +661,9 @@ def stream(
     section of --config; --decision and --hazard-lambda do not apply to it).
 
     Reads 'epoch,rtt' lines (seconds, milliseconds; a header line is skipped) and prints one
-    JSON object per event: change points, provisional verdicts and final verdicts. Samples
+    JSON object per event: change points, provisional verdicts and final verdicts, plus
+    change point revisions with --revise-change-points ("kind": "revision"; listed with
+    --events change-points). Samples
     must arrive in time order; a sample older than the last one is dropped. The last bin is
     closed when the input ends (or on Ctrl-C with --follow), as 'jitterbug replay' does.
 
@@ -698,6 +708,7 @@ def stream(
             hazard_lambda=hazard_lambda,
             min_period_samples=min_period_samples,
             min_time_elapsed=min_time_elapsed,
+            revise_change_points=revise_change_points,
             verbose=verbose,
         )
         online = create_online_analyzer(jitterbug_config)
@@ -706,11 +717,11 @@ def stream(
             raise FileNotFoundError(f"Input file not found: {path}")
         sink = output.open("w") if output else sys.stdout
         n_samples = n_skipped = n_events = 0
-        wanted = {
+        wanted: set[str] | None = {
             "all": None,
-            "verdicts": "verdict",
-            "change-points": "change_point",
-            "none": "",
+            "verdicts": {"verdict"},
+            "change-points": {"change_point", "revision"},
+            "none": set(),
         }[events]
         tracker = StateChangeTracker(online) if state_changes or on_state_change else None
         hook = CommandHook(on_state_change) if on_state_change else None
@@ -723,7 +734,7 @@ def stream(
                         hook(event)
                     if not state_changes:
                         continue
-                elif wanted is not None and event.kind != wanted:
+                elif wanted is not None and event.kind not in wanted:
                     continue
                 sink.write(json.dumps(event.to_dict()) + "\n")
                 sink.flush()
@@ -810,6 +821,11 @@ def replay(
         help="Minimum seconds between change points (bocpd; the window back end uses "
         "change_point_detection.min_time_elapsed)",
     ),
+    revise_change_points: bool | None = typer.Option(
+        None,
+        "--revise-change-points/--no-revise-change-points",
+        help="Report MAP refinements of the last change point as revisions (bocpd, map rule)",
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
 ) -> None:
     """
@@ -841,6 +857,7 @@ def replay(
             hazard_lambda=hazard_lambda,
             min_period_samples=min_period_samples,
             min_time_elapsed=min_time_elapsed,
+            revise_change_points=revise_change_points,
             verbose=verbose,
         )
         jitterbug_config = _apply_input_overrides(
@@ -885,6 +902,11 @@ def replay(
             "spurious": "Spurious congested periods",
             "boundaries_within_30min": "Reference boundaries with a change point within 30 min",
             "reference_boundaries": "Reference boundaries",
+            "boundary_offset_min_mean": "Reference boundary to nearest change point, mean (min)",
+            "revisions": "Change point revisions",
+            "revision_shift_min_median": "Revision shift, median (min)",
+            "revision_lag_min_median": "Revision after first report, median (min)",
+            "provisional_superseded": "Provisional verdicts superseded by a revision",
             "state_changes": "State changes",
             "suspected": "Suspected state changes",
             "suspected_confirmed": "Suspected, then confirmed",

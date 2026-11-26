@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Change point revisions in the online mode (`streaming.revise_change_points`,
+  `--revise-change-points` on `stream` and `replay`; off by default, `bocpd` back end
+  with the `map` rule). When the MAP rule refines the last change point within
+  `min_time_elapsed`, a `revision` event (`start_epoch` the new epoch, `revised_from`
+  the old one) replaces the dropped refinement; the open period's provisional verdict is
+  emitted again on the revised boundary and its final verdict uses it. State changes
+  keep their `id` (the first-reported epoch) and get an update with the new
+  `change_epoch` and `revised_from`. `StreamingEvent` and `StateChangeEvent` gain a
+  `revised_from` field, `null` elsewhere. On the paper dataset: 8 revisions, 13 instead
+  of 8 reference boundaries in the right bin, mean offset 15.2 instead of 18.1 min, 19
+  instead of 20 within 30 min, no verdict changed. `score` applies revisions and adds
+  `revisions`, `revision_shift_min_*`, `revision_lag_min_*`, `provisional_superseded*`,
+  `boundaries_within_5min` and `boundary_offset_min_*`; `score_state_changes` adds
+  `state_changes_revised`. `tools/boundary_revisions.py` prints the comparison table of
+  `docs/ONLINE_MODE.md`.
 - Flexible input. A new `input` configuration section (`InputConfig`) sets the time,
   RTT, source and destination column names; the time unit (`s`, `ms`, `us`, `ns`,
   ISO 8601 strings with `iso`, or `auto` to infer it); the RTT unit (`ms`, `us`, `s`,
