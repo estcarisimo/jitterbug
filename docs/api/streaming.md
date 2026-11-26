@@ -6,4 +6,6 @@
 
 ::: jitterbug.streaming.verdict
 
+::: jitterbug.streaming.state_changes
+
 ::: jitterbug.streaming.replay

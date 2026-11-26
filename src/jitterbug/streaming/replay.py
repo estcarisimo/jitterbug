@@ -10,6 +10,11 @@ how many reference period boundaries have a change point within 30 min.
 
 Delays are measured from the change point to the sample that reported it. *Onset* is the
 change point that opens a congested final period, *return* the one that closes it.
+
+``replay_state_changes`` runs the same replay through ``StateChangeTracker`` and
+``score_state_changes`` summarizes the state changes: how many were suspected, confirmed and
+retracted, how far ahead of the first verdict the suspicion came, and, with a reference,
+how many reference congested periods got a suspected onset.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ import numpy as np
 
 from ..models import JitterbugConfig, RTTDataset
 from .online_analyzer import StreamingEvent
+from .state_changes import StateChangeEvent, StateChangeTracker
 
 Interval = tuple[float, float]
 
@@ -53,6 +59,36 @@ def replay(dataset: RTTDataset, config: JitterbugConfig | None = None) -> list[S
         online.push(float(epoch), float(rtt))
     online.flush()
     return online.events
+
+
+def replay_state_changes(
+    dataset: RTTDataset, config: JitterbugConfig | None = None
+) -> tuple[list[StreamingEvent], list[StateChangeEvent]]:
+    """
+    Feed ``dataset`` to the online pipeline through a ``StateChangeTracker``.
+
+    Parameters
+    ----------
+    dataset : RTTDataset
+        Samples to replay; they are sorted by epoch (stable) before being fed.
+    config : JitterbugConfig, optional
+        Configuration, as for ``replay``; ``streaming.state_change_bins`` sets the early rule.
+
+    Returns
+    -------
+    tuple[list[StreamingEvent], list[StateChangeEvent]]
+        The back end's events (identical to what ``replay`` returns) and every
+        state-change update, in order, after ``flush``.
+    """
+    from . import create_online_analyzer
+
+    tracker = StateChangeTracker(create_online_analyzer(config), config)
+    epochs, rtts = dataset.to_arrays()
+    order = np.argsort(epochs, kind="stable")
+    for epoch, rtt in zip(epochs[order], rtts[order], strict=True):
+        tracker.push(float(epoch), float(rtt))
+    tracker.flush()
+    return tracker.analyzer.events, tracker.state_changes
 
 
 def _read_reference(path: Path) -> list[tuple[Interval, bool]]:
@@ -151,6 +187,101 @@ def score(events: list[StreamingEvent], reference: Path | None = None) -> dict[s
             int(sum(np.min(np.abs(cp_epochs - b)) <= 1800 for b in bounds)) if len(cps) else 0
         )
         result["reference_boundaries"] = len(bounds)
+    return result
+
+
+def _median_max(values: list[float]) -> tuple[float | None, float | None]:
+    if not values:
+        return None, None
+    return float(np.median(values)), float(np.max(values))
+
+
+def score_state_changes(
+    events: list[StreamingEvent],
+    state_changes: list[StateChangeEvent],
+    reference: Path | None = None,
+) -> dict[str, Any]:
+    """
+    Summarize the state changes of a replay.
+
+    A change counts once per ``id``; its outcome is its last status. *Lead* is the time
+    from the first ``suspected`` update to the first verdict on the same period (the
+    provisional one when there is one, else the final one); *delay* is the time from the
+    change point to the suspicion.
+
+    Parameters
+    ----------
+    events : list[StreamingEvent]
+        The back end's events from ``replay_state_changes``.
+    state_changes : list[StateChangeEvent]
+        The state-change updates from ``replay_state_changes``.
+    reference : Path, optional
+        CSV with ``starts,ends,congestion`` columns. Adds
+        ``reference_congested_suspected``: reference congested periods with a suspected
+        onset (baseline to congested) at most 30 min before their start or inside them,
+        and ``suspected_onsets_outside_reference``: suspected onsets that fall in none.
+
+    Returns
+    -------
+    dict
+        Counts and times in minutes, keys prefixed ``state_changes_`` or ``suspected_``.
+    """
+    by_id: dict[str, list[StateChangeEvent]] = {}
+    for change in state_changes:
+        by_id.setdefault(change.id, []).append(change)
+    first_verdict: dict[float, float] = {}
+    for e in events:
+        if e.kind == "verdict" and e.start_epoch not in first_verdict:
+            first_verdict[e.start_epoch] = e.emitted_at
+
+    suspected = {k: v for k, v in by_id.items() if v[0].status == "suspected"}
+    outcome = {k: v[-1].status for k, v in by_id.items()}
+    leads = [
+        (first_verdict[v[0].change_epoch] - v[0].emitted_at) / 60
+        for v in suspected.values()
+        if v[0].change_epoch in first_verdict
+    ]
+    delays = [v[0].delay / 60 for v in suspected.values()]
+    # A final verdict that reversed the outcome of the provisional one.
+    corrected = sum(
+        any(
+            a.stage == "provisional" and b.stage == "final" and a.status != b.status
+            for a, b in zip(v, v[1:], strict=False)
+        )
+        for v in by_id.values()
+    )
+    lead_med, lead_max = _median_max(leads)
+    delay_med, delay_max = _median_max(delays)
+    onsets = [v[0] for v in suspected.values() if v[0].to_state == "congested"]
+    result: dict[str, Any] = {
+        "state_changes": len(by_id),
+        "state_changes_confirmed": sum(s == "confirmed" for s in outcome.values()),
+        "suspected": len(suspected),
+        "suspected_onsets": len(onsets),
+        "suspected_returns": len(suspected) - len(onsets),
+        "suspected_confirmed": sum(outcome[k] == "confirmed" for k in suspected),
+        "suspected_retracted": sum(outcome[k] == "retracted" for k in suspected),
+        "suspected_unresolved": sum(outcome[k] == "suspected" for k in suspected),
+        "confirmed_without_suspicion": sum(v[0].status == "confirmed" for v in by_id.values()),
+        "corrected_by_final": corrected,
+        "suspected_lead_min_median": lead_med,
+        "suspected_lead_min_max": lead_max,
+        "suspected_delay_min_median": delay_med,
+        "suspected_delay_min_max": delay_max,
+    }
+    if reference is not None:
+        ref = load_reference(reference)
+
+        def _hits(period: Interval, epoch: float) -> bool:
+            return period[0] - 1800 <= epoch < period[1]
+
+        result["reference_congested_suspected"] = sum(
+            any(_hits(r, c.change_epoch) for c in onsets) for r in ref
+        )
+        result["suspected_onsets_outside_reference"] = sum(
+            not any(_hits(r, c.change_epoch) for r in ref) for c in onsets
+        )
+        result["reference_congested"] = len(ref)
     return result
 
 

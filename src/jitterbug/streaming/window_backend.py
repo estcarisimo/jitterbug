@@ -38,7 +38,7 @@ import pandas as pd
 
 from ..analyzer import JitterbugAnalyzer
 from ..models import ChangePoint, CongestionInference, JitterbugConfig
-from .online_analyzer import StreamingEvent, verdict_event
+from .online_analyzer import OpenPeriodBins, StreamingEvent, verdict_event
 from .verdict import two_period_verdict
 
 logger = logging.getLogger(__name__)
@@ -127,6 +127,36 @@ class SlidingWindowJitterbug:
         self._bin_id = None
         self.events.extend(events)
         return events
+
+    def open_period_bins(self) -> OpenPeriodBins | None:
+        """
+        Closed bins of the open period and of the previous one, within the window.
+
+        Read-only; used by ``StateChangeTracker`` for its early latency-jump estimate.
+        The open bin and samples already pruned from the window are left out.
+
+        Returns
+        -------
+        OpenPeriodBins or None
+            ``None`` until two change points (the stream start and one more) exist.
+        """
+        if len(self.change_points) < 2 or not self._raw_epochs:
+            return None
+        prev_start, cur_start = self.change_points[-2], self.change_points[-1]
+        epochs = np.asarray(self._raw_epochs)
+        rtts = np.asarray(self._raw_rtts)
+        bin_ids = (epochs // self._interval_s).astype(np.int64)
+        closed = bin_ids < self._bin_id if self._bin_id is not None else np.ones_like(bin_ids, bool)
+        grouped = pd.DataFrame({"epoch": epochs[closed], "rtt": rtts[closed]}).groupby(
+            bin_ids[closed]
+        )
+        bin_epochs = grouped["epoch"].min().to_numpy()
+        bin_values = grouped["rtt"].min().to_numpy()
+        return OpenPeriodBins(
+            start_epoch=cur_start,
+            previous=bin_values[(bin_epochs >= prev_start) & (bin_epochs < cur_start)],
+            current=bin_values[bin_epochs >= cur_start],
+        )
 
     # ------------------------------------------------------------------ reruns
     def _close_bin(self, closing_epoch: float) -> list[StreamingEvent]:

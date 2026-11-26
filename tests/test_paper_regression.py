@@ -183,6 +183,98 @@ class TestOnlineDispersionReplay:
         assert summary["spurious"] == 0
 
 
+@pytest.fixture(scope="module")
+def runs() -> dict:
+    """State-change replays per jitter method, run once each when first needed."""
+    return {}
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    importlib.util.find_spec("bayesian_changepoint_detection") is None,
+    reason="bcp extra not installed",
+)
+@pytest.mark.parametrize("method", ["ks_test", "jitter_dispersion"])
+class TestStateChangeReplay:
+    """State changes on top of the incremental back end (defaults, one bin for the early rule)."""
+
+    GOLDEN = {
+        "ks_test": {
+            "state_changes": 29,
+            "suspected": 14,
+            "suspected_onsets": 14,
+            "suspected_returns": 0,
+            "suspected_confirmed": 14,
+            "suspected_retracted": 0,
+            "confirmed_without_suspicion": 15,
+            "corrected_by_final": 0,
+            "reference_congested_suspected": 13,
+            "suspected_onsets_outside_reference": 1,
+        },
+        "jitter_dispersion": {
+            "state_changes": 29,
+            "suspected": 24,
+            "suspected_onsets": 15,
+            "suspected_returns": 9,
+            "suspected_confirmed": 24,
+            "suspected_retracted": 0,
+            "confirmed_without_suspicion": 5,
+            "corrected_by_final": 0,
+            "reference_congested_suspected": 14,
+            "suspected_onsets_outside_reference": 1,
+        },
+    }
+    # (delay median, delay max, lead median, lead max) in minutes
+    TIMES = {
+        "ks_test": (15.0, 30.0, 30.0, 31.9),
+        "jitter_dispersion": (15.0, 150.0, 150.0, 150.0),
+    }
+
+    def _get(self, runs: dict, method: str) -> tuple[dict, list, list]:
+        from jitterbug.io import DataLoader
+        from jitterbug.streaming import replay_state_changes, score_state_changes
+
+        if method not in runs:
+            config = JitterbugConfig()
+            config.jitter_analysis.method = method  # type: ignore[assignment]
+            events, changes = replay_state_changes(DataLoader().load_from_file(RAW_CSV), config)
+            summary = score_state_changes(events, changes, REFERENCE[method])
+            runs[method] = (summary, events, changes)
+        return runs[method]
+
+    def test_golden(self, runs: dict, method: str) -> None:
+        summary, _, _ = self._get(runs, method)
+        for key, value in self.GOLDEN[method].items():
+            assert summary[key] == value, key
+        assert summary["reference_congested"] == 15
+        delay_med, delay_max, lead_med, lead_max = self.TIMES[method]
+        assert_allclose(summary["suspected_delay_min_median"], delay_med, atol=0.1)
+        assert_allclose(summary["suspected_delay_min_max"], delay_max, atol=0.1)
+        assert_allclose(summary["suspected_lead_min_median"], lead_med, atol=0.1)
+        assert_allclose(summary["suspected_lead_min_max"], lead_max, atol=0.1)
+
+    def test_events_are_those_of_the_plain_replay(self, runs: dict, method: str) -> None:
+        from jitterbug.io import DataLoader
+        from jitterbug.streaming import replay
+
+        _, events, _ = self._get(runs, method)
+        config = JitterbugConfig()
+        config.jitter_analysis.method = method  # type: ignore[assignment]
+        plain = replay(DataLoader().load_from_file(RAW_CSV), config)
+        assert [e.to_dict() for e in events] == [e.to_dict() for e in plain]
+
+    def test_every_change_ends_confirmed_by_a_final_verdict(self, runs: dict, method: str) -> None:
+        """One change per flip of the verdict chain, all confirmed (agreement, not truth)."""
+        _, events, changes = self._get(runs, method)
+        last = {c.id: c for c in changes}
+        assert all(c.status == "confirmed" for c in last.values())
+        verdicts = [e for e in events if e.stage == "final"]
+        if events[-1].stage == "provisional":
+            verdicts.append(events[-1])  # the open period at the end of the data
+        states = [False] + [bool(e.is_congested) for e in verdicts]
+        assert len(last) == sum(a != b for a, b in zip(states, states[1:], strict=False))
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(
     importlib.util.find_spec("bayesian_changepoint_detection") is None,

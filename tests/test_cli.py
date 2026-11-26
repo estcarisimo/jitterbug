@@ -314,7 +314,10 @@ def test_replay_example_dataset_against_the_reference(tmp_path: Path):
     events = json.loads(out.read_text())
     assert any(e["kind"] == "verdict" and e["stage"] == "final" for e in events)
     assert "Reference congested periods recovered" in result.stdout
+    assert "Suspected state changes" in result.stdout
+    assert "Reference congested periods suspected" in result.stdout
     assert "Events saved to" in result.stdout
+    assert all(e["kind"] != "state_change" for e in events)  # --output keeps the events
 
 
 def test_iter_lines_holds_a_half_written_line_until_its_newline(tmp_path: Path):
@@ -397,6 +400,74 @@ def test_stream_verdicts_filter_and_stdout_stays_json(tmp_path: Path):
     events = [json.loads(line) for line in stdout_lines]  # every stdout line is JSON
     assert events and all(e["kind"] == "verdict" for e in events)
     assert "samples read" not in result.stdout  # the summary goes to stderr
+
+
+def _step_lines() -> list[str]:
+    """Two 10 h segments, 30 s apart, with a jump and wider jitter in the second."""
+    lines = ["epoch,values"]
+    for i in range(2400):
+        base, spread = (10.0, 0.2) if i < 1200 else (30.0, 6.0)
+        lines.append(f"{1_700_000_000 + 30 * i},{base + spread * ((i * 7919) % 97) / 97:.3f}")
+    return lines
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+@pytest.mark.parametrize(
+    ("method", "outcome"),
+    # The bin minima of the second segment do not spread, so dispersion sees no jitter
+    # change and retracts the suspected change; the KS test on raw jitter confirms it.
+    [("ks_test", "confirmed"), ("jitter_dispersion", "retracted")],
+)
+def test_stream_state_changes_alone(method: str, outcome: str):
+    result = runner.invoke(
+        app,
+        ["stream", "--events", "none", "--state-changes", "--method", method],
+        input="\n".join(_step_lines()),
+    )
+    assert result.exit_code == 0, result.output
+    changes = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+    assert len(changes) == 2 and all(c["kind"] == "state_change" for c in changes)
+    assert changes[0]["status"] == "suspected"
+    assert (changes[0]["from_state"], changes[0]["to_state"]) == ("baseline", "congested")
+    assert changes[1]["id"] == changes[0]["id"]
+    assert changes[1]["status"] == outcome
+    assert changes[1]["stage"] == "provisional"
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_state_changes_come_after_the_events_that_caused_them():
+    result = runner.invoke(app, ["stream", "--state-changes"], input="\n".join(_step_lines()))
+    assert result.exit_code == 0, result.output
+    kinds = [json.loads(line)["kind"] for line in result.stdout.splitlines() if line.strip()]
+    first = kinds.index("state_change")
+    assert kinds[first - 1] == "change_point"  # suspected on the change point's sample
+    assert {"change_point", "verdict"} <= set(kinds)
+
+
+@pytest.mark.skipif(BCP_MISSING, reason="bcp extra not installed")
+def test_stream_on_state_change_runs_the_command_and_survives_failures(tmp_path: Path):
+    import sys
+
+    log = tmp_path / "hook.jsonl"
+    code = f"import sys; open({str(log)!r}, 'a').write(sys.stdin.read())"
+    hook = f"{sys.executable} -c {json.dumps(code)}"
+    result = runner.invoke(
+        app,
+        ["stream", "--events", "none", "-m", "ks_test", "--on-state-change", hook],
+        input="\n".join(_step_lines()),
+    )
+    assert result.exit_code == 0, result.output
+    assert result.stdout.strip() == ""  # the hook alone does not print state changes
+    received = [json.loads(line) for line in log.read_text().splitlines()]
+    assert [c["status"] for c in received][:2] == ["suspected", "confirmed"]
+
+    failing = runner.invoke(
+        app,
+        ["stream", "--state-changes", "--on-state-change", "/nonexistent/hook"],
+        input="\n".join(_step_lines()),
+    )
+    assert failing.exit_code == 0, failing.output
+    assert any('"state_change"' in line for line in failing.stdout.splitlines())
 
 
 def test_stream_errors_do_not_go_to_stdout():
