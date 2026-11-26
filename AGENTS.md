@@ -40,9 +40,12 @@ src/jitterbug/
                          baseline <-> congested changes, suspected → confirmed | retracted;
                          CommandHook), replay.py (replay, score, score_state_changes)
   io/                    data_loader.py (DataLoader: file/DataFrame/InfluxDB entry points),
-                         readers/ (one reader per format → raw DataFrame, registered by name
-                         and extension), series.py (`series` filters and `group_by` keys on
-                         raw rows), normalize.py (the only place for column mapping,
+                         readers/ (one reader per format → raw DataFrame, registered by name,
+                         extension, first-line sniffer or magic bytes: delimited.py, jsonl.py
+                         + atlas.py + json_records.py, columnar.py (Parquet/Arrow, `parquet`
+                         extra), ping.py (ping/fping text, line parsers shared with
+                         `stream --format`)), series.py (`series` filters and `group_by` keys
+                         on raw rows), normalize.py (the only place for column mapping,
                          units and row policies of `InputConfig`), inspection.py (`inspect`
                          dry run), compression.py, exporters.py
   cli/main.py            Typer CLI: `jitterbug analyze|inspect|validate|config|visualize|stream|replay|
@@ -125,6 +128,10 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
   with status `suspected`/`confirmed`/`retracted`; do not call it an alarm in identifiers,
   options, events or docs. Its goldens are `TestStateChangeReplay`, its table in
   `docs/ONLINE_MODE.md` comes from `tools/state_change_sweep.py`.
+- Readers' first-line sniffers run in registration order, which is the import order in
+  `io/readers/__init__.py`: ping and fping come before CSV because fping lines contain
+  commas. pyarrow is optional (`parquet` extra) and imported lazily; only the `test-bcp`
+  CI job installs it, so the Parquet/Arrow tests skip in the other test jobs.
 - Plotting is matplotlib only (`JitterbugPlotter`). The plotly dashboard and
   interactive modules were removed in 2.1; do not add plotly back without an explicit
   request for interactivity.

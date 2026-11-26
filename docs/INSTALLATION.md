@@ -36,6 +36,7 @@ dependency group (pytest, ruff, mypy). Add extras as needed:
 | `clustering` | scikit-learn | `--mode clustering`, the non-sequential mode |
 | `influx` | influxdb-client | `DataLoader.load_from_influxdb` |
 | `zstd` | zstandard (Python < 3.14 only) | `.zst` input and output files |
+| `parquet` | pyarrow | Parquet and Arrow/Feather input, `--output-format parquet` |
 | `jupyter` | JupyterLab, ipykernel | the notebooks in `examples/` |
 | `all` | all of the above | |
 
@@ -96,7 +97,7 @@ uv run python -c "from jitterbug.detection import get_available_algorithms; prin
 | `bcp` runs for many minutes on a Mac | An older configuration file sets `bcp_device: mps`; use `cpu`. |
 | `jitterbug visualize` reports that matplotlib is missing | `uv sync --extra visualization`. |
 | Plots fail on a server without a display | Set `MPLBACKEND=Agg` before running. |
-| `--output-format parquet` fails | Parquet needs `pyarrow` (`uv pip install pyarrow`). |
+| `--output-format parquet` or a Parquet/Arrow input fails with "needs pyarrow" | `uv sync --extra parquet` (`pip install "jitterbug-inference[parquet]"`). |
 | `pip install jitterbug` installed something else | That is the unrelated PyPI project; uninstall it and use one of the commands above. |
 
 ## Developer setup

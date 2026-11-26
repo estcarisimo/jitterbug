@@ -57,6 +57,7 @@ See [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/do
 | `clustering` | scikit-learn | The non-sequential mode (`--mode clustering`) |
 | `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
 | `zstd` | zstandard (not needed on Python 3.14+) | Reading and writing `.zst`-compressed files |
+| `parquet` | pyarrow | Parquet and Arrow/Feather input, Parquet output |
 | `visualization` | matplotlib | `jitterbug visualize` and the plotting helpers |
 | `jupyter` | JupyterLab, ipykernel | The notebooks in `examples/` |
 | `all` | everything above | |
@@ -90,7 +91,7 @@ jitterbug analyze examples/network_analysis/data/raw.csv --mode clustering
 # Only the summary table
 jitterbug analyze examples/network_analysis/data/raw.csv --summary-only
 
-# CSV instead of JSON (Parquet is also supported if `pyarrow` is installed)
+# CSV instead of JSON (Parquet is also supported with the `parquet` extra)
 jitterbug analyze rtts.csv --output results.csv --output-format csv
 
 # Zstandard-compressed input and output: a trailing .zst is enough (needs the `zstd` extra
@@ -210,6 +211,18 @@ jitterbug analyze pings.json --series destination=8.8.8.8
 
 ```json
 {"type":"ping","src":"192.168.1.1","dst":"8.8.8.8","responses":[{"rtt":1.712,"tx":{"sec":1752855461,"usec":719258}}]}
+```
+
+**RIPE Atlas ping results**: the JSON array the API returns, or one result per line.
+
+**Parquet and Arrow/Feather** (`.parquet`, `.pq`, `.arrow`, `.feather`; needs the `parquet` extra): columns mapped like CSV columns; timestamp-typed time columns need no `--time-unit`.
+
+**ping and fping output** with timestamps (`ping -D`, `fping -D`), from a file or piped into `jitterbug stream`:
+
+```bash
+ping -D example.net > ping.txt              # Ctrl-C when done
+jitterbug analyze ping.txt                  # detected from the content
+ping -D example.net | jitterbug stream --format ping
 ```
 
 **InfluxDB** (`uv sync --extra influx`):
