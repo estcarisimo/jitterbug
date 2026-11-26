@@ -137,7 +137,8 @@ run:
 In both, `source` and `destination` name the mapped `source_column` and
 `destination_column` (for scamper, `src` and `dst`); any other name is a raw input
 column, such as a probe id. Values are compared as text; a numeric column with gaps
-(read as floats) is written without the `.0` (`probe=1234`).
+(read as floats) is written without the `.0` (`probe=1234`), and a number given as a
+filter value (`probe: 1234` in YAML) is read as the same text.
 
 ```yaml
 input:

@@ -238,7 +238,8 @@ def _policies(
     out_of_range = rows["non_positive"] + rows["too_large"]
     if config.out_of_range == "error" and out_of_range:
         errors.append(
-            f"{out_of_range} RTT value(s) outside (0, {MAX_RTT_MS:g}] ms (out_of_range: error)"
+            f"{out_of_range} RTT value(s) in the file outside (0, {MAX_RTT_MS:g}] ms "
+            "(out_of_range: error)"
         )
     unsorted_series = sum(1 for u in units if u["out_of_order_rows"])
     out_of_order = sum(u["out_of_order_rows"] for u in units)

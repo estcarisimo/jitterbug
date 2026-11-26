@@ -104,6 +104,21 @@ def test_invalid_group_by_is_rejected(group_by: list[str]):
         InputConfig(group_by=group_by)
 
 
+@pytest.mark.parametrize(
+    ("value", "text"), [(1234, "1234"), (1234.0, "1234"), (0.5, "0.5"), (True, "True")]
+)
+def test_numeric_series_values_become_text(value: object, text: str):
+    assert InputConfig(series={"probe": value}).series == {"probe": text}
+
+
+def test_numeric_series_value_in_a_config_file_selects_rows(tmp_path: Path):
+    config_file = tmp_path / "c.yaml"
+    config_file.write_text("input:\n  series:\n    probe: 2\n")
+    config = JitterbugConfig.from_file(config_file)
+    df = pd.DataFrame({"epoch": [1, 2, 3], "rtt": [1.0, 2.0, 3.0], "probe": [1, 2, 2]})
+    assert len(DataLoader(config.input).load_from_dataframe(df)) == 2
+
+
 def test_empty_series_filter_name_is_rejected():
     with pytest.raises(ValidationError):
         InputConfig(series={"": "x"})

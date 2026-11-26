@@ -448,7 +448,8 @@ class InputConfig(BaseModel):
         reads the input as one series.
     series : dict[str, str]
         Keep only the rows whose column equals the value (``{"destination":
-        "8.8.8.8"}``), compared as text; names resolve like ``group_by``. Applied before
+        "8.8.8.8"}``), compared as text (numbers in a file or in Python become text:
+        ``1234`` means ``"1234"``); names resolve like ``group_by``. Applied before
         grouping and before the row policies. A filter that matches no row is an error
         naming the values that exist.
     """
@@ -501,6 +502,25 @@ class InputConfig(BaseModel):
         if len(set(names)) != len(names):
             raise ValueError(f"group_by names must be distinct: {names}")
         return names
+
+    @field_validator("series", mode="before")
+    @classmethod
+    def _series_values_as_text(cls, v: Any) -> Any:
+        """Filter values are compared as text, so ``probe: 1234`` in a YAML file means
+        ``"1234"`` as on the command line; integral floats lose their ``.0``."""
+        if not isinstance(v, dict):
+            return v
+
+        def text(value: Any) -> Any:
+            if isinstance(value, bool):
+                return str(value)
+            if isinstance(value, float) and value.is_integer():
+                return str(int(value))
+            if isinstance(value, int | float):
+                return str(value)
+            return value
+
+        return {name: text(value) for name, value in v.items()}
 
     @field_validator("series")
     @classmethod
