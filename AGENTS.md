@@ -36,7 +36,9 @@ src/jitterbug/
                          Bayesian online change point detection → provisional/final verdicts;
                          `bcp` extra), window_backend.py (SlidingWindowJitterbug, `backend:
                          window`: offline pipeline rerun on a trailing window), verdict.py
-                         (the two-period rule both share), replay.py (replay, score)
+                         (the two-period rule both share), state_changes.py (StateChangeTracker:
+                         baseline <-> congested changes, suspected → confirmed | retracted;
+                         CommandHook), replay.py (replay, score, score_state_changes)
   io/                    data_loader.py (DataLoader: file/DataFrame/InfluxDB entry points),
                          readers/ (one reader per format → raw DataFrame, registered by name
                          and extension), normalize.py (the only place for column mapping,
@@ -115,6 +117,11 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
   defaults changes those goldens
   and the table in `docs/ONLINE_MODE.md` (regenerate it with
   `tools/compare_online_backends.py`).
+- The state-change layer (`streaming/state_changes.py`) only reads back-end events and
+  `open_period_bins()`; it must never alter the events. Its vocabulary is *state change*
+  with status `suspected`/`confirmed`/`retracted`; do not call it an alarm in identifiers,
+  options, events or docs. Its goldens are `TestStateChangeReplay`, its table in
+  `docs/ONLINE_MODE.md` comes from `tools/state_change_sweep.py`.
 - Plotting is matplotlib only (`JitterbugPlotter`). The plotly dashboard and
   interactive modules were removed in 2.1; do not add plotly back without an explicit
   request for interactivity.

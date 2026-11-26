@@ -92,6 +92,18 @@ class StreamingEvent:
         return dict(self.__dict__)
 
 
+@dataclass(frozen=True)
+class OpenPeriodBins:
+    """Closed minimum-RTT bins of the open period and of the period before it."""
+
+    start_epoch: float
+    """Start of the open period (the last emitted change point)."""
+    previous: np.ndarray
+    """Minimum RTT per closed bin of the previous period (ms)."""
+    current: np.ndarray
+    """Minimum RTT per closed bin of the open period so far, oldest first (ms)."""
+
+
 def verdict_event(
     verdict: PeriodVerdict,
     stage: Literal["provisional", "final"],
@@ -326,6 +338,28 @@ class OnlineJitterbug:
         del self._bin_epochs[:n_bins]
         del self._bin_values[:n_bins]
         self._pruned_bins += n_bins
+
+    def open_period_bins(self) -> OpenPeriodBins | None:
+        """
+        Closed bins of the open period and of the previous one.
+
+        Read-only; used by ``StateChangeTracker`` for its early latency-jump estimate.
+
+        Returns
+        -------
+        OpenPeriodBins or None
+            ``None`` until two change points (the stream start and one more) exist.
+        """
+        if len(self.change_points) < 2:
+            return None
+        prev_start, cur_start = self.change_points[-2], self.change_points[-1]
+        epochs = np.asarray(self._bin_epochs)
+        values = np.asarray(self._bin_values)
+        return OpenPeriodBins(
+            start_epoch=cur_start,
+            previous=values[(epochs >= prev_start) & (epochs < cur_start)],
+            current=values[epochs >= cur_start],
+        )
 
     # ------------------------------------------------------------------ verdicts
     def _jitter(self) -> tuple[np.ndarray, np.ndarray]:

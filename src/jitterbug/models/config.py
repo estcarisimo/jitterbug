@@ -321,6 +321,12 @@ class StreamingConfig(BaseModel):
         ``jitter_analysis.method: jitter_dispersion`` the verdict also waits for enough
         causal dispersion values (``JitterAnalyzer.causal_dispersion_delay`` plus
         ``moving_average_order`` bins).
+    state_change_bins : int
+        Closed minimum-RTT bins of a new period the early state-change rule looks at
+        (``jitterbug.streaming.StateChangeTracker``): a change is *suspected* when every one
+        of them is above (or, from ``congested``, none is above) the previous period's mean
+        by more than ``latency_jump.threshold``. More bins, fewer retractions, later
+        signal.
     """
 
     backend: Literal["bocpd", "window"] = Field(
@@ -361,6 +367,9 @@ class StreamingConfig(BaseModel):
     )
     min_period_samples: int = Field(
         default=100, ge=2, description="Jitter samples before a provisional verdict"
+    )
+    state_change_bins: int = Field(
+        default=1, ge=1, description="Closed bins of a new period the early state-change rule uses"
     )
 
     @model_validator(mode="after")
