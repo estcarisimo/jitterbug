@@ -389,6 +389,86 @@ class StreamingConfig(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
 
+RTT_COLUMN_SYNONYMS = ("values", "rtt_value", "rtt", "latency")
+"""RTT column names searched, in this order, when ``InputConfig.rtt_column`` is ``None``."""
+
+
+class InputConfig(BaseModel):
+    """
+    How raw input rows map to RTT samples: column names, units and row policies.
+
+    Every file reader and ``DataLoader.load_from_dataframe`` hand their rows to one
+    normalizer (``jitterbug.io.normalize``) that applies these settings. The defaults
+    are the historical contract: an ``epoch`` column in Unix seconds, an RTT column in
+    milliseconds named ``values``, ``rtt_value``, ``rtt`` or ``latency``, duplicate
+    timestamps kept, out-of-range RTTs dropped and unsorted rows sorted. Jitterbug never
+    imputes or resamples.
+
+    Attributes
+    ----------
+    time_column : str
+        Column holding the sample time.
+    rtt_column : str | None
+        Column holding the RTT. ``None`` takes the first of ``values``, ``rtt_value``,
+        ``rtt``, ``latency`` that is present.
+    source_column, destination_column : str
+        Optional columns kept as per-sample metadata; absent columns give ``None``.
+    time_unit : Literal['s', 'ms', 'us', 'ns', 'iso', 'auto']
+        Unit of numeric times (Unix epoch in seconds, milliseconds, microseconds or
+        nanoseconds), or ``iso`` for datetime strings (naive ones are UTC). ``auto``
+        reads datetime strings as ``iso`` and numbers by the magnitude of their median:
+        below 1e11 seconds, below 1e14 milliseconds, below 1e17 microseconds, otherwise
+        nanoseconds. The inferred unit is logged and recorded in the dataset metadata.
+    rtt_unit : Literal['ms', 'us', 's', 'ns']
+        Unit of the RTT column; values are converted to milliseconds.
+    delimiter : str | None
+        Field separator of CSV-like files. ``None`` detects it from the header line
+        (comma, tab or semicolon); TSV files always default to tab.
+    duplicates : Literal['keep', 'first', 'min', 'error']
+        Rows sharing a timestamp: keep them all, keep the first in file order, keep the
+        one with the lowest RTT, or raise.
+    out_of_range : Literal['drop', 'error']
+        RTTs that are not positive or exceed ``MAX_RTT_MS``: drop them (counted in the
+        metadata) or raise. Missing values are always dropped.
+    unsorted : Literal['sort', 'error']
+        Rows not in time order: sort them (stable) or raise.
+    """
+
+    time_column: str = Field(default="epoch", min_length=1, description="Time column")
+    rtt_column: str | None = Field(
+        default=None,
+        min_length=1,
+        description="RTT column; None searches values, rtt_value, rtt, latency",
+    )
+    source_column: str = Field(default="source", min_length=1, description="Source column")
+    destination_column: str = Field(
+        default="destination", min_length=1, description="Destination column"
+    )
+    time_unit: Literal["s", "ms", "us", "ns", "iso", "auto"] = Field(
+        default="s", description="Unit of the time column (s, ms, us, ns, iso, auto)"
+    )
+    rtt_unit: Literal["ms", "us", "s", "ns"] = Field(
+        default="ms", description="Unit of the RTT column, converted to milliseconds"
+    )
+    delimiter: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=1,
+        description="CSV field separator; None detects comma, tab or semicolon",
+    )
+    duplicates: Literal["keep", "first", "min", "error"] = Field(
+        default="keep", description="Rows sharing a timestamp: keep, first, min or error"
+    )
+    out_of_range: Literal["drop", "error"] = Field(
+        default="drop", description="Non-positive or too large RTTs: drop or error"
+    )
+    unsorted: Literal["sort", "error"] = Field(
+        default="sort", description="Rows out of time order: sort or error"
+    )
+
+    model_config = ConfigDict(validate_assignment=True)
+
+
 class JitterbugConfig(BaseSettings):
     """
     Main configuration class for Jitterbug.
@@ -412,6 +492,8 @@ class JitterbugConfig(BaseSettings):
         Configuration for the clustering mode.
     streaming : StreamingConfig
         Configuration for the online (streaming) mode.
+    input : InputConfig
+        Column mapping, units and row policies for loading RTT data.
     output_format : Literal['json', 'csv', 'parquet']
         Output format for results.
     verbose : bool
@@ -429,6 +511,7 @@ class JitterbugConfig(BaseSettings):
     data_processing: DataProcessingConfig = Field(default_factory=DataProcessingConfig)
     clustering: ClusteringConfig = Field(default_factory=ClusteringConfig)
     streaming: StreamingConfig = Field(default_factory=StreamingConfig)
+    input: InputConfig = Field(default_factory=InputConfig)
 
     output_format: Literal["json", "csv", "parquet"] = Field(
         default="json", description="Output format for results"

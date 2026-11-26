@@ -17,7 +17,7 @@ Documentation for language models: [`llms.txt`](https://estcarisimo.github.io/ji
 - 🔀 **Pluggable change point detection**: `ruptures` out of the box, the paper's Bayesian detector (`bcp`) as an extra
 - 📐 **Two jitter tests**: jitter dispersion (moving IQR + moving average) or a Kolmogorov–Smirnov test between periods
 - 🧩 **Non-sequential mode**: cluster 15-minute intervals by (latency, jitter) with a Gaussian mixture or k-means and compare each cluster with the baseline, no matter when its intervals occur
-- 📁 **Multiple input formats**: CSV, scamper JSON, and InfluxDB queries
+- 📁 **Flexible input**: CSV, TSV, JSON lines, scamper JSON and InfluxDB queries, with configurable columns, time and RTT units, and gzip/bzip2/xz/Zstandard compression
 - 📊 **Rich terminal output**: summary and per-period tables, plus JSON or CSV results files
 - ⚙️ **Typed configuration**: Pydantic models, YAML/JSON config files, `JITTERBUG_*` environment variables
 - 🧪 **Reproducible**: the PAM 2022 dataset (47 163 measurements) and its reference results are bundled
@@ -168,13 +168,13 @@ print(
 )
 ```
 
-`analyze_from_dataframe(df)` accepts a pandas DataFrame with `epoch` and `values` columns, and `analyze(dataset)` an `RTTDataset` you built yourself.
+`analyze_from_dataframe(df)` accepts a pandas DataFrame (by default with `epoch` and `values` columns; see the `input` settings below), and `analyze(dataset)` an `RTTDataset` you built yourself.
 
 ### Input formats
 
 The contract (columns, units, ordering, what is dropped) is in [docs/INPUT_FORMATS.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INPUT_FORMATS.md).
 
-**CSV**: one RTT sample per row, epoch seconds and milliseconds.
+**CSV or TSV**: one RTT sample per row; by default epoch seconds and milliseconds. The separator (comma, tab or semicolon) is detected from the header.
 
 ```csv
 epoch,values
@@ -183,7 +183,16 @@ epoch,values
 1512144020.0,85.2
 ```
 
-**scamper JSON** (`ping` records, one per line):
+Other column names and units are settings (`input` in the configuration file) or flags:
+
+```bash
+jitterbug analyze rtts.tsv --time-column ts --time-unit ms --rtt-column rtt_us --rtt-unit us
+jitterbug analyze export.csv.gz --time-column timestamp --time-unit iso
+```
+
+**JSON lines**: one flat object per line, fields mapped like CSV columns.
+
+**scamper JSON** (`ping` records, one per line; told apart from generic JSON lines by content):
 
 ```json
 {"type":"ping","src":"192.168.1.1","dst":"8.8.8.8","responses":[{"rtt":1.712,"tx":{"sec":1752855461,"usec":719258}}]}
@@ -237,6 +246,15 @@ clustering:                    # used when analysis_mode is clustering
   min_period_intervals: 2      # temporal smoothing, in intervals
   min_ks_statistic: 0.1        # smallest KS statistic that counts as a jitter change
 
+input:                         # how input rows map to samples (docs/INPUT_FORMATS.md)
+  time_column: epoch
+  time_unit: s                 # s | ms | us | ns | iso | auto
+  rtt_column: null             # null: first of values, rtt_value, rtt, latency
+  rtt_unit: ms                 # ms | us | s | ns
+  duplicates: keep             # keep | first | min | error
+  out_of_range: drop           # drop | error
+  unsorted: sort               # sort | error
+
 output_format: json            # json | csv | parquet (parquet needs pyarrow)
 verbose: false
 ```
@@ -279,7 +297,7 @@ src/jitterbug/
 │   └── clustering_analyzer.py     # non-sequential mode (GMM / k-means over intervals)
 ├── streaming/              # Online mode: OnlineJitterbug (Bayesian online change points) and
 │                           #   SlidingWindowJitterbug (offline pipeline on a window); replay/score
-├── io/                     # DataLoader (CSV, scamper JSON, InfluxDB) and exporters
+├── io/                     # readers (CSV, TSV, JSONL, scamper), normalizer, InfluxDB, exporters
 ├── cli/main.py             # Typer CLI: analyze, validate, config, visualize, stream, replay, version
 └── visualization/          # JitterbugPlotter (matplotlib): the figures behind `jitterbug visualize`
 ```
@@ -395,7 +413,7 @@ Contributions are welcome! Please see the [Contributing Guide](https://github.co
 | [SECURITY.md](https://github.com/estcarisimo/jitterbug/blob/main/SECURITY.md) | Vulnerability reporting, and what data this tool handles |
 | [CODE_OF_CONDUCT.md](https://github.com/estcarisimo/jitterbug/blob/main/CODE_OF_CONDUCT.md) | Community standards |
 | [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INSTALLATION.md) | Installation details and troubleshooting |
-| [docs/INPUT_FORMATS.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INPUT_FORMATS.md) | Input contract: CSV, scamper JSON, DataFrame, InfluxDB |
+| [docs/INPUT_FORMATS.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INPUT_FORMATS.md) | Input contract: column mapping, units, row policies; CSV, TSV, JSONL, scamper JSON, DataFrame, InfluxDB |
 | [docs/ALGORITHM_SELECTION_GUIDE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_SELECTION_GUIDE.md) | Choosing a change point detector |
 | [docs/ALGORITHM_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_USAGE.md) | Per-detector options and examples |
 | [docs/VISUALIZATION_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/VISUALIZATION_USAGE.md) | `jitterbug visualize`, the five figures, `JitterbugPlotter` |

@@ -20,6 +20,7 @@ from rich.table import Table
 from ..analyzer import JitterbugAnalyzer
 from ..io import DataLoader
 from ..io.compression import open_text
+from ..io.readers import available_formats
 from ..models import CongestionInferenceResult, JitterbugConfig
 
 # matplotlib is an optional dependency; the visualize command checks for it at run time.
@@ -33,6 +34,54 @@ except ImportError:  # pragma: no cover - only if the package itself is broken
 console = Console()
 # `jitterbug stream` writes JSON lines to stdout, so its messages go to stderr.
 err_console = Console(stderr=True)
+
+
+INPUT_FORMAT_HELP = (
+    f"Input file format ({', '.join(available_formats())}). Auto-detected from the "
+    "extension, then the content, if not specified."
+)
+
+# Input mapping options shared by analyze, validate, visualize and replay; each overrides
+# the `input` section of the configuration file when given.
+TIME_COLUMN_OPTION = typer.Option(
+    None, "--time-column", help="Name of the time column [default: epoch]"
+)
+RTT_COLUMN_OPTION = typer.Option(
+    None,
+    "--rtt-column",
+    help="Name of the RTT column [default: first of values, rtt_value, rtt, latency]",
+)
+TIME_UNIT_OPTION = typer.Option(
+    None, "--time-unit", help="Unit of the time column (s, ms, us, ns, iso, auto) [default: s]"
+)
+RTT_UNIT_OPTION = typer.Option(
+    None, "--rtt-unit", help="Unit of the RTT column (ms, us, s, ns) [default: ms]"
+)
+
+
+def _apply_input_overrides(
+    base: JitterbugConfig,
+    *,
+    time_column: str | None = None,
+    rtt_column: str | None = None,
+    time_unit: str | None = None,
+    rtt_unit: str | None = None,
+) -> JitterbugConfig:
+    """
+    Return a copy of ``base`` with the input mapping flags that were actually given.
+
+    Values are re-validated by Pydantic, so an unknown unit is rejected with the same
+    message as in a configuration file.
+    """
+    data = base.model_dump()
+    given = {
+        "time_column": time_column,
+        "rtt_column": rtt_column,
+        "time_unit": time_unit,
+        "rtt_unit": rtt_unit,
+    }
+    data["input"].update({k: v for k, v in given.items() if v is not None})
+    return JitterbugConfig.model_validate(data)
 
 
 def _apply_overrides(
@@ -112,7 +161,9 @@ app = typer.Typer(
 @app.command()
 def analyze(
     input_file: Path = typer.Argument(
-        ..., help="Path to RTT data file (CSV or scamper JSON)", exists=True
+        ...,
+        help="Path to RTT data file (CSV, TSV, JSONL or scamper JSON; may be compressed)",
+        exists=True,
     ),
     output: Path | None = typer.Option(
         None, "--output", "-o", help="Output file path (default: stdout)"
@@ -124,8 +175,12 @@ def analyze(
         None,
         "--format",
         "-f",
-        help="Input file format (csv, json). Auto-detected if not specified.",
+        help=INPUT_FORMAT_HELP,
     ),
+    time_column: str | None = TIME_COLUMN_OPTION,
+    rtt_column: str | None = RTT_COLUMN_OPTION,
+    time_unit: str | None = TIME_UNIT_OPTION,
+    rtt_unit: str | None = RTT_UNIT_OPTION,
     output_format: str | None = typer.Option(
         None, "--output-format", help="Output format (json, csv, parquet) [default: json]"
     ),
@@ -194,6 +249,13 @@ def analyze(
             verbose=verbose,
             mode=mode,
             clustering_algorithm=clustering_algorithm,
+        )
+        jitterbug_config = _apply_input_overrides(
+            jitterbug_config,
+            time_column=time_column,
+            rtt_column=rtt_column,
+            time_unit=time_unit,
+            rtt_unit=rtt_unit,
         )
 
         # Create analyzer
@@ -277,12 +339,19 @@ def config(
 @app.command()
 def validate(
     input_file: Path = typer.Argument(..., help="Path to RTT data file to validate", exists=True),
+    config: Path | None = typer.Option(
+        None, "--config", "-c", help="Configuration file path (YAML or JSON); only `input` is used"
+    ),
     format: str | None = typer.Option(
         None,
         "--format",
         "-f",
-        help="Input file format (csv, json). Auto-detected if not specified.",
+        help=INPUT_FORMAT_HELP,
     ),
+    time_column: str | None = TIME_COLUMN_OPTION,
+    rtt_column: str | None = RTT_COLUMN_OPTION,
+    time_unit: str | None = TIME_UNIT_OPTION,
+    rtt_unit: str | None = RTT_UNIT_OPTION,
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ) -> None:
     """
@@ -295,10 +364,20 @@ def validate(
 
     • Validate with verbose output:
       [cyan]jitterbug validate rtts.csv --verbose[/cyan]
+
+    • Millisecond timestamps in a column named ts:
+      [cyan]jitterbug validate rtts.csv --time-column ts --time-unit ms[/cyan]
     """
     try:
-        # Load data
-        data_loader = DataLoader()
+        jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
+        jitterbug_config = _apply_input_overrides(
+            jitterbug_config,
+            time_column=time_column,
+            rtt_column=rtt_column,
+            time_unit=time_unit,
+            rtt_unit=rtt_unit,
+        )
+        data_loader = DataLoader(jitterbug_config.input)
 
         with Progress(
             SpinnerColumn(),
@@ -324,7 +403,9 @@ def validate(
 @app.command()
 def visualize(
     input_file: Path = typer.Argument(
-        ..., help="Path to RTT data file (CSV or scamper JSON)", exists=True
+        ...,
+        help="Path to RTT data file (CSV, TSV, JSONL or scamper JSON; may be compressed)",
+        exists=True,
     ),
     output_dir: Path = typer.Option(
         "visualization_output",
@@ -339,8 +420,12 @@ def visualize(
         None,
         "--format",
         "-f",
-        help="Input file format (csv, json). Auto-detected if not specified.",
+        help=INPUT_FORMAT_HELP,
     ),
+    time_column: str | None = TIME_COLUMN_OPTION,
+    rtt_column: str | None = RTT_COLUMN_OPTION,
+    time_unit: str | None = TIME_UNIT_OPTION,
+    rtt_unit: str | None = RTT_UNIT_OPTION,
     method: str | None = typer.Option(
         None,
         "--method",
@@ -413,6 +498,13 @@ def visualize(
             verbose=verbose,
             mode=mode,
             clustering_algorithm=clustering_algorithm,
+        )
+        jitterbug_config = _apply_input_overrides(
+            jitterbug_config,
+            time_column=time_column,
+            rtt_column=rtt_column,
+            time_unit=time_unit,
+            rtt_unit=rtt_unit,
         )
 
         # Create analyzer
@@ -689,9 +781,11 @@ def replay(
         help="CSV with starts,ends,congestion columns to score the final verdicts against",
         exists=True,
     ),
-    format: str | None = typer.Option(
-        None, "--format", help="Input format (csv, json, scamper); inferred from the file"
-    ),
+    format: str | None = typer.Option(None, "--format", help=INPUT_FORMAT_HELP),
+    time_column: str | None = TIME_COLUMN_OPTION,
+    rtt_column: str | None = RTT_COLUMN_OPTION,
+    time_unit: str | None = TIME_UNIT_OPTION,
+    rtt_unit: str | None = RTT_UNIT_OPTION,
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Configuration file (YAML or JSON)", exists=True
     ),
@@ -749,6 +843,13 @@ def replay(
             min_time_elapsed=min_time_elapsed,
             verbose=verbose,
         )
+        jitterbug_config = _apply_input_overrides(
+            jitterbug_config,
+            time_column=time_column,
+            rtt_column=rtt_column,
+            time_unit=time_unit,
+            rtt_unit=rtt_unit,
+        )
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -756,7 +857,7 @@ def replay(
             transient=True,
         ) as progress:
             task = progress.add_task("Replaying...", total=None)
-            dataset = DataLoader().load_from_file(input_file, format)
+            dataset = DataLoader(jitterbug_config.input).load_from_file(input_file, format)
             events, changes = replay_state_changes(dataset, jitterbug_config)
             progress.update(task, total=1, completed=1)
         summary = score(events, reference)

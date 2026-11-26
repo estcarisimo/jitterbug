@@ -13,6 +13,7 @@ from .config import (
     ChangePointDetectionConfig,
     ClusteringConfig,
     DataProcessingConfig,
+    InputConfig,
     JitterAnalysisConfig,
     JitterbugConfig,
     LatencyJumpConfig,
@@ -37,4 +38,5 @@ __all__ = [
     "DataProcessingConfig",
     "ClusteringConfig",
     "StreamingConfig",
+    "InputConfig",
 ]

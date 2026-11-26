@@ -306,3 +306,45 @@ class TestJitterbugConfig:
         # Test invalid moving average order
         with pytest.raises(ValueError, match="Moving average order must be even"):
             JitterAnalysisConfig(moving_average_order=5)  # Odd number
+
+
+class TestInputConfig:
+    def test_defaults_are_the_historical_contract(self):
+        from jitterbug.models import InputConfig
+
+        config = JitterbugConfig().input
+        assert config == InputConfig()
+        assert (config.time_column, config.rtt_column) == ("epoch", None)
+        assert (config.time_unit, config.rtt_unit) == ("s", "ms")
+        assert (config.duplicates, config.out_of_range, config.unsorted) == ("keep", "drop", "sort")
+        assert config.delimiter is None
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("time_unit", "minutes"),
+            ("rtt_unit", "ks"),
+            ("duplicates", "mean"),
+            ("out_of_range", "clip"),
+            ("unsorted", "ignore"),
+            ("delimiter", ";;"),
+            ("time_column", ""),
+        ],
+    )
+    def test_invalid_values_are_rejected(self, field, value):
+        from pydantic import ValidationError
+
+        from jitterbug.models import InputConfig
+
+        with pytest.raises(ValidationError):
+            InputConfig(**{field: value})
+
+    def test_input_section_round_trips_through_a_file(self, tmp_path):
+        path = tmp_path / "config.yaml"
+        path.write_text("input:\n  time_column: ts\n  time_unit: ms\n  duplicates: min\n")
+        config = JitterbugConfig.from_file(path)
+        assert config.input.time_column == "ts"
+        assert config.input.time_unit == "ms"
+        assert config.input.duplicates == "min"
+        config.to_file(tmp_path / "out.json")
+        assert JitterbugConfig.from_file(tmp_path / "out.json").input == config.input

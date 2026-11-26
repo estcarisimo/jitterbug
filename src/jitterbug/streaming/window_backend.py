@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from ..analyzer import JitterbugAnalyzer
+from ..io.normalize import normalize
 from ..models import ChangePoint, CongestionInference, JitterbugConfig
 from .online_analyzer import OpenPeriodBins, StreamingEvent, verdict_event
 from .verdict import two_period_verdict
@@ -192,9 +193,10 @@ class SlidingWindowJitterbug:
     ) -> tuple[list[ChangePoint], list[CongestionInference]]:
         """The sequential pipeline on the window, with the window start as a change point."""
         analyzer = self._analyzer
-        dataset = analyzer.data_loader.load_from_dataframe(
-            pd.DataFrame({"epoch": epochs, "rtt_value": rtts})
-        )
+        # The samples were normalized when they were loaded or streamed in; the
+        # default schema (epoch seconds, RTT milliseconds) describes this frame,
+        # whatever the user's input settings are.
+        dataset = normalize(pd.DataFrame({"epoch": epochs, "rtt_value": rtts}))
         interval = self.config.data_processing.minimum_interval_minutes
         min_rtt = dataset.compute_minimum_intervals(interval)
         if len(min_rtt) < 2:

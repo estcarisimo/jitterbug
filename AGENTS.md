@@ -39,7 +39,10 @@ src/jitterbug/
                          (the two-period rule both share), state_changes.py (StateChangeTracker:
                          baseline <-> congested changes, suspected → confirmed | retracted;
                          CommandHook), replay.py (replay, score, score_state_changes)
-  io/                    data_loader.py (CSV, scamper JSON, InfluxDB), exporters.py
+  io/                    data_loader.py (DataLoader: file/DataFrame/InfluxDB entry points),
+                         readers/ (one reader per format → raw DataFrame, registered by name
+                         and extension), normalize.py (the only place for column mapping,
+                         units and row policies of `InputConfig`), compression.py, exporters.py
   cli/main.py            Typer CLI: `jitterbug analyze|validate|config|visualize|stream|replay|version`
   visualization/         plotter.py (JitterbugPlotter, matplotlib)
 tests/                   pytest; test_cli.py runs the CLI on the bundled dataset;

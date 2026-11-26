@@ -16,7 +16,7 @@ from .analysis import (
 from .detection import ChangePointDetector
 from .io import DataLoader
 from .io.compression import open_text
-from .io.exporters import reject_zstd_parquet
+from .io.exporters import reject_compressed_parquet
 from .models import (
     ChangePoint,
     CongestionInferenceResult,
@@ -88,7 +88,7 @@ class JitterbugAnalyzer:
 
     def _initialize_components(self) -> None:
         """Initialize all analysis components."""
-        self.data_loader = DataLoader()
+        self.data_loader = DataLoader(self.config.input)
         self.change_point_detector = ChangePointDetector(self.config.change_point_detection)
         self.jitter_analyzer = JitterAnalyzer(self.config.jitter_analysis)
         self.latency_jump_analyzer = LatencyJumpAnalyzer(self.config.latency_jump)
@@ -115,8 +115,8 @@ class JitterbugAnalyzer:
         file_path : Union[str, Path]
             Path to the RTT data file.
         file_format : Optional[str]
-            Format of the file ('csv' or 'json'). If None, it is inferred from the
-            extension, then from the first line.
+            Input format, one of ``jitterbug.io.readers.available_formats()``. If None,
+            it is inferred from the extension, then from the content.
 
         Returns
         -------
@@ -141,7 +141,8 @@ class JitterbugAnalyzer:
         Parameters
         ----------
         df : pd.DataFrame
-            DataFrame containing RTT data with columns 'epoch' and 'values'.
+            DataFrame containing RTT data, mapped through ``config.input`` (by default
+            an ``epoch`` column in seconds and a ``values`` column in milliseconds).
 
         Returns
         -------
@@ -314,15 +315,15 @@ class JitterbugAnalyzer:
         results : CongestionInferenceResult
             Analysis results to save.
         output_path : Union[str, Path]
-            Path to save results to. JSON and CSV are compressed with Zstandard when it
-            ends in ``.zst`` (``results.json.zst``).
+            Path to save results to. JSON and CSV are compressed when it ends in
+            ``.zst``, ``.gz``, ``.bz2`` or ``.xz`` (``results.json.zst``).
         format : Optional[str]
             Output format ('json', 'csv', 'parquet'). If None, uses config default.
 
         Raises
         ------
         ValueError
-            If the format is unknown, or Parquet is requested with a ``.zst`` path.
+            If the format is unknown, or Parquet is requested with a compressed path.
         ImportError
             If the path ends in ``.zst`` and no Zstandard codec is available.
         """
@@ -341,7 +342,7 @@ class JitterbugAnalyzer:
                 df.to_csv(f, index=False)
 
         elif format == "parquet":
-            reject_zstd_parquet(output_path)
+            reject_compressed_parquet(output_path)
             df = results.to_dataframe()
             df.to_parquet(output_path)
 

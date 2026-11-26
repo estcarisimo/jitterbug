@@ -1,39 +1,48 @@
 """
-Data loading utilities for various input formats.
+Data loading: file and DataFrame entry points.
+
+A file goes through a reader (``jitterbug.io.readers``, chosen by format) that returns a
+raw DataFrame, then through the normalizer (``jitterbug.io.normalize``) that applies the
+column mapping, units and row policies of ``InputConfig``.
 """
 
-import json
 import logging
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from ..models import MAX_RTT_MS, RTTDataset, RTTMeasurement
-from .compression import inner_suffix, open_text
+from ..models import RTTDataset
+from ..models.config import RTT_COLUMN_SYNONYMS, InputConfig
+from .normalize import datetimes_to_epoch, normalize
+from .readers import get_reader, infer_format
 
 logger = logging.getLogger(__name__)
 
 EPOCH_COLUMN = "epoch"
-RTT_COLUMNS = ("values", "rtt_value", "rtt", "latency")
-"""Accepted names for the RTT column, in order of preference. Values are milliseconds."""
+"""Default time column (``InputConfig.time_column``)."""
+RTT_COLUMNS = RTT_COLUMN_SYNONYMS
+"""Accepted names for the RTT column when ``InputConfig.rtt_column`` is ``None``."""
 
 
 class DataLoader:
     """
-    Data loader for various RTT data formats.
+    Data loader for RTT data.
 
-    Supports loading from:
-    - CSV files with epoch timestamps and RTT values
-    - JSON files from scamper's warts outputs
-    - InfluxDB query results
-    - Pandas DataFrames
+    Supports loading from files (CSV, TSV, generic JSONL and scamper JSON, optionally
+    compressed; see ``jitterbug.io.readers``), pandas DataFrames and InfluxDB query
+    results.
+
+    Parameters
+    ----------
+    input_config : InputConfig | None
+        Column mapping, units and row policies; ``None`` uses the defaults.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, input_config: InputConfig | None = None) -> None:
         """Initialize the data loader."""
+        self.input_config = input_config if input_config is not None else InputConfig()
 
     def load_from_file(self, file_path: str | Path, file_format: str | None = None) -> RTTDataset:
         """
@@ -42,50 +51,70 @@ class DataLoader:
         Parameters
         ----------
         file_path : Union[str, Path]
-            Path to the data file.
+            Path to the data file. A trailing ``.zst``, ``.gz``, ``.bz2`` or ``.xz`` means
+            the file is compressed (``rtts.csv.gz``) and does not count as the extension.
         file_format : Optional[str]
-            Format of the file ('csv' or 'json'). If None, it is inferred from the
-            extension, then from the first line. A trailing ``.zst`` means the file is
-            Zstandard-compressed (``rtts.csv.zst``) and does not count as the extension.
+            A registered format (``jitterbug.io.readers.available_formats()``: ``csv``,
+            ``tsv``, ``json``, ``scamper``, ``jsonl``). If None, it is inferred from the
+            extension, then from the first non-empty line.
 
         Returns
         -------
         RTTDataset
-            Loaded RTT dataset.
+            Loaded RTT dataset; ``metadata`` records the source, the file path, the
+            format and what normalization did.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the file does not exist.
+        ValueError
+            If the format is unknown or the content does not satisfy the input contract.
+        ImportError
+            If the file is compressed with a codec that is not installed.
         """
         file_path = Path(file_path)
 
         if not file_path.exists():
             raise FileNotFoundError(f"Data file not found: {file_path}")
 
-        # Infer format from file extension if not provided
         if file_format is None:
             file_format = self._infer_format(file_path)
+        reader = get_reader(file_format)
 
         logger.info(f"Loading data from {file_path} (format: {file_format})")
-
-        if file_format == "csv":
-            return self._load_from_csv(file_path)
-        elif file_format == "json":
-            return self._load_from_json(file_path)
-        else:
-            raise ValueError(f"Unsupported file format: {file_format}")
+        raw = reader.read(file_path, self.input_config)
+        config = (
+            self.input_config.model_copy(update=raw.schema) if raw.schema else self.input_config
+        )
+        try:
+            dataset = normalize(raw.frame, config)
+        except ValueError as e:
+            raise ValueError(f"Failed to load {reader.label} file {file_path}: {e}") from e
+        dataset.metadata.update({"source": reader.name, "file_path": str(file_path)})
+        dataset.metadata.update(raw.metadata)
+        if raw.finish is not None:
+            raw.finish(dataset)
+        return dataset
 
     def load_from_dataframe(self, df: pd.DataFrame) -> RTTDataset:
         """
         Load RTT data from a pandas DataFrame.
 
-        The input contract (see ``docs/INPUT_FORMATS.md``): an ``epoch`` column with Unix
+        The frame is mapped through this loader's ``InputConfig`` (see
+        ``docs/INPUT_FORMATS.md``); with the defaults: an ``epoch`` column with Unix
         seconds (UTC) and one RTT column named ``values``, ``rtt_value``, ``rtt`` or
         ``latency`` holding milliseconds; ``source`` and ``destination`` are optional.
-        Validation happens here, once, on the whole frame:
+        Validation happens once, on the whole frame (``jitterbug.io.normalize``):
 
-        - a missing column or a non-numeric value raises ``ValueError``;
-        - rows with a missing epoch or RTT, a non-positive RTT, or an RTT above
-          ``MAX_RTT_MS`` are dropped with a warning and counted in
-          ``metadata["dropped_rows"]``;
-        - rows are sorted by epoch (stable) if they are not already; duplicate epochs
-          are kept (``validate_data`` reports them).
+        - a missing column or a value that cannot be read in its unit raises
+          ``ValueError``;
+        - rows with a missing time or RTT are dropped; non-positive RTTs and RTTs above
+          ``MAX_RTT_MS`` are dropped (or rejected with ``out_of_range: error``); drops
+          are counted in ``metadata["dropped_rows"]``;
+        - rows are sorted by time (stable) if they are not already (or rejected with
+          ``unsorted: error``); rows sharing a timestamp are handled by
+          ``duplicates`` (kept by default).
 
         Parameters
         ----------
@@ -100,102 +129,16 @@ class DataLoader:
         Raises
         ------
         ValueError
-            If a required column is missing, a value is not numeric, or no valid rows
-            remain.
+            If a required column is missing, a value cannot be read, a policy set to
+            ``error`` is violated, or no valid rows remain.
         """
         logger.info(f"Loading data from DataFrame with {len(df)} rows")
-
-        if EPOCH_COLUMN not in df.columns:
-            raise ValueError(f"DataFrame must contain an '{EPOCH_COLUMN}' column")
-        rtt_column = next((c for c in RTT_COLUMNS if c in df.columns), None)
-        if rtt_column is None:
-            raise ValueError(
-                "DataFrame must contain an RTT column named one of "
-                + ", ".join(f"'{c}'" for c in RTT_COLUMNS)
-            )
-
-        epochs = self._numeric_column(df, EPOCH_COLUMN)
-        rtts = self._numeric_column(df, rtt_column)
-
-        # Row filters, applied together so the counts refer to the original frame
-        missing = epochs.isna() | rtts.isna()
-        non_positive = ~missing & (rtts <= 0)
-        too_large = ~missing & (rtts > MAX_RTT_MS)
-        dropped = {
-            "missing": int(missing.sum()),
-            "non_positive": int(non_positive.sum()),
-            "too_large": int(too_large.sum()),
-        }
-        keep = ~(missing | non_positive | too_large)
-        for reason, count in dropped.items():
-            if count:
-                logger.warning(f"Dropping {count} row(s) with {reason.replace('_', '-')} RTT")
-        if not keep.any():
-            raise ValueError("No valid RTT rows: every row was missing, non-positive or too large")
-
-        frame = df.loc[keep]
-        epoch_values = epochs[keep].to_numpy(dtype=float)
-        rtt_values = rtts[keep].to_numpy(dtype=float)
-        needs_sort = bool(np.any(epoch_values[:-1] > epoch_values[1:]))
-        if needs_sort:
-            logger.warning("Rows are not in time order; sorting by epoch")
-            order = np.argsort(epoch_values, kind="stable")
-            frame = frame.iloc[order]
-            epoch_values, rtt_values = epoch_values[order], rtt_values[order]
-
-        sources = self._optional_column(frame, "source")
-        destinations = self._optional_column(frame, "destination")
-        measurements = [
-            RTTMeasurement(
-                timestamp=datetime.fromtimestamp(epoch, tz=UTC),
-                epoch=epoch,
-                rtt_value=rtt,
-                source=src,
-                destination=dst,
-            )
-            for epoch, rtt, src, dst in zip(
-                epoch_values.tolist(), rtt_values.tolist(), sources, destinations, strict=True
-            )
-        ]
-
-        return RTTDataset(
-            measurements=measurements,
-            metadata={
-                "source": "dataframe",
-                "original_columns": list(df.columns),
-                "rtt_column": rtt_column,
-                "total_rows": len(df),
-                "dropped_rows": dropped,
-                "sorted_on_load": needs_sort,
-            },
-        )
-
-    @staticmethod
-    def _numeric_column(df: pd.DataFrame, column: str) -> pd.Series:
-        """Return ``column`` as floats; NaN and empty strings become NaN, anything else
-        non-numeric is an error."""
-        values = pd.to_numeric(df[column], errors="coerce")
-        blank = df[column].map(lambda v: isinstance(v, str) and v.strip() == "")
-        bad = values.isna() & df[column].notna() & ~blank
-        if bad.any():
-            example = df.loc[bad, column].iloc[0]
-            raise ValueError(
-                f"Column '{column}' has {int(bad.sum())} non-numeric value(s), e.g. {example!r}"
-            )
-        return values.astype(float)
-
-    @staticmethod
-    def _optional_column(df: pd.DataFrame, column: str) -> list[str | None]:
-        """Per-row values of an optional string column, ``None`` where absent or missing."""
-        if column not in df.columns:
-            return [None] * len(df)
-        return [None if pd.isna(v) else str(v) for v in df[column].tolist()]
+        return normalize(df, self.input_config)
 
     def _infer_format(self, file_path: Path) -> str:
         """
-        Infer the file format: ``.csv``/``.json``/``.jsonl`` by extension (ignoring a
-        trailing ``.zst``), otherwise from the first line (a JSON object or a
-        comma-separated header).
+        Infer the file format: by extension (ignoring a compression suffix), otherwise
+        from the first non-empty line; see ``jitterbug.io.readers.infer_format``.
 
         Parameters
         ----------
@@ -205,141 +148,14 @@ class DataLoader:
         Returns
         -------
         str
-            ``"csv"`` or ``"json"``.
+            A registered format name.
 
         Raises
         ------
         ValueError
-            If the file cannot be read as text or its first line matches neither format.
+            If the file cannot be read as text or no reader recognizes it.
         """
-        extension = inner_suffix(file_path)
-
-        if extension == ".csv":
-            return "csv"
-        elif extension in [".json", ".jsonl"]:
-            return "json"
-        # Unknown extension: look at the first line
-        try:
-            with open_text(file_path) as f:
-                first_line = f.readline().strip()
-        except (OSError, UnicodeError) as e:
-            raise ValueError(f"Cannot infer format for file: {file_path}") from e
-        if first_line.startswith("{"):
-            return "json"
-        if "," in first_line:
-            return "csv"
-        raise ValueError(
-            f"Cannot infer format for file: {file_path} (expected a CSV header or a JSON "
-            "object on the first line; pass file_format explicitly)"
-        )
-
-    def _load_from_csv(self, file_path: Path) -> RTTDataset:
-        """
-        Load RTT data from CSV file.
-
-        Parameters
-        ----------
-        file_path : Path
-            Path to the CSV file.
-
-        Returns
-        -------
-        RTTDataset
-            Loaded RTT dataset.
-        """
-        try:
-            with open_text(file_path, newline="") as f:
-                df = pd.read_csv(f)
-            dataset = self.load_from_dataframe(df)
-        except ImportError:
-            raise
-        except Exception as e:
-            raise ValueError(f"Failed to load CSV file {file_path}: {e}") from e
-        dataset.metadata.update({"source": "csv", "file_path": str(file_path)})
-        return dataset
-
-    def _load_from_json(self, file_path: Path) -> RTTDataset:
-        """
-        Load RTT data from JSON file (scamper warts format).
-
-        Parameters
-        ----------
-        file_path : Path
-            Path to the JSON file.
-
-        Returns
-        -------
-        RTTDataset
-            Loaded RTT dataset.
-        """
-        measurements = []
-        out_of_range = 0
-
-        try:
-            with open_text(file_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    try:
-                        data = json.loads(line)
-
-                        # Process ping measurements from scamper
-                        if data.get("type") == "ping" and "responses" in data:
-                            source = data.get("src", "")
-                            destination = data.get("dst", "")
-
-                            for response in data["responses"]:
-                                if "rtt" in response:
-                                    # Calculate timestamp from tx time
-                                    tx_time = response.get("tx", {})
-                                    if "sec" in tx_time and "usec" in tx_time:
-                                        epoch = tx_time["sec"] + tx_time["usec"] / 1e6
-                                        timestamp = datetime.fromtimestamp(epoch, tz=UTC)
-                                        rtt_value = float(response["rtt"])
-                                        # Same bounds as the DataFrame contract
-                                        if not 0 < rtt_value <= MAX_RTT_MS:
-                                            out_of_range += 1
-                                            continue
-
-                                        measurements.append(
-                                            RTTMeasurement(
-                                                timestamp=timestamp,
-                                                epoch=epoch,
-                                                rtt_value=rtt_value,
-                                                source=source,
-                                                destination=destination,
-                                            )
-                                        )
-
-                    except json.JSONDecodeError:
-                        logger.warning(f"Skipping invalid JSON line: {line[:120]!r}")
-                        continue
-
-        except ImportError:
-            raise
-        except Exception as e:
-            raise ValueError(f"Failed to load JSON file {file_path}: {e}") from e
-
-        if out_of_range:
-            logger.warning(f"Dropping {out_of_range} response(s) with a non-positive or >10 s RTT")
-        if not measurements:
-            raise ValueError(f"No valid RTT measurements found in JSON file {file_path}")
-
-        # Sort measurements by timestamp
-        measurements.sort(key=lambda x: x.epoch)
-
-        return RTTDataset(
-            measurements=measurements,
-            metadata={
-                "source": "json",
-                "file_path": str(file_path),
-                "format": "scamper_warts",
-                "total_measurements": len(measurements),
-                "dropped_responses": out_of_range,
-            },
-        )
+        return infer_format(file_path)
 
     def load_from_influxdb(
         self, url: str, token: str, org: str, bucket: str, query: str
@@ -385,11 +201,8 @@ class DataLoader:
             if "_time" in df.columns:
                 # Seconds since the epoch regardless of the datetime resolution
                 # (pandas >= 3 parses to microseconds, so `.astype(int) / 1e9` was
-                # off by a factor of 1000). Rounded to microseconds like
-                # `pd.Timestamp.timestamp()`: a float64 epoch cannot hold nanoseconds.
-                times = pd.to_datetime(df["_time"], utc=True)
-                nanos = (times - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(nanoseconds=1)
-                df["epoch"] = (nanos / 1e9).round(6)
+                # off by a factor of 1000).
+                df["epoch"] = datetimes_to_epoch(pd.to_datetime(df["_time"], utc=True))
 
             # Look for RTT value column
             rtt_column = None
@@ -403,7 +216,10 @@ class DataLoader:
 
             df["rtt_value"] = df[rtt_column]
 
-            return self.load_from_dataframe(df)
+            # The columns built above are fixed; units of the RTT and row policies
+            # still come from the user's settings.
+            schema = {"time_column": "epoch", "time_unit": "s", "rtt_column": "rtt_value"}
+            return normalize(df, self.input_config.model_copy(update=schema))
 
         finally:
             client.close()
