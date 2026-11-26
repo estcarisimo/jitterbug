@@ -79,6 +79,22 @@ Both commands take `--config` and the most common knobs as flags: `--backend`,
 `--method` (`jitter_dispersion` or `ks_test`), `--decision`, `--hazard-lambda`,
 `--min-period-samples`, `--min-time-elapsed`.
 
+`stream --state-changes` adds [state changes](#state-changes) to the output, each line
+after the events of the sample that caused it, with `"kind": "state_change"`;
+`--events none --state-changes` prints only those. `--on-state-change CMD` runs `CMD` once
+per state change with the event as one JSON line on its standard input. The command line
+is split like a shell would split it but run without a shell, so nothing in the event is
+interpreted; it runs in the background, a failure is reported on standard error, and a
+command still running after 60 s is killed. The stream never waits for it.
+
+```bash
+my-probe | jitterbug stream --events none --state-changes
+jitterbug stream rtts.csv --follow --events none --on-state-change "./notify.py --path A"
+```
+
+`jitterbug replay` adds the state-change counts and times of `score_state_changes` to its
+summary.
+
 ## Configuration
 
 The online settings live in the `streaming` section of `JitterbugConfig`
@@ -106,6 +122,7 @@ streaming:
   min_time_elapsed: 3600           # seconds between change points
   min_period_samples: 100          # jitter samples before a provisional verdict
   min_ks_statistic: 0.0            # effect-size guard for the KS test
+  state_change_bins: 1             # closed bins of a new period the early rule uses
 ```
 
 ## Python API
@@ -122,7 +139,18 @@ for epoch, rtt in stream:  # seconds, milliseconds
 ```
 
 `jitterbug.streaming.replay(dataset, config)` and `score(events, reference)` are what
-`jitterbug replay` calls.
+`jitterbug replay` calls; `replay_state_changes` and `score_state_changes` add the state
+changes. To follow state changes live, wrap the back end:
+
+```python
+from jitterbug.streaming import StateChangeTracker, create_online_analyzer
+
+tracker = StateChangeTracker(create_online_analyzer(config))
+for epoch, rtt in stream:
+    events, changes = tracker.push(epoch, rtt)  # events are the back end's, unchanged
+    for change in changes:
+        print(change.id, change.status, change.from_state, "->", change.to_state)
+```
 
 ## Results on the paper dataset
 
@@ -164,6 +192,85 @@ Two findings from the parameter sweep:
 
 Caveats: one path over 15 days, and the metric is agreement with the offline method, not
 ground truth. The stream's first period is taken as the baseline.
+
+## State changes
+
+A provisional verdict waits for 100 jitter samples (KS, about 45 min after the change
+point) or 12 dispersion values (3 h). `StateChangeTracker` (`jitterbug.streaming`) reports
+an earlier, weaker signal on top of the verdicts, from either back end, without changing
+the events they emit.
+
+The path is in one of two states, `baseline` or `congested`; the stream's first period is
+the baseline. A *state change* is a transition at a change point, and its status evolves:
+
+- **`suspected`**: once the period a change point opens holds `streaming.state_change_bins`
+  closed minimum-RTT bins (one by default), each is compared with the previous period's
+  mean minimum RTT. From `baseline`, every bin more than `latency_jump.threshold` above it
+  raises a suspected change to `congested`. From `congested`, no bin above it raises a
+  suspected return to `baseline`: the two-period rule calls a period without a latency
+  jump not congested, so the early rule is the latency-jump half of that rule in both
+  directions, and the jitter half is left to the verdicts. Mixed bins raise nothing.
+- **`confirmed`**: a provisional or final verdict puts the period in the new state. A
+  verdict can confirm a change that was never suspected (for example when the provisional
+  verdict arrives with the change point).
+- **`retracted`**: the verdict keeps the path where it was, typically a latency jump
+  without a jitter change. A final verdict that contradicts the provisional one corrects
+  it: `retracted` after `confirmed`, or `confirmed` after `retracted`.
+
+Every update is one event with the change's stable `id` (`<period start>:<from>-><to>`),
+`from_state`, `to_state`, `status`, `change_epoch` (the change point), `emitted_at`,
+`suspected_at` and `confirmed_at` when they happened, the `stage` of the evidence
+(`latency_jump`, `provisional` or `final`) and the evidence itself: `jump_magnitude`,
+`jitter_method`, `jitter_metric`, `has_jitter`, `p_value`, and `n_prev`/`n_curr` (bins for
+the early stage, jitter observations for a verdict). The state before a period is the
+latest evidence on the period before it; if that evidence changes (the `window` back end
+can judge a period after the next one has opened), the changes after it are re-derived
+and those whose direction no longer holds are retracted. "State change" is deliberately
+neutral: a suspected change may turn out to be nothing, and alerting, if wanted, is
+something to build on these events (`--on-state-change`).
+
+Measured with `tools/state_change_sweep.py` on the paper dataset (`bocpd` back end,
+defaults otherwise), each method scored against its own reference. A reference congested
+period counts as suspected when a suspected onset falls between 30 min before its start
+and its end. *Delay* runs from the change point to the suspicion, *lead* from the
+suspicion to the first verdict on the same period:
+
+| Jitter method | Bins | Suspected (onset / return) | Confirmed | Retracted | Confirmed, never suspected | Corrected by final | Reference congested periods suspected | Delay, median / max | Lead over first verdict, median / max |
+|---|---|---|---|---|---|---|---|---|---|
+| KS test | 1 | 14 (14 / 0) | 14 | 0 | 15 | 0 | 13 of 15 | 15 / 30 min | 30 / 32 min |
+| KS test | 2 | 13 (13 / 0) | 13 | 0 | 16 | 0 | 12 of 15 | 30 / 30 min | 15 / 17 min |
+| KS test | 3 | 4 (4 / 0) | 4 | 0 | 25 | 0 | 3 of 15 | 45 / 45 min | 0 / 0 min |
+| dispersion | 1 | 24 (15 / 9) | 24 | 0 | 5 | 0 | 14 of 15 | 15 / 150 min | 150 / 150 min |
+| dispersion | 2 | 23 (14 / 9) | 23 | 0 | 6 | 0 | 13 of 15 | 30 / 150 min | 135 / 135 min |
+| dispersion | 3 | 19 (10 / 9) | 19 | 0 | 10 | 0 | 9 of 15 | 45 / 150 min | 120 / 120 min |
+
+With one bin, every suspected change was later confirmed and none retracted, so a guard
+(several consecutive bins above the threshold) buys nothing here and costs a bin of delay
+per extra bin, while the provisional verdict catches up: with three bins and the KS test,
+most suspicions would come with the verdict itself. The default is one bin. With the KS
+test the suspicion comes 15 min after the onset, 30 min before the provisional verdict;
+returns to baseline are never suspected because the online detector reports them late
+(135 min median), by which time the provisional verdict is ready and confirms them
+directly. With dispersion, whose provisional verdict waits 3 h, both onsets and returns
+are suspected 2.5 h ahead of it. Each method has one suspected onset outside the
+reference and one reference period not suspected: the same episode at the end of the
+data, a 15-minute reference period whose online change point comes 15 min after it ends.
+The KS test misses one more onset, whose change point arrived with the provisional
+verdict. All 29 changes per method end `confirmed`, none corrected by a final verdict,
+consistent with no provisional flips.
+
+The `window` back end emits change points after two stable reruns, an hour or more after
+the fact: with the KS test (rerun every 4 bins) its provisional verdict arrives with the
+change point and no change is suspected; with dispersion 11 of 30 changes are suspected,
+with a 60 min median lead. With either method one change is corrected by a final verdict
+(the back end's one provisional flip).
+
+Caveats: one path over 15 days. Its congestion onsets are latency jumps of 15 to 58 ms
+against a 0.5 ms threshold, so the early rule is easy here; on a path with smaller jumps
+or a jump without a jitter change, suspected changes will be retracted (the step series
+in `tests/test_cli.py` is one such case with dispersion). Agreement with the verdicts and
+with the reference is agreement with the offline method, not ground truth. The goldens are
+pinned in `tests/test_paper_regression.py` (`TestStateChangeReplay`).
 
 ## Back ends compared
 
@@ -228,6 +335,8 @@ uv run python tools/compare_online_backends.py   # the back ends table, about 4 
 uv run python tools/replay_online.py --sweep       # decision rule x lag x hazard x threshold
 uv run python tools/replay_online.py --min-time-elapsed 1800   # the 38-change-point figure
 uv run python tools/replay_online.py --min-period-samples 30   # the 2-flip figure
+uv run python tools/state_change_sweep.py   # the state-change table, about 30 s
+uv run python tools/state_change_sweep.py --bins 1 --backend window   # window figures
 uv run python tools/prefix_experiment.py --step-hours 1 --start-hours 24 --output prefix.json
 uv run python tools/prefix_experiment.py --from-json prefix.json   # re-score without rerunning
 ```

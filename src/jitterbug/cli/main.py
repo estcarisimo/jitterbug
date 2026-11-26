@@ -515,7 +515,17 @@ def stream(
         None, "--output", "-o", help="Write events here as JSON lines instead of stdout"
     ),
     events: str = typer.Option(
-        "all", "--events", help="Which events to emit: all, verdicts, change-points"
+        "all", "--events", help="Which events to emit: all, verdicts, change-points, none"
+    ),
+    state_changes: bool = typer.Option(
+        False,
+        "--state-changes",
+        help="Also emit state changes of the path (suspected, confirmed, retracted)",
+    ),
+    on_state_change: str | None = typer.Option(
+        None,
+        "--on-state-change",
+        help="Command run per state change with the event as JSON on stdin (no shell)",
     ),
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Configuration file (YAML or JSON)", exists=True
@@ -555,6 +565,12 @@ def stream(
     must arrive in time order; a sample older than the last one is dropped. The last bin is
     closed when the input ends (or on Ctrl-C with --follow), as 'jitterbug replay' does.
 
+    --state-changes adds state-change events ("kind": "state_change") after the events of
+    the sample that caused them; with --events none only those are printed.
+    --on-state-change runs a command per state change in the background, the event as JSON
+    on its standard input; a failing or slow command (killed after 60 s) is reported on
+    standard error and does not stop the stream.
+
     [bold]Examples:[/bold]
 
     • From a probe writing to standard output:
@@ -562,21 +578,24 @@ def stream(
 
     • Following a file that another process appends to:
       [cyan]jitterbug stream rtts.csv --follow --events verdicts[/cyan]
+
+    • State changes handed to a script, nothing printed:
+      [cyan]jitterbug stream rtts.csv -f --events none --on-state-change ./hook.sh[/cyan]
     """
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.WARNING,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         stream=sys.stderr,
     )
-    if events not in ("all", "verdicts", "change-points"):
+    if events not in ("all", "verdicts", "change-points", "none"):
         err_console.print(
-            f"❌ Error: --events must be all, verdicts or change-points, not {events}"
+            f"❌ Error: --events must be all, verdicts, change-points or none, not {events}"
         )
         raise typer.Exit(2)
     if follow and source == "-":
         err_console.print("--follow has no effect on standard input", style="yellow")
     try:
-        from ..streaming import create_online_analyzer
+        from ..streaming import CommandHook, StateChangeTracker, create_online_analyzer
 
         jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
         jitterbug_config = _apply_streaming_overrides(
@@ -595,16 +614,38 @@ def stream(
             raise FileNotFoundError(f"Input file not found: {path}")
         sink = output.open("w") if output else sys.stdout
         n_samples = n_skipped = n_events = 0
-        wanted = {"all": None, "verdicts": "verdict", "change-points": "change_point"}[events]
+        wanted = {
+            "all": None,
+            "verdicts": "verdict",
+            "change-points": "change_point",
+            "none": "",
+        }[events]
+        tracker = StateChangeTracker(online) if state_changes or on_state_change else None
+        hook = CommandHook(on_state_change) if on_state_change else None
 
         def emit(batch: list[Any]) -> None:
             nonlocal n_events
             for event in batch:
-                if wanted is not None and event.kind != wanted:
+                if event.kind == "state_change":
+                    if hook is not None:
+                        hook(event)
+                    if not state_changes:
+                        continue
+                elif wanted is not None and event.kind != wanted:
                     continue
                 sink.write(json.dumps(event.to_dict()) + "\n")
                 sink.flush()
                 n_events += 1
+
+        def feed(sample: tuple[float, float] | None) -> None:
+            if hook is not None:
+                hook.poll()  # reap finished commands, kill the ones past the timeout
+            if tracker is None:
+                emit(online.push(*sample) if sample else online.flush())
+                return
+            batch, changes = tracker.push(*sample) if sample else tracker.flush()
+            emit(batch)
+            emit(changes)
 
         try:
             try:
@@ -614,14 +655,16 @@ def stream(
                         n_skipped += bool(line.strip())
                         continue
                     n_samples += 1
-                    emit(online.push(*sample))
+                    feed(sample)
             except KeyboardInterrupt:
                 # Ctrl-C is how a --follow stream ends; close it like an EOF.
                 err_console.print("interrupted", style="yellow")
             # The input ended (stdin EOF, a file without --follow, or Ctrl-C): close the
             # open bin so the result matches `jitterbug replay` on the same data.
-            emit(online.flush())
+            feed(None)
         finally:
+            if hook is not None:
+                hook.close()
             if output:
                 sink.close()
         err_console.print(
@@ -693,8 +736,7 @@ def replay(
         stream=sys.stderr,
     )
     try:
-        from ..streaming import events_to_json, score
-        from ..streaming import replay as replay_dataset
+        from ..streaming import events_to_json, replay_state_changes, score, score_state_changes
 
         jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
         jitterbug_config = _apply_streaming_overrides(
@@ -715,9 +757,11 @@ def replay(
         ) as progress:
             task = progress.add_task("Replaying...", total=None)
             dataset = DataLoader().load_from_file(input_file, format)
-            events = replay_dataset(dataset, jitterbug_config)
+            events, changes = replay_state_changes(dataset, jitterbug_config)
             progress.update(task, total=1, completed=1)
         summary = score(events, reference)
+        changes_summary = score_state_changes(events, changes, reference)
+        summary.update({k: v for k, v in changes_summary.items() if k not in summary})
         if output:
             events_to_json(events, output)
 
@@ -740,6 +784,17 @@ def replay(
             "spurious": "Spurious congested periods",
             "boundaries_within_30min": "Reference boundaries with a change point within 30 min",
             "reference_boundaries": "Reference boundaries",
+            "state_changes": "State changes",
+            "suspected": "Suspected state changes",
+            "suspected_confirmed": "Suspected, then confirmed",
+            "suspected_retracted": "Suspected, then retracted",
+            "confirmed_without_suspicion": "Confirmed without suspicion",
+            "corrected_by_final": "Corrected by a final verdict",
+            "suspected_delay_min_median": "Suspicion delay, median (min)",
+            "suspected_lead_min_median": "Suspicion lead over first verdict, median (min)",
+            "suspected_lead_min_max": "Suspicion lead over first verdict, max (min)",
+            "reference_congested_suspected": "Reference congested periods suspected",
+            "suspected_onsets_outside_reference": "Suspected onsets outside the reference",
         }
         for key, label in labels.items():
             if key in summary:
