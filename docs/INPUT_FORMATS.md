@@ -6,7 +6,8 @@ rows that do not fit.
 Loading has three steps:
 
 1. A **reader** turns a file into a table of raw rows. There is one reader per format
-   (CSV, TSV, JSON lines, scamper), chosen by extension or content.
+   (CSV, TSV, JSON lines, scamper, RIPE Atlas, Parquet, Arrow, ping and fping output),
+   chosen by extension or content.
 2. The **normalizer** (`jitterbug.io.normalize`) applies the `input` settings to those
    rows: column mapping, then units, then row policies. Files, pandas DataFrames and
    InfluxDB results all go through it, so the rules below are enforced in one place.
@@ -128,14 +129,29 @@ In Python, pass the settings through `JitterbugConfig(input=InputConfig(...))` o
 | --- | --- | --- | --- |
 | `csv` | `.csv` | header with `,` or `;` | Separator detected from the header |
 | `tsv` | `.tsv`, `.tab` | header with a tab | Tab-separated |
-| `json` | `.json`, `.jsonl`, `.ndjson` | line starting with `{` | JSON lines: scamper output or generic JSONL, decided by content |
+| `json` | `.json`, `.jsonl`, `.ndjson` | line starting with `{`, `[{` or a lone `[` | JSON lines or one JSON array: scamper output, RIPE Atlas results or generic JSONL, decided by content |
 | `scamper` | – | – | Forces the scamper reader |
 | `jsonl` | – | – | Forces the generic JSONL reader |
+| `atlas` | – | – | Forces the RIPE Atlas reader |
+| `parquet` | `.parquet`, `.pq` | magic bytes `PAR1` | Needs the `parquet` extra |
+| `arrow` | `.arrow`, `.feather`, `.ipc`, `.arrows` | magic bytes (`ARROW1`, `FEA1`, stream marker) | Arrow IPC file or stream, Feather; needs the `parquet` extra |
+| `ping` | – | `PING host ...` header or a reply line | `ping -D` output |
+| `fping` | – | an fping reply or timeout line | `fping -D` output |
 
-`--format` (`file_format=` in Python) overrides detection. Without it, the extension
-decides (ignoring a compression suffix); for any other extension the first non-empty
-line does: a line starting with `{` is JSON, a tab makes it TSV, a comma or semicolon
-CSV. Anything else, including binary content, is an error.
+`--format` (`file_format=` in Python) overrides detection. Without it:
+
+1. the extension decides (ignoring a compression suffix);
+2. otherwise the first bytes of the file: Parquet and Arrow are recognized by their magic
+   bytes, also inside a `.gz`, `.bz2`, `.xz` or `.zst` file (which is then rejected, see
+   below), and binary content is never decoded as text;
+3. otherwise the first non-empty line, tried in this order: a `PING host ...` header or a
+   ping reply line is `ping`; an fping reply, timeout or duplicate line (`host : [0],
+   ...`) is `fping`; a comma or semicolon makes it CSV, a tab TSV (unless the line looks
+   like JSON); a line starting with `{`, `[{` or a lone `[` is JSON. A ping line such as
+   `[1700000000.1] 64 bytes from ...` starts with a bracket but is not JSON.
+
+Anything else is an error. `.txt` and `.log` files have no registered extension, so they
+are always detected by content.
 
 ### CSV and TSV
 
@@ -159,6 +175,8 @@ One flat JSON object per line; the top-level fields are the columns, mapped thro
 `input` settings like CSV columns. Records may have different fields (absent ones are
 missing values); lines that are not valid JSON are skipped with a warning and counted in
 `metadata["invalid_lines"]`; a line that is valid JSON but not an object is an error.
+A file holding one JSON array of such objects (`[{...}, {...}]`, on one line or many) is
+read the same way.
 
 ```json
 {"ts": "2024-01-01T00:00:00Z", "rtt": 20.5, "source": "probe-1"}
@@ -185,12 +203,137 @@ column and unit settings do not apply to it; the row policies do. Responses whos
 outside `(0, 10 000]` ms are dropped and counted in `metadata["dropped_responses"]`. A
 file with no usable response is an error.
 
-**scamper or generic JSONL?** The `json` format reads the records and treats the file as
-scamper output when at least one record is a scamper ping (`"type": "ping"` with a
-`responses` field) or one of scamper's bookkeeping records (`"type"` `list`, `cycle-def`,
-`cycle-start` or `cycle-stop`); otherwise it is generic JSONL. A `"type": "ping"` field
-on its own is not enough, since other tools write it too. Use `--format scamper` or
-`--format jsonl` to skip the check.
+**scamper, RIPE Atlas or generic JSONL?** The `json` format reads the records (one per
+line, or the elements of a JSON array) and decides, in this order:
+
+1. **scamper** when at least one record is a scamper ping (`"type": "ping"` with a
+   `responses` field) or one of scamper's bookkeeping records (`"type"` `list`,
+   `cycle-def`, `cycle-start` or `cycle-stop`);
+2. **RIPE Atlas** when at least one record has the `prb_id`, `msm_id` and `result` fields
+   that every Atlas result carries, whatever its type;
+3. **generic JSONL** otherwise.
+
+A `"type": "ping"` field on its own is not enough, since scamper, RIPE Atlas and other
+tools all write it. Use `--format scamper`, `--format atlas` or `--format jsonl` to skip
+the check. A file whose first character is `[` is parsed as one JSON array (so a
+pretty-printed array spanning many lines works); its elements are the records.
+
+### RIPE Atlas ping results
+
+What the RIPE Atlas API returns for a ping measurement
+(`https://atlas.ripe.net/api/v2/measurements/<id>/results/`), a JSON array, or the same
+results one per line:
+
+```json
+[{"fw":5080,"type":"ping","prb_id":6001,"msm_id":1001,"timestamp":1700000000,"from":"193.0.0.1","src_addr":"192.168.1.10","dst_addr":"8.8.8.8","dst_name":"dns.google","result":[{"rtt":12.5},{"x":"*"},{"rtt":12.7}]}]
+```
+
+```bash
+curl -s "https://atlas.ripe.net/api/v2/measurements/1001/results/?probe_ids=6001&start=1700000000&stop=1700086400&format=json" > atlas.json
+jitterbug analyze atlas.json
+```
+
+Only `"type": "ping"` results are used; other measurement types (and records that are not
+Atlas results) are skipped and counted in `metadata["skipped_records"]`. Every entry of a
+result's `result` list with an `rtt` (milliseconds) becomes one sample at the result's
+`timestamp` (Unix seconds), so the packets of one result share a timestamp; they are kept
+by default, and `duplicates: min` keeps the lowest RTT of each result. The source is
+`from` (the probe's public address), or `src_addr` when `from` is empty; the destination
+is `dst_addr`, or `dst_name`. `prb_id`, `msm_id` and `src_addr` are kept as columns of the
+raw frame. Results of several probes, measurements or destinations in one file are
+**pooled into one series**, which mixes different paths; a warning says so and
+`metadata["series"]` counts the (probe, measurement, destination) combinations. Download
+one probe's results per file (the API's `probe_ids` parameter) to analyze each path.
+
+Entries without an `rtt` are skipped and counted: `{"x": "*"}` in `metadata["timeouts"]`,
+`{"error": ...}` (and anything else) in `metadata["errors"]`; duplicate replies (`"dup"`)
+in `metadata["duplicate_replies"]`. Replies outside `(0, 10 000]` ms are dropped and
+counted in `metadata["dropped_responses"]`, as for scamper. The schema is fixed, so the
+column and unit settings do not apply; the row policies do. A file with no ping result,
+or with no reply at all, is an error.
+
+### Parquet and Arrow
+
+Columnar files are read with pyarrow, which comes with the `parquet` extra
+(`pip install "jitterbug-inference[parquet]"`); without it, reading one raises an
+`ImportError` that names the extra. `parquet` reads Apache Parquet; `arrow` reads the Arrow
+IPC file format (Feather version 2), Feather version 1 and the Arrow IPC stream format.
+
+The file's columns are the raw columns, mapped through the `input` settings like CSV
+columns. A time column with a timestamp type is read as datetimes whatever `time_unit` says
+(naive timestamps are UTC, zoned ones are converted), so a frame saved with
+`df.to_parquet()` loads without `--time-unit`. A numeric time column follows `time_unit`
+as usual.
+
+```python
+df.to_parquet("rtts.parquet")              # epoch: datetime64, values: float
+```
+
+```bash
+jitterbug analyze rtts.parquet
+jitterbug analyze export.feather --time-column ts --rtt-column rtt_us --rtt-unit us
+```
+
+Both formats compress their own data, so `rtts.parquet.gz` and the like are rejected with
+an error that says to drop the suffix; so is a `data.gz` whose content is Parquet or Arrow.
+
+### ping and fping output
+
+The text that `ping` and `fping` print, one reply per line. Each reply line needs a Unix
+timestamp in brackets, which `ping -D` (Linux iputils) and `fping -D` print:
+
+```text
+PING dns.google (8.8.8.8) 56(84) bytes of data.
+[1700000000.100000] 64 bytes from dns.google (8.8.8.8): icmp_seq=1 ttl=117 time=12.3 ms
+[1700000001.100000] 64 bytes from dns.google (8.8.8.8): icmp_seq=2 ttl=117 time=11.9 ms
+```
+
+```text
+[1700000000.10000] 8.8.8.8 : [0], 64 bytes, 12.3 ms (12.3 avg, 0% loss)
+[1700000001.10000] 8.8.8.8 : [1], timed out (12.3 avg, 50% loss)
+```
+
+```bash
+ping -D -i 5 example.net > ping.txt         # stop with Ctrl-C
+fping -D -l -p 5000 example.net > fping.log
+jitterbug analyze ping.txt
+jitterbug analyze fping.log
+```
+
+Supported line shapes:
+
+- `ping`: `64 bytes from HOST: icmp_seq=N ttl=T time=R ms`, as printed by Linux iputils,
+  BSD and macOS (whose `icmp_seq` starts at 0), and BusyBox (`seq=N`); `HOST` may be
+  `name (address)`, in which case the address is the destination. IPv6 addresses work.
+- `fping`: `HOST : [N], B bytes, R ms (...)`, as printed per probe by `fping -l`, `-c` and
+  `-C`.
+
+**One path per file.** Jitterbug analyzes one RTT series from one source to one
+destination. A file with replies from several destinations (`fping host1 host2`) is read,
+but the samples are **pooled into one series**, which mixes the paths' latencies; a
+warning says so and `metadata["destinations"]` lists them. Split such a file per host
+first (for example `grep ' 8.8.8.8 ' fping.log > fping-8.8.8.8.log`); `jitterbug stream`
+warns the same way.
+
+Each timestamped reply becomes one sample: the bracketed time (Unix seconds), `time=` (or
+the `ms` value of fping) in milliseconds, and the host as `destination`; the sequence
+number is kept as a `seq` column. Duplicate replies (`(DUP!)`, `duplicate for [N]`),
+timeouts (`no answer yet`, `Request timeout`, `timed out`) and ICMP errors are skipped and
+counted in `metadata["duplicate_replies"]`, `metadata["timeouts"]` and
+`metadata["errors"]` (timeouts are only visible when ping prints them, e.g. with
+`ping -O`). Headers, statistics and other lines are ignored.
+
+**Timestamps are required.** A file whose reply lines have none is an error that says to
+rerun with `-D`; in a file that has some, the reply lines without one are skipped with a
+warning and counted in `metadata["untimestamped_replies"]`. Without timestamps the samples
+cannot be placed in time, and the time the file was read would be wrong for any recorded
+output. BSD and macOS `ping` cannot print Unix timestamps (their `-D` sets the
+don't-fragment bit); prefix the lines with moreutils' `ts` instead, which gives the same
+shape: `ping -i 5 example.net | ts '[%.s]' > ping.txt`.
+
+The schema is fixed, so the column and unit settings do not apply to these formats; the
+row policies do. `jitterbug stream --format ping|fping` reads the same lines live (see
+[Online mode](ONLINE_MODE.md)). Windows `ping` output is not supported.
 
 ## Compressed files
 
@@ -211,7 +354,8 @@ On the bundled PAM 2022 dataset `raw.csv` shrinks from 880 KB to 207 KB with Zst
 Its codec is the standard library's `compression.zstd` on Python 3.14 and later; on
 older versions install the `zstd` extra (`pip install "jitterbug-inference[zstd]"`),
 otherwise a `.zst` path raises an `ImportError` that says so. Parquet output compresses
-its own columns, so `results.parquet.gz` and the like are rejected.
+its own columns, so `results.parquet.gz` and the like are rejected, and so are compressed
+Parquet and Arrow inputs.
 
 ## pandas DataFrame
 
@@ -239,4 +383,6 @@ used only for the connection and is never written to configuration, logs or resu
 Readers live in `jitterbug.io.readers`. A reader is a function
 `read(path, input_config) -> RawData` that returns the raw rows as a DataFrame (plus
 optional metadata), registered with `register_reader(Reader(name=..., label=...,
-read=..., extensions=(...), sniff=...))`. The normalizer does the rest.
+read=..., extensions=(...), sniff=..., magic=(...)))`. `sniff` looks at the first
+non-empty line of a text file, `magic` lists the leading bytes of a binary format;
+sniffers run in registration order. The normalizer does the rest.

@@ -30,9 +30,9 @@ class DataLoader:
     """
     Data loader for RTT data.
 
-    Supports loading from files (CSV, TSV, generic JSONL and scamper JSON, optionally
-    compressed; see ``jitterbug.io.readers``), pandas DataFrames and InfluxDB query
-    results.
+    Supports loading from files (CSV, TSV, generic JSONL, scamper JSON, RIPE Atlas
+    results, ping/fping output, optionally compressed, and Parquet/Arrow; see
+    ``jitterbug.io.readers``), pandas DataFrames and InfluxDB query results.
 
     Parameters
     ----------
@@ -54,9 +54,11 @@ class DataLoader:
             Path to the data file. A trailing ``.zst``, ``.gz``, ``.bz2`` or ``.xz`` means
             the file is compressed (``rtts.csv.gz``) and does not count as the extension.
         file_format : Optional[str]
-            A registered format (``jitterbug.io.readers.available_formats()``: ``csv``,
-            ``tsv``, ``json``, ``scamper``, ``jsonl``). If None, it is inferred from the
-            extension, then from the first non-empty line.
+            A registered format (``jitterbug.io.readers.available_formats()``:
+            ``parquet``, ``arrow``, ``ping``, ``fping``, ``csv``, ``tsv``, ``atlas``,
+            ``json``, ``scamper``, ``jsonl``). If None, it is inferred from the
+            extension, then from the magic bytes of a binary format, then from the first
+            non-empty line.
 
         Returns
         -------
@@ -71,7 +73,8 @@ class DataLoader:
         ValueError
             If the format is unknown or the content does not satisfy the input contract.
         ImportError
-            If the file is compressed with a codec that is not installed.
+            If the file is compressed with a codec that is not installed, or is Parquet
+            or Arrow and pyarrow is not installed.
         """
         file_path = Path(file_path)
 
