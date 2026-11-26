@@ -498,7 +498,11 @@ def test_invalid_time_unit_flag_is_rejected(tmp_path: Path):
     [
         "analyze",
         pytest.param(
-            "replay", marks=pytest.mark.skipif(BCP_MISSING, reason="replay needs the bcp extra")
+            "replay",
+            marks=[
+                pytest.mark.slow,
+                pytest.mark.skipif(BCP_MISSING, reason="replay needs the bcp extra"),
+            ],
         ),
     ],
 )
