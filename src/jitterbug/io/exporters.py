@@ -1,8 +1,8 @@
 """
 Result export utilities.
 
-JSON and CSV outputs are Zstandard-compressed when the path ends in ``.zst``
-(``results.json.zst``); see :mod:`jitterbug.io.compression`.
+JSON and CSV outputs are compressed when the path ends in ``.zst``, ``.gz``, ``.bz2`` or
+``.xz`` (``results.json.zst``); see :mod:`jitterbug.io.compression`.
 """
 
 import json
@@ -12,16 +12,18 @@ from pathlib import Path
 import pandas as pd
 
 from ..models import CongestionInferenceResult
-from .compression import is_zstd, open_text
+from .compression import is_compressed, open_text
 
 logger = logging.getLogger(__name__)
 
 
-def reject_zstd_parquet(output_path: Path) -> None:
-    """Raise ValueError for ``*.zst`` Parquet output, which would compress twice."""
-    if is_zstd(output_path):
+def reject_compressed_parquet(output_path: Path) -> None:
+    """Raise ValueError for compressed (``*.zst``, ``*.gz``, ...) Parquet output, which
+    would compress twice."""
+    if is_compressed(output_path):
         raise ValueError(
-            f"Parquet output is already compressed; drop the .zst suffix: {output_path}"
+            "Parquet output is already compressed; drop the "
+            f"{Path(output_path).suffix} suffix: {output_path}"
         )
 
 
@@ -44,7 +46,7 @@ class ResultExporter:
         results : CongestionInferenceResult
             Analysis results to export.
         output_path : Union[str, Path]
-            Path to save JSON file; compressed with Zstandard if it ends in ``.zst``.
+            Path to save JSON file; compressed if it ends in ``.zst``, ``.gz``, ``.bz2`` or ``.xz``.
         pretty : bool
             Whether to format JSON with indentation.
         """
@@ -75,7 +77,7 @@ class ResultExporter:
         results : CongestionInferenceResult
             Analysis results to export.
         output_path : Union[str, Path]
-            Path to save CSV file; compressed with Zstandard if it ends in ``.zst``.
+            Path to save CSV file; compressed if it ends in ``.zst``, ``.gz``, ``.bz2`` or ``.xz``.
         """
         output_path = Path(output_path)
 
@@ -115,10 +117,10 @@ class ResultExporter:
         Raises
         ------
         ValueError
-            If ``output_path`` ends in ``.zst``: Parquet compresses its own columns.
+            If ``output_path`` has a compression suffix: Parquet compresses its own columns.
         """
         output_path = Path(output_path)
-        reject_zstd_parquet(output_path)
+        reject_compressed_parquet(output_path)
 
         # Convert to DataFrame
         df = results.to_dataframe()
@@ -148,8 +150,8 @@ class ResultExporter:
         results : CongestionInferenceResult
             Analysis results to export.
         output_path : Union[str, Path]
-            Path to save summary JSON file; compressed with Zstandard if it ends in
-            ``.zst``.
+            Path to save summary JSON file; compressed if it ends in ``.zst``,
+            ``.gz``, ``.bz2`` or ``.xz``.
         """
         output_path = Path(output_path)
 

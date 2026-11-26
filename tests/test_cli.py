@@ -446,3 +446,81 @@ def test_replay_method_flag_selects_the_jitter_test(tmp_path: Path):
     assert result.exit_code == 0, result.output
     verdicts = [e for e in json.loads(default.read_text()) if e["kind"] == "verdict"]
     assert all(e["jitter_method"] == "jitter_dispersion" for e in verdicts)  # config default
+
+
+def test_input_overrides_only_touch_the_flags_given(tmp_path: Path):
+    from jitterbug.cli.main import _apply_input_overrides
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("input:\n  time_column: ts\n  time_unit: ms\n  duplicates: min\n")
+    loaded = JitterbugConfig.from_file(cfg)
+    assert _apply_input_overrides(loaded).input == loaded.input
+    overridden = _apply_input_overrides(loaded, time_unit="iso", rtt_column="delay")
+    assert overridden.input.time_column == "ts"
+    assert overridden.input.time_unit == "iso"
+    assert overridden.input.rtt_column == "delay"
+    assert overridden.input.duplicates == "min"
+
+
+def test_validate_with_input_flags(tmp_path: Path):
+    data = tmp_path / "rtts.tsv"
+    data.write_text("ts\tdelay\n1700000000000\t20500\n1700000060000\t21000\n1700000120000\t19500\n")
+    result = runner.invoke(app, ["validate", str(data)])
+    assert result.exit_code == 1  # default mapping: no 'epoch' column
+    assert "no 'epoch' column" in result.output
+    flags = ["--time-column", "ts", "--time-unit", "ms", "--rtt-column", "delay"]
+    result = runner.invoke(app, ["validate", str(data), *flags, "--rtt-unit", "us", "--verbose"])
+    assert result.exit_code == 0, result.output
+    assert "2023-11-14" in result.output  # 1700000000 s, not 1700000000000 s
+    assert "20.5" in result.output
+
+
+def test_validate_reads_the_input_section_of_a_config_file(tmp_path: Path):
+    data = tmp_path / "rtts.csv"
+    data.write_text("ts,values\n2024-01-01T00:00:00Z,1\n2024-01-01T00:01:00Z,2\n")
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("input:\n  time_column: ts\n  time_unit: iso\n")
+    result = runner.invoke(app, ["validate", str(data), "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+
+
+def test_invalid_time_unit_flag_is_rejected(tmp_path: Path):
+    data = tmp_path / "rtts.csv"
+    data.write_text("epoch,values\n1,2\n")
+    result = runner.invoke(app, ["validate", str(data), "--time-unit", "minutes"])
+    assert result.exit_code == 1
+    assert "time_unit" in result.output
+
+
+@pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dataset not present")
+@pytest.mark.parametrize("command", ["analyze", "replay"])
+def test_remapped_dataset_gives_the_same_result(tmp_path: Path, command: str):
+    """The paper dataset with ms timestamps, us RTTs and other column names, read through
+    the input flags, gives exactly the result of the original file."""
+    import pandas as pd
+
+    df = pd.read_csv(EXAMPLE_CSV)
+    remapped = pd.DataFrame(
+        {"time_ms": (df["epoch"] * 1000).round().astype("int64"), "rtt_us": df["values"] * 1000}
+    )
+    path = tmp_path / "remapped.tsv.gz"
+    remapped.to_csv(path, sep="\t", index=False)
+
+    flags = ["--time-column", "time_ms", "--time-unit", "ms", "--rtt-column", "rtt_us"]
+    flags += ["--rtt-unit", "us"]
+    outputs = []
+    for args in ([str(EXAMPLE_CSV)], [str(path), *flags]):
+        out = tmp_path / f"{len(outputs)}.json"
+        result = runner.invoke(app, [command, *args, "--output", str(out)])
+        assert result.exit_code == 0, result.output
+        outputs.append(json.loads(out.read_text()))
+    if command == "analyze":
+        assert outputs[1]["inferences"] == outputs[0]["inferences"]
+    else:
+        assert outputs[1] == outputs[0]
+
+
+def test_format_help_lists_the_registered_formats():
+    result = runner.invoke(app, ["analyze", "--help"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0
+    assert "csv, tsv, json, scamper, jsonl" in result.output
