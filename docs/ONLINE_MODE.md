@@ -64,6 +64,24 @@ my-probe | jitterbug stream --events verdicts
 jitterbug stream rtts.csv --follow --output events.jsonl
 ```
 
+`--format ping` and `--format fping` read the output of `ping -D` and `fping -D` instead of
+`epoch,rtt` lines, so a probe needs no wrapper (the line shapes are in
+[Input formats](INPUT_FORMATS.md#ping-and-fping-output)):
+
+```bash
+ping -D -i 5 example.net | jitterbug stream --format ping --events verdicts
+fping -D -l -p 5000 example.net | jitterbug stream --format fping
+```
+
+Every reply line with a `[epoch]` timestamp is one sample (its `time=` in milliseconds).
+Headers, timeouts, ICMP errors, duplicate replies and summaries are skipped and counted in
+the summary line. A reply without a timestamp is skipped too, with one warning: the stream
+never substitutes the time it read the line, since the timestamps are what place samples in
+bins. Linux `ping` prints them with `-D`; BSD and macOS `ping` have no such option (their
+`-D` sets the don't-fragment bit), so prefix the lines with moreutils' `ts`:
+`ping -i 5 example.net | ts '[%.s]' | jitterbug stream --format ping`. The default,
+`--format csv`, is the `epoch,rtt` reader described above.
+
 `jitterbug replay` runs a recorded dataset (any input format `analyze` accepts) through
 the same pipeline in time order, prints a summary and, with `--reference`, scores the
 final verdicts against a `starts,ends,congestion` CSV such as the paper's
