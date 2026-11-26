@@ -18,6 +18,12 @@ needs_example = pytest.mark.skipif(not EXAMPLE_CSV.exists(), reason="example dat
 runner = CliRunner()
 
 
+def flat(output: str) -> str:
+    """Console output with line wrapping undone: Rich wraps long lines (temporary paths
+    on macOS are long), which can split the text a test looks for."""
+    return " ".join(output.split())
+
+
 @pytest.fixture(scope="module")
 def two_destinations(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """The paper dataset split in two destinations, plus one too short to analyze."""
@@ -86,8 +92,8 @@ def test_group_by_writes_one_json_document(two_destinations: Path, tmp_path: Pat
         app, ["analyze", str(two_destinations), "--group-by", "destination", "-o", str(out)]
     )
     assert result.exit_code == 0, result.output
-    assert "3 series, 2 analyzed, 1 skipped" in result.output
-    assert "8.8.8.8" in result.output and "skipped:" in result.output
+    assert "3 series, 2 analyzed, 1 skipped" in flat(result.output)
+    assert "8.8.8.8" in flat(result.output) and "skipped:" in flat(result.output)
     doc = json.loads(out.read_text())
     assert doc["group_by"] == ["destination"]
     assert [e["key"]["destination"] for e in doc["series"]] == ["8.8.8.8", "1.1.1.1", "9.9.9.9"]
@@ -133,13 +139,13 @@ def test_group_by_from_a_config_file(small_mixed: Path, tmp_path: Path):
 def test_series_filter_that_matches_nothing_lists_the_values(small_mixed: Path):
     result = runner.invoke(app, ["analyze", str(small_mixed), "--series", "destination=z"])
     assert result.exit_code == 1
-    assert "available destination values: a, b" in result.output
+    assert "available destination values: a, b" in flat(result.output)
 
 
 def test_malformed_series_flag_is_a_usage_error(small_mixed: Path):
     result = runner.invoke(app, ["analyze", str(small_mixed), "--series", "destination"])
     assert result.exit_code == 2
-    assert "COLUMN=VALUE" in result.output
+    assert "COLUMN=VALUE" in flat(result.output)
 
 
 # --------------------------------------------------------------------------- one-series commands
@@ -148,7 +154,7 @@ def test_malformed_series_flag_is_a_usage_error(small_mixed: Path):
 def test_validate_with_a_series_filter(small_mixed: Path):
     result = runner.invoke(app, ["validate", str(small_mixed), "--series", "destination=b"])
     assert result.exit_code == 0, result.output
-    assert "Total Measurements │ 2" in result.output
+    assert "Total Measurements │ 2" in flat(result.output)
 
 
 @pytest.mark.parametrize("command", ["visualize", "replay", "validate"])
@@ -159,8 +165,8 @@ def test_one_series_commands_refuse_several_series(command: str, small_mixed: Pa
     config.write_text("input:\n  group_by: [destination]\n")
     result = runner.invoke(app, [command, str(small_mixed), "-c", str(config)])
     assert result.exit_code == 1
-    assert "2 series under group_by" in result.output
-    assert "destination=a; destination=b" in result.output
+    assert "2 series under group_by" in flat(result.output)
+    assert "destination=a; destination=b" in flat(result.output)
 
 
 def test_replay_with_a_series_filter(tmp_path: Path):
@@ -173,7 +179,7 @@ def test_replay_with_a_series_filter(tmp_path: Path):
     args = ["replay", str(path), "--backend", "window", "-o", str(out)]
     result = runner.invoke(app, [*args, "--series", "destination=a"])
     assert result.exit_code == 0, result.output
-    assert "Online replay" in result.output and out.exists()
+    assert "Online replay" in flat(result.output) and out.exists()
 
 
 # --------------------------------------------------------------------------- inspect
@@ -182,10 +188,10 @@ def test_replay_with_a_series_filter(tmp_path: Path):
 def test_inspect_text_lists_pairs_and_warns_about_mixing(small_mixed: Path):
     result = runner.invoke(app, ["inspect", str(small_mixed)])
     assert result.exit_code == 0, result.output
-    assert "Format: csv, compression: none" in result.output
-    assert "Source/destination pairs (analyzed as one series): 2" in result.output
-    assert "--group-by source,destination" in result.output
-    assert "Loading would succeed" in result.output
+    assert "Format: csv, compression: none" in flat(result.output)
+    assert "Source/destination pairs (analyzed as one series): 2" in flat(result.output)
+    assert "--group-by source,destination" in flat(result.output)
+    assert "Loading would succeed" in flat(result.output)
 
 
 def test_inspect_json_with_group_by(small_mixed: Path):
@@ -217,7 +223,7 @@ def test_inspect_takes_the_input_flags_and_config(tmp_path: Path):
 def test_inspect_exits_1_when_loading_would_fail(small_mixed: Path):
     result = runner.invoke(app, ["inspect", str(small_mixed), "--time-column", "ts"])
     assert result.exit_code == 1
-    assert "Loading would fail" in result.output and "no 'ts' column" in result.output
+    assert "Loading would fail" in flat(result.output) and "no 'ts' column" in flat(result.output)
     as_json = runner.invoke(app, ["inspect", str(small_mixed), "--time-column", "ts", "--json"])
     assert as_json.exit_code == 1
     assert json.loads(as_json.stdout)["errors"]
@@ -228,4 +234,4 @@ def test_inspect_unreadable_file_is_an_error(tmp_path: Path):
     path.write_bytes(b"\x00\x01\x02")
     result = runner.invoke(app, ["inspect", str(path)])
     assert result.exit_code == 1
-    assert "Error" in result.output
+    assert "Error" in flat(result.output)
