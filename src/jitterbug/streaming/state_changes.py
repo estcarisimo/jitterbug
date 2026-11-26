@@ -47,7 +47,8 @@ import json
 import logging
 import math
 import shlex
-import subprocess
+# CommandHook runs the operator's own command, without a shell.
+import subprocess  # nosec B404
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
@@ -432,7 +433,9 @@ class CommandHook:
         self.poll()
         payload = (json.dumps(event.to_dict()) + "\n").encode()
         try:
-            proc = subprocess.Popen(
+            # The argv is the operator's --on-state-change command, split with shlex and
+            # run without a shell; the event only travels on stdin.
+            proc = subprocess.Popen(  # nosec B603
                 self.argv,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
@@ -443,9 +446,9 @@ class CommandHook:
             logger.warning("State-change command %s could not start: %s", self.argv[0], e)
             return
         try:
-            assert proc.stdin is not None
-            proc.stdin.write(payload)
-            proc.stdin.close()
+            if proc.stdin is not None:
+                proc.stdin.write(payload)
+                proc.stdin.close()
         except OSError as e:  # the command exited without reading its input
             logger.debug("State-change command closed its input early: %s", e)
         self._running.append((proc, time.monotonic()))
