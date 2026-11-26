@@ -600,19 +600,21 @@ STREAM_FORMATS = ("csv", "ping", "fping")
 """Line formats ``jitterbug stream --format`` reads."""
 
 
-def _parse_probe_sample(line: str, parse: LineParser) -> tuple[tuple[float, float] | None, bool]:
+def _parse_probe_sample(
+    line: str, parse: LineParser
+) -> tuple[tuple[float, float] | None, bool, str | None]:
     """
     A sample from one ``ping -D`` / ``fping -D`` line.
 
-    Returns the ``(epoch, rtt)`` of a timestamped reply (``None`` for any other line) and
-    whether the line was a reply without a timestamp.
+    Returns the ``(epoch, rtt)`` of a timestamped reply (``None`` for any other line),
+    whether the line was a reply without a timestamp, and the reply's destination.
     """
     probe = parse(line)
     if probe is None or probe.kind != "reply" or probe.rtt is None:
-        return None, False
+        return None, False, None
     if probe.epoch is None:
-        return None, True
-    return (probe.epoch, probe.rtt), False
+        return None, True, probe.destination
+    return (probe.epoch, probe.rtt), False, probe.destination
 
 
 @app.command()
@@ -777,6 +779,8 @@ def stream(
 
         parse_probe = LINE_PARSERS.get(input_format)
         warned_untimestamped = False
+        first_destination: str | None = None
+        warned_destinations = False
 
         try:
             try:
@@ -784,7 +788,18 @@ def stream(
                     if parse_probe is None:
                         sample = _parse_sample(line)
                     else:
-                        sample, untimestamped = _parse_probe_sample(line, parse_probe)
+                        sample, untimestamped, destination = _parse_probe_sample(line, parse_probe)
+                        if sample is not None and destination is not None:
+                            if first_destination is None:
+                                first_destination = destination
+                            elif destination != first_destination and not warned_destinations:
+                                err_console.print(
+                                    f"replies from {first_destination} and {destination} are "
+                                    "pooled into one RTT series; stream one destination per "
+                                    "jitterbug process",
+                                    style="yellow",
+                                )
+                                warned_destinations = True
                         if untimestamped and not warned_untimestamped:
                             err_console.print(
                                 f"{input_format} reply lines without a timestamp are "

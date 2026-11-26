@@ -60,7 +60,10 @@ FPING_REPLY = re.compile(
     rf"^{_EPOCH}(?P<host>\S+)\s+: \[(?P<seq>\d+)\], \d+ bytes, (?P<rtt>{_NUMBER}) ms\b"
 )
 FPING_TIMEOUT = re.compile(rf"^{_EPOCH}(?P<host>\S+)\s+: \[(?P<seq>\d+)\], timed out\b")
-FPING_DUPLICATE = re.compile(rf"^{_EPOCH}(?P<host>\S+)\s+: duplicate for \[(?P<seq>\d+)\]")
+FPING_DUPLICATE = re.compile(
+    rf"^{_EPOCH}(?P<host>\S+)\s+: duplicate for \[(?P<seq>\d+)\]"
+    rf"(?:, \d+ bytes, (?P<rtt>{_NUMBER}) ms\b)?"
+)
 FPING_ERROR = re.compile(rf"^{_EPOCH}ICMP .+ for ICMP Echo sent to (?P<host>\S+)")
 
 _FPING_OTHER: tuple[tuple[ProbeKind, re.Pattern[str]], ...] = (
@@ -84,7 +87,8 @@ class ProbeLine:
     epoch : float | None
         Unix seconds from the ``[epoch]`` prefix; ``None`` without one.
     rtt : float | None
-        Round-trip time in milliseconds (replies and duplicates).
+        Round-trip time in milliseconds: set for replies and for duplicates that print
+        one, ``None`` otherwise.
     destination : str | None
         The probed host as printed (the address when ``ping`` prints ``name (address)``).
     seq : int | None
@@ -178,9 +182,11 @@ def parse_fping_line(line: str) -> ProbeLine | None:
     for kind, pattern in _FPING_OTHER:
         match = pattern.match(text)
         if match:
+            rtt = match.groupdict().get("rtt")
             return ProbeLine(
                 kind=kind,
                 epoch=_epoch(match),
+                rtt=float(rtt) if rtt is not None else None,
                 destination=match.group("host"),
                 seq=_seq(match),
             )
@@ -248,6 +254,14 @@ def _read_probe_output(path: Path, name: str, label: str) -> RawData:
     for kind in ("timeout", "error", "duplicate"):
         if counts[kind]:
             logger.info(f"Skipped {counts[kind]} {label} {kind} line(s) in {path}")
+    destinations = sorted({row[2] for row in rows if row[2] is not None})
+    if len(destinations) > 1:
+        logger.warning(
+            f"{path} has replies from {len(destinations)} destinations "
+            f"({', '.join(destinations[:5])}{', ...' if len(destinations) > 5 else ''}); "
+            "they are pooled into one RTT series. Split the file per destination to "
+            "analyze each path on its own."
+        )
 
     return RawData(
         frame=pd.DataFrame(rows, columns=["epoch", "rtt", "destination", "seq"]),
@@ -257,6 +271,7 @@ def _read_probe_output(path: Path, name: str, label: str) -> RawData:
             "errors": counts["error"],
             "duplicate_replies": counts["duplicate"],
             "untimestamped_replies": counts["untimestamped"],
+            "destinations": destinations,
         },
         schema=PROBE_SCHEMA,
     )
@@ -278,7 +293,8 @@ def read_ping(path: Path, config: InputConfig) -> RawData:
     RawData
         One row per timestamped reply, with ``destination`` and ``seq`` columns;
         ``metadata`` counts ``timeouts``, ``errors``, ``duplicate_replies`` and
-        ``untimestamped_replies``.
+        ``untimestamped_replies`` and lists the ``destinations`` (more than one is
+        pooled into one series, with a warning).
 
     Raises
     ------
@@ -304,7 +320,8 @@ def read_fping(path: Path, config: InputConfig) -> RawData:
     RawData
         One row per timestamped reply, with ``destination`` and ``seq`` columns;
         ``metadata`` counts ``timeouts``, ``errors``, ``duplicate_replies`` and
-        ``untimestamped_replies``.
+        ``untimestamped_replies`` and lists the ``destinations`` (more than one, as
+        with ``fping host1 host2``, is pooled into one series, with a warning).
 
     Raises
     ------

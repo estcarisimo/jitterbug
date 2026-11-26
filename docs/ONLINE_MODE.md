@@ -80,7 +80,11 @@ never substitutes the time it read the line, since the timestamps are what place
 bins. Linux `ping` prints them with `-D`; BSD and macOS `ping` have no such option (their
 `-D` sets the don't-fragment bit), so prefix the lines with moreutils' `ts`:
 `ping -i 5 example.net | ts '[%.s]' | jitterbug stream --format ping`. The default,
-`--format csv`, is the `epoch,rtt` reader described above.
+`--format csv`, is the `epoch,rtt` reader described above. A program may buffer its output
+when it writes to a pipe instead of a terminal; if samples arrive in bursts, run the probe
+under `stdbuf -oL` (GNU coreutils) to make its standard output line-buffered. Stream one
+destination per process: replies from several hosts (`fping host1 host2`) would be pooled
+into one series, and the stream warns once when that happens.
 
 `jitterbug replay` runs a recorded dataset (any input format `analyze` accepts) through
 the same pipeline in time order, prints a summary and, with `--reference`, scores the

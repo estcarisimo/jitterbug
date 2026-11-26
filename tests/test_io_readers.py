@@ -235,7 +235,7 @@ class TestAtlas:
         meta = ds.metadata
         assert meta["source"] == "json" and meta["format"] == "ripe_atlas"
         assert (meta["timeouts"], meta["errors"], meta["duplicate_replies"]) == (1, 1, 1)
-        assert (meta["ping_results"], meta["skipped_records"]) == (3, 1)
+        assert (meta["ping_results"], meta["skipped_records"], meta["series"]) == (3, 1, 1)
         assert meta["dropped_responses"] == 0
 
     def test_probe_and_measurement_ids_are_columns(
@@ -269,6 +269,20 @@ class TestAtlas:
         path.write_text(json.dumps([record]))
         (m,) = DataLoader().load_from_file(path).measurements
         assert (m.source, m.destination) == ("192.168.1.10", "dns.google")
+
+    def test_several_probes_are_pooled_with_a_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        records = [
+            _atlas_result(T0, [{"rtt": 5.0}]),
+            _atlas_result(T0 + 60, [{"rtt": 50.0}], prb_id=6002),
+        ]
+        path = tmp_path / "r.json"
+        path.write_text(json.dumps(records))
+        with caplog.at_level("WARNING"):
+            ds = DataLoader().load_from_file(path)
+        assert len(ds) == 2 and ds.metadata["series"] == 2
+        assert "2 (probe, measurement, destination) combinations" in caplog.text
 
     def test_out_of_range_rtts_are_counted(self, tmp_path: Path) -> None:
         path = tmp_path / "r.json"
@@ -426,7 +440,7 @@ def test_parse_ping_line(line: str, expected: ProbeLine | None) -> None:
         ),
         (
             "[1700000000.1] 8.8.8.8 : duplicate for [0], 64 bytes, 4.5 ms",
-            ProbeLine("duplicate", 1700000000.1, destination="8.8.8.8", seq=0),
+            ProbeLine("duplicate", 1700000000.1, 4.5, "8.8.8.8", 0),
         ),
         (
             "ICMP Host Unreachable from 10.0.0.1 for ICMP Echo sent to 10.0.0.2",
@@ -454,6 +468,7 @@ class TestPingFiles:
         assert (meta["source"], meta["format"]) == ("ping", "ping")
         assert (meta["timeouts"], meta["errors"], meta["duplicate_replies"]) == (1, 1, 1)
         assert meta["untimestamped_replies"] == 0
+        assert meta["destinations"] == ["8.8.8.8"]
 
     def test_ping_without_header_and_compressed(self, tmp_path: Path) -> None:
         path = tmp_path / "ping.txt.gz"
@@ -485,11 +500,16 @@ class TestPingFiles:
         with pytest.raises(ValueError, match="No ping reply lines"):
             DataLoader().load_from_file(path, file_format="ping")
 
-    def test_fping_detected_by_content_not_as_csv(self, tmp_path: Path) -> None:
+    def test_fping_detected_by_content_not_as_csv(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         path = tmp_path / "fping.log"
         path.write_text(FPING_D)
         assert infer_format(path) == "fping"  # the first line has commas
-        ds = DataLoader().load_from_file(path)
+        with caplog.at_level("WARNING"):
+            ds = DataLoader().load_from_file(path)
+        assert "2 destinations (1.1.1.1, 8.8.8.8); they are pooled" in caplog.text
+        assert ds.metadata["destinations"] == ["1.1.1.1", "8.8.8.8"]
         assert [(m.destination, m.rtt_value) for m in ds.measurements] == [
             ("8.8.8.8", 12.3),
             ("1.1.1.1", 4.1),
@@ -575,6 +595,18 @@ def test_stream_warns_once_about_missing_timestamps(tmp_path: Path) -> None:
     assert output.count("without a timestamp") == 1 and "ping -D" in output
     assert "0 samples read, 5 lines skipped" in output
     assert events == []
+
+
+def test_stream_warns_once_about_several_destinations(tmp_path: Path) -> None:
+    text = "".join(
+        f"[{T0 + i}.0] {host} : [{i}], 64 bytes, 1.{i} ms (1.0 avg, 0% loss)\n"
+        for i in range(6)
+        for host in ("8.8.8.8", "1.1.1.1", "9.9.9.9")
+    )
+    code, output, _ = _stream(tmp_path, text, "--format", "fping")
+    assert code == 0, output
+    assert output.count("pooled into one RTT series") == 1
+    assert "8.8.8.8 and 1.1.1.1" in output
 
 
 def test_stream_rejects_an_unknown_format() -> None:

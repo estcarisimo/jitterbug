@@ -229,7 +229,7 @@ results one per line:
 ```
 
 ```bash
-curl -s "https://atlas.ripe.net/api/v2/measurements/1001/results/?start=1700000000&stop=1700086400&format=json" > atlas.json
+curl -s "https://atlas.ripe.net/api/v2/measurements/1001/results/?probe_ids=6001&start=1700000000&stop=1700086400&format=json" > atlas.json
 jitterbug analyze atlas.json
 ```
 
@@ -240,7 +240,10 @@ result's `result` list with an `rtt` (milliseconds) becomes one sample at the re
 by default, and `duplicates: min` keeps the lowest RTT of each result. The source is
 `from` (the probe's public address), or `src_addr` when `from` is empty; the destination
 is `dst_addr`, or `dst_name`. `prb_id`, `msm_id` and `src_addr` are kept as columns of the
-raw frame.
+raw frame. Results of several probes, measurements or destinations in one file are
+**pooled into one series**, which mixes different paths; a warning says so and
+`metadata["series"]` counts the (probe, measurement, destination) combinations. Download
+one probe's results per file (the API's `probe_ids` parameter) to analyze each path.
 
 Entries without an `rtt` are skipped and counted: `{"x": "*"}` in `metadata["timeouts"]`,
 `{"error": ...}` (and anything else) in `metadata["errors"]`; duplicate replies (`"dup"`)
@@ -303,7 +306,14 @@ Supported line shapes:
   BSD and macOS (whose `icmp_seq` starts at 0), and BusyBox (`seq=N`); `HOST` may be
   `name (address)`, in which case the address is the destination. IPv6 addresses work.
 - `fping`: `HOST : [N], B bytes, R ms (...)`, as printed per probe by `fping -l`, `-c` and
-  `-C`; several hosts in one file give one destination each.
+  `-C`.
+
+**One path per file.** Jitterbug analyzes one RTT series from one source to one
+destination. A file with replies from several destinations (`fping host1 host2`) is read,
+but the samples are **pooled into one series**, which mixes the paths' latencies; a
+warning says so and `metadata["destinations"]` lists them. Split such a file per host
+first (for example `grep ' 8.8.8.8 ' fping.log > fping-8.8.8.8.log`); `jitterbug stream`
+warns the same way.
 
 Each timestamped reply becomes one sample: the bracketed time (Unix seconds), `time=` (or
 the `ms` value of fping) in milliseconds, and the host as `destination`; the sequence

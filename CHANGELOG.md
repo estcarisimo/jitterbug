@@ -41,10 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - More input formats on the reader registry (see `docs/INPUT_FORMATS.md`):
   Parquet (`.parquet`, `.pq`) and Arrow IPC/Feather (`.arrow`, `.feather`, `.ipc`,
   `.arrows`) through the new `parquet` extra (pyarrow; also in `all`), with columns mapped
-  by the `input` settings and timestamp-typed time columns read without `--time-unit`;
+  by the `input` settings and timestamp-typed time columns read without `--time-unit`
+  (the extra also covers the existing `--output-format parquet`, which needed pyarrow
+  installed by hand);
   RIPE Atlas ping results (`--format atlas`), as the API's JSON array or one result per
   line, with timeouts and errors counted in the metadata; and `ping -D` / `fping -D` text
-  output (`--format ping|fping`), which is an error without the `-D` timestamps. `.json`
+  output (`--format ping|fping`), which is an error without the `-D` timestamps. Files with
+  several destinations or Atlas probes are pooled into one series with a warning. `.json`
   files holding Atlas results, `.txt`/`.log` files holding ping or fping output, and
   Parquet/Arrow files with any name (by their magic bytes) are detected automatically;
   JSON arrays of flat objects now load as generic JSON lines. Compressed Parquet and Arrow
