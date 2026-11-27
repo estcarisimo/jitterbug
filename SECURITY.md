@@ -30,13 +30,17 @@ until the fix is released.
 ## What this tool does with your data
 
 Jitterbug reads Round-Trip Time (RTT) measurements from files you provide (CSV, scamper
-JSON) or from an InfluxDB instance you configure, runs change point detection and
+JSON, ...) or from a database you configure (ClickHouse, InfluxDB 2 or 3, DuckDB), runs
+change point detection and
 statistical tests on them, and writes results to files or the terminal. It does not
 require credentials for the file-based workflow, does not send telemetry, and makes no
 network requests of its own except:
 
-- **InfluxDB**: only when you use the InfluxDB loader, and only to the server and with
-  the token you configure.
+- **Database sources** (ClickHouse, InfluxDB): only when you give a source URI or
+  profile, and only to the server you name, with the password or token read from the
+  environment variable you configure. A DuckDB query runs locally with your permissions;
+  it reaches the network only if the query itself loads an extension or reads a remote
+  file.
 - **Installing the optional `bcp` back end** fetches a package from GitHub at install
   time, as with any Python dependency.
 
@@ -47,7 +51,10 @@ In scope:
 - Path traversal or unintended file writes through the output options of the CLI or the
   exporters.
 - Unsafe parsing or deserialization of input files (CSV, JSON, YAML configuration).
-- Leakage of InfluxDB credentials through logs, configuration dumps, or results files.
+- Leakage of database credentials (ClickHouse passwords, InfluxDB tokens) through logs,
+  error messages, configuration dumps, dataset metadata or results files, including
+  through errors and log records of the client libraries. Credentials are accepted only
+  from environment variables; a URI or configuration file holding one is rejected.
 - Denial of service through crafted input that is disproportionate to its size (for
   example, quadratic blow-ups in the change point detectors on adversarial input).
 - Dependency vulnerabilities with a plausible exploitation path in this tool.

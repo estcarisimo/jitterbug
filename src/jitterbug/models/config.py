@@ -559,6 +559,211 @@ class InputConfig(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
 
+SOURCE_KINDS = ("clickhouse", "influxdb2", "influxdb3", "duckdb")
+"""Database back ends a ``SourceConfig`` can name."""
+
+SECRET_ENV_DEFAULTS = {
+    "clickhouse": "CLICKHOUSE_PASSWORD",
+    "influxdb2": "INFLUXDB_V2_TOKEN",
+    "influxdb3": "INFLUX_TOKEN",
+}
+"""Environment variable each back end reads its password or token from by default:
+the names ``clickhouse-client``, ``influxdb-client`` and ``influxdb3-python`` use."""
+
+SECRET_KEYS = frozenset(
+    {
+        "password",
+        "passwd",
+        "pwd",
+        "token",
+        "access_token",
+        "api_key",
+        "apikey",
+        "api_token",
+        "secret",
+        "auth",
+        "authorization",
+        "credentials",
+    }
+)
+"""Setting names that would hold a secret; they are rejected in a source profile or URI."""
+
+_SOURCE_FIELDS: dict[str, frozenset[str]] = {
+    "clickhouse": frozenset({"host", "port", "database", "user", "secure", "password_env"}),
+    "influxdb2": frozenset({"host", "port", "org", "secure", "token_env"}),
+    "influxdb3": frozenset({"host", "port", "database", "secure", "token_env", "language"}),
+    "duckdb": frozenset({"path", "read_only"}),
+}
+"""Connection settings that apply to each back end (``query`` and ``query_file`` apply to
+all of them)."""
+
+_ENV_NAME = r"^[A-Za-z_][A-Za-z0-9_]*$"
+
+
+def secret_rejection(key: str, kind: str | None) -> str:
+    """
+    The error for a secret found under ``key``: where the secret should come from instead.
+
+    Parameters
+    ----------
+    key : str
+        The offending setting or URI part (``password``, ``token``, ``userinfo``...).
+    kind : str | None
+        The back end, to name its environment variable; ``None`` lists them all.
+
+    Returns
+    -------
+    str
+        Message that never contains the secret itself.
+    """
+    if kind in SECRET_ENV_DEFAULTS:
+        variable = SECRET_ENV_DEFAULTS[kind]
+        option = "password_env" if kind == "clickhouse" else "token_env"
+        where = f"the environment variable {variable} (or name another one with {option})"
+    else:
+        names = ", ".join(f"{v} ({k})" for k, v in SECRET_ENV_DEFAULTS.items())
+        where = f"an environment variable: {names}"
+    return (
+        f"Credentials are not accepted in {key}: they would end up in configuration "
+        f"files, shell history or logs. Put the secret in {where}"
+    )
+
+
+class SourceConfig(BaseModel):
+    """
+    A database query to read RTT samples from, instead of a file.
+
+    The query result goes through the same column mapping, units, row policies,
+    ``series`` filters and ``group_by`` as a file (``InputConfig``). Credentials are never
+    part of this model: passwords and tokens are read from environment variables when
+    the query runs, and a setting that looks like a secret is rejected.
+
+    Attributes
+    ----------
+    kind : Literal['clickhouse', 'influxdb2', 'influxdb3', 'duckdb']
+        Back end: ClickHouse (SQL, ``clickhouse`` extra), InfluxDB 2 (Flux, ``influx``
+        extra), InfluxDB 3 (SQL or InfluxQL, ``influxdb3`` extra) or DuckDB (SQL over
+        files, attached databases and object storage, ``duckdb`` extra).
+    host : str | None
+        Server host name or address (ClickHouse, InfluxDB); ``localhost`` when ``None``.
+    port : int | None
+        Server port; ``None`` uses the client's default for ClickHouse, 8086 for
+        InfluxDB 2 and 8181 for InfluxDB 3 (443 with ``secure``).
+    secure : bool
+        Connect over HTTPS (ClickHouse, InfluxDB).
+    database : str | None
+        ClickHouse database, or InfluxDB 3 database (required there).
+    user : str | None
+        ClickHouse user; ``None`` reads ``CLICKHOUSE_USER``, then uses the client's
+        default (``default``).
+    org : str | None
+        InfluxDB 2 organization.
+    language : Literal['sql', 'influxql']
+        Query language for InfluxDB 3.
+    path : str | None
+        DuckDB database file; ``None`` is an in-memory database.
+    read_only : bool
+        Open the DuckDB database file read-only (the default); never applies to an
+        in-memory database.
+    password_env : str | None
+        Environment variable holding the ClickHouse password; ``None`` means
+        ``CLICKHOUSE_PASSWORD``. An unset variable means no password.
+    token_env : str | None
+        Environment variable holding the InfluxDB token; ``None`` means
+        ``INFLUXDB_V2_TOKEN`` (InfluxDB 2) or ``INFLUX_TOKEN`` (InfluxDB 3).
+    query : str | None
+        Query text. A ``--query`` or ``--query-file`` on the command line replaces it.
+    query_file : Path | None
+        File holding the query text, read when the query runs; exclusive with ``query``.
+    """
+
+    kind: Literal["clickhouse", "influxdb2", "influxdb3", "duckdb"] = Field(
+        description="Database back end"
+    )
+    host: str | None = Field(default=None, description="Server host (no scheme, no user)")
+    port: int | None = Field(default=None, ge=1, le=65535, description="Server port")
+    secure: bool = Field(default=False, description="Connect over HTTPS")
+    database: str | None = Field(default=None, description="ClickHouse or InfluxDB 3 database")
+    user: str | None = Field(default=None, description="ClickHouse user")
+    org: str | None = Field(default=None, description="InfluxDB 2 organization")
+    language: Literal["sql", "influxql"] = Field(
+        default="sql", description="InfluxDB 3 query language"
+    )
+    path: str | None = Field(default=None, description="DuckDB database file (None: in memory)")
+    read_only: bool = Field(default=True, description="Open the DuckDB file read-only")
+    password_env: str | None = Field(
+        default=None, pattern=_ENV_NAME, description="Variable holding the ClickHouse password"
+    )
+    token_env: str | None = Field(
+        default=None, pattern=_ENV_NAME, description="Variable holding the InfluxDB token"
+    )
+    query: str | None = Field(default=None, description="Query text")
+    query_file: Path | None = Field(default=None, description="File holding the query text")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_secrets(cls, data: Any) -> Any:
+        """Refuse settings that would hold a password or token."""
+        if isinstance(data, dict):
+            kind = data.get("kind") if isinstance(data.get("kind"), str) else None
+            for key in data:
+                if isinstance(key, str) and key.lower() in SECRET_KEYS:
+                    raise ValueError(secret_rejection(f"a source setting ('{key}')", kind))
+        return data
+
+    @field_validator("host")
+    @classmethod
+    def _validate_host(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if "@" in v:
+            raise ValueError(secret_rejection("the host (user information before '@')", None))
+        if not v.strip() or any(c in v for c in "/ \t\n") or "://" in v:
+            raise ValueError(
+                f"host must be a host name or address, without scheme, path or spaces: {v!r}"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def _check_fields_for_kind(self) -> "SourceConfig":
+        """Settings of another back end are an error, not silently ignored."""
+        allowed = _SOURCE_FIELDS[self.kind] | {"kind", "query", "query_file"}
+        defaults = type(self).model_fields
+        stray = sorted(
+            name
+            for name in type(self).model_fields
+            if name not in allowed and getattr(self, name) != defaults[name].default
+        )
+        if stray:
+            raise ValueError(
+                f"{', '.join(stray)} do(es) not apply to a {self.kind} source; it takes "
+                f"{', '.join(sorted(_SOURCE_FIELDS[self.kind]))}, query and query_file"
+            )
+        if self.query is not None and self.query_file is not None:
+            raise ValueError("give either query or query_file, not both")
+        if self.kind == "influxdb3" and not self.database:
+            raise ValueError("an influxdb3 source needs a database")
+        return self
+
+    def secret_env(self) -> str | None:
+        """
+        The environment variable this source reads its password or token from.
+
+        Returns
+        -------
+        str | None
+            ``password_env``/``token_env`` or the back end's default; ``None`` for DuckDB.
+        """
+        if self.kind == "clickhouse":
+            return self.password_env or SECRET_ENV_DEFAULTS["clickhouse"]
+        if self.kind in ("influxdb2", "influxdb3"):
+            return self.token_env or SECRET_ENV_DEFAULTS[self.kind]
+        return None
+
+    # Validation errors never echo the input: it may be a rejected secret.
+    model_config = ConfigDict(validate_assignment=True, extra="forbid", hide_input_in_errors=True)
+
+
 class JitterbugConfig(BaseSettings):
     """
     Main configuration class for Jitterbug.
@@ -584,6 +789,9 @@ class JitterbugConfig(BaseSettings):
         Configuration for the online (streaming) mode.
     input : InputConfig
         Column mapping, units and row policies for loading RTT data.
+    sources : dict[str, SourceConfig]
+        Named database sources (profiles), selected with ``--source NAME``. Left out of
+        dumps while empty, so configurations without sources serialize as before.
     output_format : Literal['json', 'csv', 'parquet']
         Output format for results.
     verbose : bool
@@ -602,6 +810,9 @@ class JitterbugConfig(BaseSettings):
     clustering: ClusteringConfig = Field(default_factory=ClusteringConfig)
     streaming: StreamingConfig = Field(default_factory=StreamingConfig)
     input: InputConfig = Field(default_factory=InputConfig)
+    sources: dict[str, SourceConfig] = Field(
+        default_factory=dict, description="Named database sources (--source NAME)"
+    )
 
     output_format: Literal["json", "csv", "parquet"] = Field(
         default="json", description="Output format for results"
@@ -663,6 +874,19 @@ class JitterbugConfig(BaseSettings):
             else:
                 raise ValueError(f"Unsupported configuration file format: {config_path.suffix}")
 
+    @model_serializer(mode="wrap")
+    def _omit_empty_sources(self, handler: SerializerFunctionWrapHandler) -> Any:
+        """Leave ``sources`` out of dumps while empty: result files and templates of runs
+        without database sources stay as they were."""
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("sources", True):
+            del data["sources"]
+        return data
+
+    # Validation errors do not echo the input: a rejected source setting may be a secret.
     model_config = SettingsConfigDict(
-        validate_assignment=True, env_prefix="JITTERBUG_", case_sensitive=False
+        validate_assignment=True,
+        env_prefix="JITTERBUG_",
+        case_sensitive=False,
+        hide_input_in_errors=True,
     )

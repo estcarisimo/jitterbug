@@ -34,7 +34,10 @@ dependency group (pytest, ruff, mypy). Add extras as needed:
 | `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | `--algorithm bcp`, the paper's detector |
 | `visualization` | matplotlib | `jitterbug visualize`, `JitterbugPlotter` |
 | `clustering` | scikit-learn | `--mode clustering`, the non-sequential mode |
-| `influx` | influxdb-client | `DataLoader.load_from_influxdb` |
+| `influx` | influxdb-client | InfluxDB 2 (Flux) sources, `influxdb2://`; `DataLoader.load_from_influxdb` |
+| `influxdb3` | influxdb3-python (with pyarrow) | InfluxDB 3 (SQL, InfluxQL) sources, `influxdb3://` |
+| `clickhouse` | clickhouse-connect | ClickHouse sources, `clickhouse://` |
+| `duckdb` | duckdb | DuckDB sources, `duckdb:`: SQL over Parquet/CSV globs, SQLite, PostgreSQL, object storage |
 | `zstd` | zstandard (Python < 3.14 only) | `.zst` input and output files |
 | `parquet` | pyarrow | Parquet and Arrow/Feather input, `--output-format parquet` |
 | `jupyter` | JupyterLab, ipykernel | the notebooks in `examples/` |

@@ -1,11 +1,13 @@
 """
-A dry run of ingestion: what loading a file would do, without analyzing anything.
+A dry run of ingestion: what loading a file or a database query would do, without
+analyzing anything.
 
 :func:`inspect_file` reads a file with the same reader, column mapping, units and row
 policies as :meth:`jitterbug.io.DataLoader.load_from_file`, but instead of building a
 dataset it reports the format, the mapping in effect, how many rows each policy would
 drop or reorder, and the series the file holds. It never raises for a policy set to
-``error``: it says the load would fail and why. ``jitterbug inspect`` prints this report.
+``error``: it says the load would fail and why. :func:`inspect_source` does the same for
+a database query. ``jitterbug inspect`` prints these reports.
 """
 
 import logging
@@ -17,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from ..models import MAX_RTT_MS
-from ..models.config import InputConfig
+from ..models.config import InputConfig, SourceConfig
 from .compression import compression_of
 from .data_loader import DataLoader
 from .normalize import (
@@ -27,6 +29,7 @@ from .normalize import (
     resolve_rtt_column,
 )
 from .normalize import _check_time_range as check_time_range
+from .readers import RawData
 from .series import SeriesKey, filter_rows, path_key_names, series_key_dict, split_series
 
 logger = logging.getLogger(__name__)
@@ -98,6 +101,52 @@ def inspect_file(
         "columns": [str(c) for c in raw.frame.columns],
         "errors": [],
     }
+    return _inspect_rows(report, raw, config)
+
+
+def inspect_source(source: SourceConfig, input_config: InputConfig | None = None) -> dict[str, Any]:
+    """
+    Report what loading a database query would do, without analyzing it.
+
+    The query runs (it is the only way to see its columns), then the rows are examined
+    as :func:`inspect_file` examines a file's.
+
+    Parameters
+    ----------
+    source : SourceConfig
+        Back end, connection settings and query.
+    input_config : InputConfig | None
+        Mapping, units, row policies, ``series`` and ``group_by``.
+
+    Returns
+    -------
+    dict[str, Any]
+        The keys of :func:`inspect_file`, with ``source`` (kind and connection details,
+        never a secret) and ``query`` (the text run) in place of ``file``, ``format``,
+        ``format_detail``, ``compression`` and ``reader``.
+
+    Raises
+    ------
+    ValueError
+        If there is no query.
+    ImportError
+        If the back end's client library is not installed.
+    jitterbug.io.sources.SourceError
+        If the connection or the query fails (the message is redacted).
+    """
+    config = input_config if input_config is not None else InputConfig()
+    raw, config = DataLoader(config).read_raw_source(source, apply_series_filter=False)
+    report: dict[str, Any] = {
+        "source": raw.metadata["source_details"],
+        "query": raw.metadata["query"],
+        "columns": [str(c) for c in raw.frame.columns],
+        "errors": [],
+    }
+    return _inspect_rows(report, raw, config)
+
+
+def _inspect_rows(report: dict[str, Any], raw: RawData, config: InputConfig) -> dict[str, Any]:
+    """Fill ``report`` with the mapping, row, policy and series sections of ``raw``."""
     errors: list[str] = report["errors"]
     rows_read = len(raw.frame)
     try:
