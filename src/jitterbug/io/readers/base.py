@@ -16,7 +16,7 @@ import pandas as pd
 
 from ...models import RTTDataset
 from ...models.config import InputConfig
-from ..compression import inner_suffix, open_text
+from ..compression import inner_suffix, is_compressed, open_text, read_head
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,10 @@ class Reader:
     sniff : SniffFunction | None
         Given the first non-empty line of a file with an unknown extension, whether it
         looks like this format. Readers are tried in registration order.
+    magic : tuple[bytes, ...]
+        Byte prefixes that identify a binary format (``(b"PAR1",)``). A file whose
+        content starts with one of them is this format whatever its extension, and is
+        never decoded as text to sniff it.
     """
 
     name: str
@@ -78,6 +82,7 @@ class Reader:
     read: ReadFunction
     extensions: tuple[str, ...] = ()
     sniff: SniffFunction | None = None
+    magic: tuple[bytes, ...] = ()
 
 
 _REGISTRY: dict[str, Reader] = {}
@@ -177,7 +182,7 @@ def first_line(path: Path, max_lines: int = 100) -> str:
 def infer_format(path: str | Path) -> str:
     """
     Pick the format of ``path``: by extension (ignoring a compression suffix), otherwise
-    by sniffing its first non-empty line.
+    by the magic bytes of a binary format, otherwise by sniffing its first non-empty line.
 
     Parameters
     ----------
@@ -201,6 +206,9 @@ def infer_format(path: str | Path) -> str:
     for reader in _REGISTRY.values():
         if extension in reader.extensions:
             return reader.name
+    binary = magic_format(path)
+    if binary is not None:
+        return binary
     try:
         line = first_line(path)
     except ImportError:
@@ -212,7 +220,54 @@ def infer_format(path: str | Path) -> str:
             logger.debug(f"Format of {path} sniffed as {reader.name}")
             return reader.name
     raise ValueError(
-        f"Cannot infer format for file: {path} (expected a delimited header or a JSON "
-        f"object on the first line; pass the format explicitly, one of "
+        f"Cannot infer format for file: {path} (expected a delimited header, JSON, or "
+        f"ping/fping output on the first line, or Parquet/Arrow content; pass the format "
+        f"explicitly, one of "
         f"{', '.join(available_formats())})"
     )
+
+
+MAGIC_SIZE = 8
+"""Bytes read from the start of a file to match ``Reader.magic``."""
+
+
+def magic_format(path: Path) -> str | None:
+    """
+    Return the binary format whose magic bytes start the content of ``path``.
+
+    The raw bytes are checked first; for a compressed file, the decompressed ones too, so
+    that ``data.gz`` holding Parquet is recognized (its reader then rejects the outer
+    compression) instead of being decoded as text.
+
+    Parameters
+    ----------
+    path : Path
+        File path.
+
+    Returns
+    -------
+    str | None
+        A registered format name, or ``None`` if no reader's magic matches.
+
+    Raises
+    ------
+    ImportError
+        If the file is compressed with a codec that is not installed.
+    """
+    try:
+        with path.open("rb") as f:
+            heads = [f.read(MAGIC_SIZE)]
+    except OSError:
+        return None
+    if is_compressed(path):
+        try:
+            heads.append(read_head(path, MAGIC_SIZE))
+        except ImportError:
+            raise
+        except Exception as e:  # not valid data for its codec; text sniffing reports it
+            logger.debug(f"Cannot decompress the start of {path}: {e}")
+    for reader in _REGISTRY.values():
+        if any(head.startswith(m) for head in heads for m in reader.magic):
+            logger.debug(f"Format of {path} recognized as {reader.name} by its magic bytes")
+            return reader.name
+    return None

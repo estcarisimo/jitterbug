@@ -9,19 +9,20 @@ import pandas as pd
 from ...models.config import InputConfig
 from ..compression import open_text
 from .base import RawData, Reader, first_line, register_reader
+from .json_records import looks_like_json
 
 DELIMITERS = (",", "\t", ";")
 """Separators ``detect_delimiter`` chooses from, in order of preference on ties."""
 
 
 def _looks_tab_separated(line: str) -> bool:
-    """Sniffer: a header with a tab that is not a JSON object."""
-    return "\t" in line and not line.startswith("{")
+    """Sniffer: a header with a tab that is not JSON."""
+    return "\t" in line and not looks_like_json(line)
 
 
 def _looks_comma_separated(line: str) -> bool:
-    """Sniffer: a header with a comma or semicolon that is not a JSON object."""
-    return ("," in line or ";" in line) and not line.startswith("{")
+    """Sniffer: a header with a comma or semicolon that is not JSON."""
+    return ("," in line or ";" in line) and not looks_like_json(line)
 
 
 def detect_delimiter(header: str) -> str:

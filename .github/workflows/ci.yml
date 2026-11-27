@@ -26,7 +26,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --locked --extra visualization --extra clustering --extra zstd
+        run: uv sync --locked --extra visualization --extra clustering --extra zstd --extra parquet
 
       - name: Ruff lint
         run: uv run ruff check src/ tests/ examples/ tools/
@@ -42,7 +42,7 @@ jobs:
 
       - name: pip-audit (audits the locked dependency set)
         run: |
-          uv export --no-emit-project --no-hashes --extra visualization --extra clustering --extra zstd \
+          uv export --no-emit-project --no-hashes --extra visualization --extra clustering --extra zstd --extra parquet \
             --format requirements.txt -o requirements-audit.txt
           uvx pip-audit -r requirements-audit.txt --no-deps --disable-pip
 
@@ -113,8 +113,10 @@ jobs:
           enable-cache: true
           python-version: "3.12"
 
+      # The parquet extra is installed here only, so the Parquet/Arrow reader tests run in
+      # this job and the default `test` jobs check that everything else works without pyarrow.
       - name: Install dependencies (CPU torch via the pytorch-cpu index)
-        run: uv sync --locked --extra bcp --extra visualization --extra clustering --extra zstd
+        run: uv sync --locked --extra bcp --extra visualization --extra clustering --extra zstd --extra parquet
 
       - name: Run the full suite, including the Bayesian regression tests
         run: uv run pytest tests/ -m "slow or not slow"

@@ -643,4 +643,5 @@ def test_remapped_dataset_gives_the_same_result(tmp_path: Path, command: str):
 def test_format_help_lists_the_registered_formats():
     result = runner.invoke(app, ["analyze", "--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0
-    assert "csv, tsv, json, scamper, jsonl" in result.output
+    expected = "parquet, arrow, ping, fping, csv, tsv, atlas, json, scamper, jsonl"
+    assert expected in " ".join(result.output.split())

@@ -157,3 +157,46 @@ def open_text(path: str | Path, mode: str = "r", newline: str | None = None) -> 
     zstd = _zstd_module()
     logger.debug(f"Opening {path} through {zstd.__name__}")
     return cast(IO[str], zstd.open(path, text_mode, encoding="utf-8", newline=newline))
+
+
+def read_head(path: str | Path, size: int = 16) -> bytes:
+    """
+    Return the first bytes of a file's content, decompressed when ``path`` is compressed.
+
+    Parameters
+    ----------
+    path : str | Path
+        File path.
+    size : int
+        Number of bytes to read at most.
+
+    Returns
+    -------
+    bytes
+        Up to ``size`` bytes; fewer for a shorter file.
+
+    Raises
+    ------
+    ImportError
+        If ``path`` ends in ``.zst`` and no Zstandard codec is available.
+
+    Notes
+    -----
+    Errors reading the file or decoding it with its codec propagate unchanged.
+    """
+    with _open_binary(Path(path)) as stream:
+        return stream.read(size)
+
+
+def _open_binary(path: Path) -> IO[bytes]:
+    """Open ``path`` for reading bytes, through its codec when it is compressed."""
+    codec = compression_of(path)
+    if codec is None:
+        return path.open("rb")
+    if codec == "gzip":
+        return cast(IO[bytes], gzip.open(path, "rb"))
+    if codec == "bzip2":
+        return cast(IO[bytes], bz2.open(path, "rb"))
+    if codec == "xz":
+        return cast(IO[bytes], lzma.open(path, "rb"))
+    return cast(IO[bytes], _zstd_module().open(path, "rb"))

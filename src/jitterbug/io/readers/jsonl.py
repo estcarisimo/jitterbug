@@ -1,16 +1,23 @@
 """
-JSON-lines readers: ``scamper`` (``scamper -O json`` output), ``jsonl`` (one flat object
-per line, mapped through ``InputConfig``), and ``json``, which looks at the records and
-picks one of the two.
+JSON readers: ``scamper`` (``scamper -O json`` output), ``jsonl`` (one flat object per
+line, mapped through ``InputConfig``), and ``json``, which looks at the records and picks
+one of those two or ``atlas`` (RIPE Atlas results, :mod:`jitterbug.io.readers.atlas`).
 
-Telling them apart: a file is scamper output when at least one record is a scamper
-``ping`` (``"type": "ping"`` with a ``responses`` field) or one of scamper's bookkeeping
-records (``"type"`` ``list``, ``cycle-def``, ``cycle-start`` or ``cycle-stop``). Every
-other file is generic JSONL. A ``type`` field alone is not enough: other tools (RIPE
-Atlas, for one) also write ``"type": "ping"``.
+A file is either JSON lines or one JSON array of records (see
+:func:`jitterbug.io.readers.json_records.parse_json_records`). Telling the record kinds
+apart, in this order:
+
+1. scamper output when at least one record is a scamper ``ping`` (``"type": "ping"``
+   with a ``responses`` field) or one of scamper's bookkeeping records (``"type"``
+   ``list``, ``cycle-def``, ``cycle-start`` or ``cycle-stop``);
+2. RIPE Atlas results when at least one record has the ``prb_id``, ``msm_id`` and
+   ``result`` fields every Atlas result carries;
+3. generic JSONL otherwise.
+
+A ``type`` field alone is not enough: scamper and RIPE Atlas both write
+``"type": "ping"``, and so may anything else.
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -19,8 +26,9 @@ import pandas as pd
 
 from ...models import RTTDataset
 from ...models.config import InputConfig
-from ..compression import open_text
+from .atlas import atlas_data, is_atlas_record
 from .base import RawData, Reader, register_reader
+from .json_records import looks_like_json, parse_json_records
 
 logger = logging.getLogger(__name__)
 
@@ -59,28 +67,6 @@ def is_scamper_record(record: Any) -> bool:
     if not isinstance(kind, str):
         return False
     return (kind == "ping" and "responses" in record) or kind in SCAMPER_BOOKKEEPING_TYPES
-
-
-def _parse_lines(path: Path, label: str) -> tuple[list[Any], int]:
-    """Parse every non-empty line; invalid JSON lines are skipped with a warning."""
-    records: list[Any] = []
-    invalid = 0
-    try:
-        with open_text(path) as f:
-            for raw in f:
-                line = raw.strip()
-                if not line:
-                    continue
-                try:
-                    records.append(json.loads(line))
-                except json.JSONDecodeError:
-                    logger.warning(f"Skipping invalid JSON line: {line[:120]!r}")
-                    invalid += 1
-    except ImportError:
-        raise
-    except Exception as e:
-        raise ValueError(f"Failed to load {label} file {path}: {e}") from e
-    return records, invalid
 
 
 def _scamper_data(records: list[Any], invalid: int, path: Path) -> RawData:
@@ -159,13 +145,14 @@ def read_scamper(path: Path, config: InputConfig) -> RawData:
     ValueError
         If the file cannot be read or holds no usable response.
     """
-    return _scamper_data(*_parse_lines(path, "JSON"), path)
+    return _scamper_data(*parse_json_records(path, "JSON"), path)
 
 
 def read_jsonl(path: Path, config: InputConfig) -> RawData:
     """
-    Read generic JSON lines: one flat object per line, fields mapped through
-    ``InputConfig`` like CSV columns. Invalid JSON lines are skipped with a warning.
+    Read generic JSON lines: one flat object per line (or a JSON array of flat objects),
+    fields mapped through ``InputConfig`` like CSV columns. Invalid JSON lines are
+    skipped with a warning.
 
     Parameters
     ----------
@@ -184,13 +171,14 @@ def read_jsonl(path: Path, config: InputConfig) -> RawData:
     ValueError
         If the file cannot be read, a line is not a JSON object, or there is no record.
     """
-    return _jsonl_data(*_parse_lines(path, "JSONL"), path)
+    return _jsonl_data(*parse_json_records(path, "JSONL"), path)
 
 
 def read_json(path: Path, config: InputConfig) -> RawData:
     """
-    Read JSON lines as scamper output or generic JSONL, decided by content (see the
-    module docstring). A file with no records at all is treated as scamper output.
+    Read JSON lines (or a JSON array of records) as scamper output, RIPE Atlas results or
+    generic JSONL, decided by content (see the module docstring). A file with no records
+    at all is treated as scamper output.
 
     Parameters
     ----------
@@ -202,12 +190,16 @@ def read_json(path: Path, config: InputConfig) -> RawData:
     Returns
     -------
     RawData
-        The raw frame; ``metadata["format"]`` is ``scamper_warts`` or ``jsonl``.
+        The raw frame; ``metadata["format"]`` is ``scamper_warts``, ``ripe_atlas`` or
+        ``jsonl``.
     """
-    records, invalid = _parse_lines(path, "JSON")
+    records, invalid = parse_json_records(path, "JSON")
     if not records or any(is_scamper_record(r) for r in records):
         return _scamper_data(records, invalid, path)
-    logger.info(f"{path} has no scamper records; reading it as generic JSONL")
+    if any(is_atlas_record(r) for r in records):
+        logger.info(f"{path} holds RIPE Atlas results")
+        return atlas_data(records, invalid, path)
+    logger.info(f"{path} has no scamper or RIPE Atlas records; reading it as generic JSONL")
     return _jsonl_data(records, invalid, path)
 
 
@@ -217,7 +209,7 @@ register_reader(
         label="JSON",
         read=read_json,
         extensions=(".json", ".jsonl", ".ndjson"),
-        sniff=lambda line: line.startswith("{"),
+        sniff=looks_like_json,
     )
 )
 register_reader(Reader(name="scamper", label="scamper JSON", read=read_scamper))

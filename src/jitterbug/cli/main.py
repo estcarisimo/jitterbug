@@ -21,6 +21,7 @@ from ..analyzer import JitterbugAnalyzer
 from ..io import DataLoader
 from ..io.compression import open_text
 from ..io.readers import available_formats
+from ..io.readers.ping import LINE_PARSERS, NO_TIMESTAMP_HINT, LineParser
 from ..models import CongestionInferenceResult, JitterbugConfig
 
 # matplotlib is an optional dependency; the visualize command checks for it at run time.
@@ -598,10 +599,36 @@ def _parse_sample(line: str) -> tuple[float, float] | None:
     return epoch, rtt
 
 
+STREAM_FORMATS = ("csv", "ping", "fping")
+"""Line formats ``jitterbug stream --format`` reads."""
+
+
+def _parse_probe_sample(
+    line: str, parse: LineParser
+) -> tuple[tuple[float, float] | None, bool, str | None]:
+    """
+    A sample from one ``ping -D`` / ``fping -D`` line.
+
+    Returns the ``(epoch, rtt)`` of a timestamped reply (``None`` for any other line),
+    whether the line was a reply without a timestamp, and the reply's destination.
+    """
+    probe = parse(line)
+    if probe is None or probe.kind != "reply" or probe.rtt is None:
+        return None, False, None
+    if probe.epoch is None:
+        return None, True, probe.destination
+    return (probe.epoch, probe.rtt), False, probe.destination
+
+
 @app.command()
 def stream(
     source: str = typer.Argument(
-        "-", help="File with one 'epoch,rtt' sample per line, or '-' for standard input"
+        "-", help="File with one sample per line (see --format), or '-' for standard input"
+    ),
+    input_format: str = typer.Option(
+        "csv",
+        "--format",
+        help="Line format: csv ('epoch,rtt'), ping (ping -D output) or fping (fping -D output)",
     ),
     follow: bool = typer.Option(
         False, "--follow", "-f", help="Keep reading the file as it grows (like tail -f)"
@@ -663,9 +690,11 @@ def stream(
     Reads 'epoch,rtt' lines (seconds, milliseconds; a header line is skipped) and prints one
     JSON object per event: change points, provisional verdicts and final verdicts, plus
     change point revisions with --revise-change-points ("kind": "revision"; listed with
-    --events change-points). Samples must arrive in time order; a sample older than the
-    last one is dropped. The last bin is closed when the input ends (or on Ctrl-C with
-    --follow), as 'jitterbug replay' does.
+    --events change-points). With --format ping or fping it reads the output of 'ping -D'
+    or 'fping -D' instead: each reply with a [epoch] timestamp is a sample; replies without
+    one are skipped (with one warning), as are headers, timeouts and summaries. Samples
+    must arrive in time order; a sample older than the last one is dropped. The last bin is
+    closed when the input ends (or on Ctrl-C with --follow), as 'jitterbug replay' does.
 
     --state-changes adds state-change events ("kind": "state_change") after the events of
     the sample that caused them; with --events none only those are printed.
@@ -681,6 +710,9 @@ def stream(
     • Following a file that another process appends to:
       [cyan]jitterbug stream rtts.csv --follow --events verdicts[/cyan]
 
+    • Straight from ping (Linux iputils; -D prints the timestamps):
+      [cyan]ping -D example.net | jitterbug stream --format ping[/cyan]
+
     • State changes handed to a script, nothing printed:
       [cyan]jitterbug stream rtts.csv -f --events none --on-state-change ./hook.sh[/cyan]
     """
@@ -692,6 +724,11 @@ def stream(
     if events not in ("all", "verdicts", "change-points", "none"):
         err_console.print(
             f"❌ Error: --events must be all, verdicts, change-points or none, not {events}"
+        )
+        raise typer.Exit(2)
+    if input_format not in STREAM_FORMATS:
+        err_console.print(
+            f"❌ Error: --format must be {', '.join(STREAM_FORMATS)}, not {input_format}"
         )
         raise typer.Exit(2)
     if follow and source == "-":
@@ -750,10 +787,36 @@ def stream(
             emit(batch)
             emit(changes)
 
+        parse_probe = LINE_PARSERS.get(input_format)
+        warned_untimestamped = False
+        first_destination: str | None = None
+        warned_destinations = False
+
         try:
             try:
                 for line in _iter_lines(path, follow):
-                    sample = _parse_sample(line)
+                    if parse_probe is None:
+                        sample = _parse_sample(line)
+                    else:
+                        sample, untimestamped, destination = _parse_probe_sample(line, parse_probe)
+                        if sample is not None and destination is not None:
+                            if first_destination is None:
+                                first_destination = destination
+                            elif destination != first_destination and not warned_destinations:
+                                err_console.print(
+                                    f"replies from {first_destination} and {destination} are "
+                                    "pooled into one RTT series; stream one destination per "
+                                    "jitterbug process",
+                                    style="yellow",
+                                )
+                                warned_destinations = True
+                        if untimestamped and not warned_untimestamped:
+                            err_console.print(
+                                f"{input_format} reply lines without a timestamp are "
+                                f"skipped; {NO_TIMESTAMP_HINT[input_format]}",
+                                style="yellow",
+                            )
+                            warned_untimestamped = True
                     if sample is None:
                         n_skipped += bool(line.strip())
                         continue
