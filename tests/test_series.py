@@ -191,7 +191,7 @@ def test_load_series_applies_policies_per_series(fixture: str, request: pytest.F
     # a: rows 10, 20, 15, 20 -> sorted, the second 20 (rtt 9) is a duplicate of 20 (rtt 6)
     assert [(m.epoch, m.rtt_value) for m in a.measurements] == [(10, 5.0), (15, 4.0), (20, 6.0)]
     assert a.metadata["sorted_on_load"] and a.metadata["duplicates_removed"] == 1
-    assert a.metadata["series"] == {"destination": "a"}
+    assert a.metadata["series_key"] == {"destination": "a"}
     # b: in order, no duplicates once grouped (in the mixed series 10 and 20 repeat)
     assert [m.epoch for m in b.measurements] == [10, 30]
     assert not b.metadata["sorted_on_load"] and b.metadata["duplicate_rows"] == 0
@@ -256,7 +256,7 @@ def test_load_from_file_refuses_several_series_and_lists_them(mixed_csv: Path):
     ds = DataLoader(
         InputConfig(group_by=["destination"], series={"destination": "a"})
     ).load_from_file(mixed_csv)
-    assert ds.metadata["series"] == {"destination": "a"}
+    assert ds.metadata["series_key"] == {"destination": "a"}
 
 
 # --------------------------------------------------------------------------- mixed input
@@ -430,3 +430,103 @@ def test_unknown_grouped_output_format_is_rejected(
     analyzer, results = grouped
     with pytest.raises(ValueError, match="Unsupported output format"):
         analyzer.save_series_results(results, tmp_path / "r.xml", "xml")
+
+
+# --------------------------------------------------------------------------- readers of #83
+
+
+def _atlas(timestamp: int, rtt: float, prb_id: int, dst: str = "8.8.8.8") -> dict:
+    return {
+        "type": "ping",
+        "prb_id": prb_id,
+        "msm_id": 1001,
+        "timestamp": timestamp,
+        "from": f"193.0.0.{prb_id % 100}",
+        "src_addr": "192.168.1.10",
+        "dst_addr": dst,
+        "result": [{"rtt": rtt}],
+    }
+
+
+@pytest.fixture
+def atlas_two_probes(tmp_path: Path) -> Path:
+    records = [_atlas(1_700_000_000 + 240 * i, 5.0 + i, p) for i in range(3) for p in (6001, 6002)]
+    path = tmp_path / "atlas.json"
+    path.write_text(json.dumps(records))
+    return path
+
+
+def test_atlas_groups_by_probe(atlas_two_probes: Path, caplog: pytest.LogCaptureFixture):
+    with caplog.at_level("WARNING"):
+        datasets = DataLoader(InputConfig(group_by=["prb_id"])).load_series(atlas_two_probes)
+    assert list(datasets) == [(("prb_id", "6001"),), (("prb_id", "6002"),)]
+    assert [len(d) for d in datasets.values()] == [3, 3]
+    assert datasets[(("prb_id", "6002"),)].metadata["format"] == "ripe_atlas"
+    assert "mixed series" not in caplog.text
+
+
+def test_atlas_series_filter_on_probe_and_measurement(atlas_two_probes: Path):
+    config = InputConfig(series={"prb_id": 6002, "msm_id": 1001})
+    ds = DataLoader(config).load_from_file(atlas_two_probes)
+    assert len(ds) == 3 and {m.source for m in ds.measurements} == {"193.0.0.2"}
+
+
+def test_atlas_without_grouping_warns_with_its_path_keys(
+    atlas_two_probes: Path, caplog: pytest.LogCaptureFixture
+):
+    with caplog.at_level("WARNING"):
+        DataLoader().load_from_file(atlas_two_probes)
+    (warning,) = [r.message for r in caplog.records if "mixed series" in r.message]
+    assert "--group-by prb_id,msm_id,destination" in warning
+
+
+FPING_TWO_HOSTS = "".join(
+    f"[{1_700_000_000 + i}.1] {host} : [{i}], 64 bytes, {rtt + i / 10} ms (1.0 avg, 0% loss)\n"
+    for i in range(4)
+    for host, rtt in (("8.8.8.8", 12.0), ("1.1.1.1", 4.0))
+)
+
+
+def test_fping_groups_by_host(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+    path = tmp_path / "fping.log"
+    path.write_text(FPING_TWO_HOSTS)
+    with caplog.at_level("WARNING"):
+        datasets = DataLoader(InputConfig(group_by=["destination"])).load_series(path)
+    assert list(datasets) == [(("destination", "8.8.8.8"),), (("destination", "1.1.1.1"),)]
+    assert [m.rtt_value for m in datasets[(("destination", "1.1.1.1"),)].measurements] == [
+        4.0,
+        4.1,
+        4.2,
+        4.3,
+    ]
+    assert not caplog.records
+
+
+def test_ping_files_concatenated_select_one_destination(tmp_path: Path):
+    def ping(host: str, rtt: float) -> str:
+        return f"PING {host} ({host}) 56(84) bytes of data.\n" + "".join(
+            f"[{1_700_000_000 + i}.1] 64 bytes from {host}: icmp_seq={i} ttl=117 time={rtt} ms\n"
+            for i in range(3)
+        )
+
+    path = tmp_path / "ping.txt"
+    path.write_text(ping("8.8.8.8", 12.0) + ping("1.1.1.1", 4.0))
+    ds = DataLoader(InputConfig(series={"destination": "1.1.1.1"})).load_from_file(path)
+    assert [m.rtt_value for m in ds.measurements] == [4.0, 4.0, 4.0]
+
+
+def test_parquet_groups_by_a_raw_column(tmp_path: Path):
+    pytest.importorskip("pyarrow")
+    frame = pd.DataFrame(
+        {
+            "epoch": [10, 20, 10, 20, 30],
+            "rtt": [5.0, 6.0, 7.0, 8.0, 9.0],
+            "probe": [1, 1, 2, 2, 2],
+        }
+    )
+    path = tmp_path / "rtts.parquet"
+    frame.to_parquet(path)
+    datasets = DataLoader(InputConfig(group_by=["probe"])).load_series(path)
+    assert {k: len(d) for k, d in datasets.items()} == {(("probe", "1"),): 2, (("probe", "2"),): 3}
+    ds = DataLoader(InputConfig(series={"probe": 2})).load_from_file(path)
+    assert [m.rtt_value for m in ds.measurements] == [7.0, 8.0, 9.0]

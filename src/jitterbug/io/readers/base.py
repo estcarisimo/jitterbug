@@ -39,12 +39,17 @@ class RawData:
         values for this file. Row policies are never fixed.
     finish : Callable[[RTTDataset], None] | None
         Called on the normalized dataset, e.g. to add format-specific metadata.
+    path_keys : list[str]
+        Key names (as in ``InputConfig.group_by``) that tell the format's paths apart,
+        for the warning about mixed input and ``jitterbug inspect``; empty means
+        ``source`` and ``destination``.
     """
 
     frame: pd.DataFrame
     metadata: dict[str, Any] = field(default_factory=dict)
     schema: dict[str, Any] = field(default_factory=dict)
     finish: Callable[[RTTDataset], None] | None = None
+    path_keys: list[str] = field(default_factory=list)
 
 
 ReadFunction = Callable[[Path, InputConfig], RawData]

@@ -11,6 +11,7 @@ raw column. Values are compared as text (:func:`key_values`).
 
 import logging
 import math
+from collections.abc import Sequence
 from typing import Any
 
 import pandas as pd
@@ -257,3 +258,54 @@ def count_source_destination_pairs(df: pd.DataFrame, config: InputConfig) -> int
     if not columns:
         return 1
     return len(df[columns].drop_duplicates())
+
+
+def path_key_names(
+    df: pd.DataFrame, config: InputConfig, path_keys: Sequence[str] = ()
+) -> list[str]:
+    """
+    Return the key names that tell the paths of raw rows apart.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Raw rows.
+    config : InputConfig
+        Column mapping, for ``source`` and ``destination``.
+    path_keys : Sequence[str]
+        Names a format declares for its paths (``RawData.path_keys``, e.g. ``prb_id``,
+        ``msm_id`` and ``destination`` for RIPE Atlas); empty means ``source`` and
+        ``destination``.
+
+    Returns
+    -------
+    list[str]
+        The names among those whose column is present, usable as ``group_by``.
+    """
+    names = list(path_keys) or ["source", "destination"]
+    return [name for name in names if resolve_key_column(name, config) in df.columns]
+
+
+def count_paths(df: pd.DataFrame, config: InputConfig, names: Sequence[str]) -> int:
+    """
+    Count the distinct combinations of the ``names`` key columns among raw rows.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Raw rows.
+    config : InputConfig
+        Column mapping, for ``source`` and ``destination``.
+    names : Sequence[str]
+        Key names whose columns are present (see :func:`path_key_names`).
+
+    Returns
+    -------
+    int
+        Number of distinct combinations (0 for an empty frame, 1 without names).
+    """
+    if df.empty:
+        return 0
+    if not names:
+        return 1
+    return len(df[[resolve_key_column(name, config) for name in names]].drop_duplicates())

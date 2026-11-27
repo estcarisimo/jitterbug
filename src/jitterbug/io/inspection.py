@@ -27,7 +27,7 @@ from .normalize import (
     resolve_rtt_column,
 )
 from .normalize import _check_time_range as check_time_range
-from .series import SeriesKey, filter_rows, series_key_dict, split_series
+from .series import SeriesKey, filter_rows, path_key_names, series_key_dict, split_series
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,8 @@ def inspect_file(
           (``dropped``, ``sorted``, ``kept`` or ``error``), counted per series as the
           loader applies them;
         - ``series_by``: the key names the ``series`` list is split by (``group_by``,
-          or the source and destination columns present when ``group_by`` is empty);
+          or, when ``group_by`` is empty, the format's path keys present: source and
+          destination, or e.g. ``prb_id``, ``msm_id``, ``destination`` for RIPE Atlas);
           ``grouped``: whether the analysis would separate them;
         - ``series``: per series, its ``key``, ``rows``, ``samples`` (after the
           policies), ``start``/``end`` (ISO 8601, UTC), ``duration_seconds``,
@@ -129,15 +130,9 @@ def inspect_file(
     ]
     report["policies"] = _policies(config, report["rows"], unit_stats, errors)
 
-    # Series listed: the group_by series, or the source/destination pairs present.
-    present = [
-        name
-        for name, column in (
-            ("source", config.source_column),
-            ("destination", config.destination_column),
-        )
-        if column in frame.columns
-    ]
+    # Series listed: the group_by series, or the paths present (the format's path keys,
+    # else source and destination).
+    present = path_key_names(frame, config, raw.path_keys)
     listed: dict[SeriesKey, pd.DataFrame]
     if config.group_by:
         report["series_by"], report["grouped"] = list(config.group_by), True

@@ -137,7 +137,8 @@ run:
 
 In both, `source` and `destination` name the mapped `source_column` and
 `destination_column` (for scamper, `src` and `dst`); any other name is a raw input
-column, such as a probe id. Values are compared as text; a numeric column with gaps
+column, such as a probe id: `prb_id` and `msm_id` for RIPE Atlas, a Parquet or Arrow
+column, or `destination` for the hosts of a ping or fping log. Values are compared as text; a numeric column with gaps
 (read as floats) is written without the `.0` (`probe=1234`), and a number given as a
 filter value (`probe: 1234` in YAML) is read as the same text.
 
@@ -168,10 +169,12 @@ jitterbug validate pings.json --series source=10.0.0.1 --series destination=8.8.
 - **One-series commands.** `validate`, `visualize` and `replay` take `--series` but not
   `--group-by`. If the configuration sets `group_by` and the rows hold several series,
   they exit with an error that lists the keys; add `--series` to pick one.
-- **Mixed input.** With neither setting, a file whose rows hold more than one distinct
-  (source, destination) pair is still analyzed as one series, as in earlier versions,
-  but a `WARNING` names how many pairs there are and how to separate them, and
-  `metadata["source_destination_pairs"]` records the count.
+- **Mixed input.** With neither setting, a file whose rows hold more than one path is
+  still analyzed as one series, as in earlier versions, but a `WARNING` names how many
+  paths there are and the `--group-by` that separates them, and
+  `metadata["source_destination_pairs"]` counts the distinct (source, destination)
+  pairs. A path is a distinct (source, destination) pair, or for RIPE Atlas a (`prb_id`,
+  `msm_id`, `destination`) combination.
 
 ### Grouped output
 
@@ -226,7 +229,7 @@ datasets = DataLoader(config.input).load_series("pings.json")  # {key: RTTDatase
 ```
 
 A key is a tuple of `(name, value)` pairs in `group_by` order (`SeriesKey`), e.g.
-`(("destination", "8.8.8.8"),)`; `entry.key` and `dataset.metadata["series"]` hold it as
+`(("destination", "8.8.8.8"),)`; `entry.key` and `dataset.metadata["series_key"]` hold it as
 a `{name: value}` mapping. The single-series methods (`load_from_file`,
 `analyze_from_file`, `analyze_from_dataframe`) keep their return types; they apply
 `series` and refuse input that `group_by` splits into several series.
@@ -388,10 +391,13 @@ result's `result` list with an `rtt` (milliseconds) becomes one sample at the re
 by default, and `duplicates: min` keeps the lowest RTT of each result. The source is
 `from` (the probe's public address), or `src_addr` when `from` is empty; the destination
 is `dst_addr`, or `dst_name`. `prb_id`, `msm_id` and `src_addr` are kept as columns of the
-raw frame. Results of several probes, measurements or destinations in one file are
-**pooled into one series**, which mixes different paths; a warning says so and
-`metadata["series"]` counts the (probe, measurement, destination) combinations. Download
-one probe's results per file (the API's `probe_ids` parameter) to analyze each path.
+raw frame, so they work as `group_by` and `series` keys. Results of several probes,
+measurements or destinations in one file are one series unless you separate them, which
+mixes different paths; a warning says so and `metadata["series"]` counts the (probe,
+measurement, destination) combinations. Analyze each path with
+`--group-by prb_id,msm_id,destination` (or just `--group-by prb_id` for one measurement),
+or keep one with `--series prb_id=6001`; `jitterbug inspect atlas.json` lists the paths
+(see [Several series in one file](#several-series-in-one-file)).
 
 Entries without an `rtt` are skipped and counted: `{"x": "*"}` in `metadata["timeouts"]`,
 `{"error": ...}` (and anything else) in `metadata["errors"]`; duplicate replies (`"dup"`)
@@ -457,11 +463,13 @@ Supported line shapes:
   `-C`.
 
 **One path per file.** Jitterbug analyzes one RTT series from one source to one
-destination. A file with replies from several destinations (`fping host1 host2`) is read,
-but the samples are **pooled into one series**, which mixes the paths' latencies; a
-warning says so and `metadata["destinations"]` lists them. Split such a file per host
-first (for example `grep ' 8.8.8.8 ' fping.log > fping-8.8.8.8.log`); `jitterbug stream`
-warns the same way.
+destination. A file with replies from several destinations (`fping host1 host2`) is read
+as one series unless you separate them, which mixes the paths' latencies; a warning says
+so and `metadata["destinations"]` lists them. Analyze each host with
+`jitterbug analyze fping.log --group-by destination`, or keep one with
+`--series destination=8.8.8.8`. `jitterbug stream` reads one series per process; it warns
+when its input mixes destinations, so filter the lines first there (for example
+`grep ' 8.8.8.8 '`).
 
 Each timestamped reply becomes one sample: the bracketed time (Unix seconds), `time=` (or
 the `ms` value of fping) in milliseconds, and the host as `destination`; the sequence

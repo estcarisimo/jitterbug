@@ -181,7 +181,7 @@ class DataLoader:
         -------
         dict[SeriesKey, RTTDataset]
             Datasets in order of first appearance in the file. Each dataset's
-            ``metadata["series"]`` is its key as a ``{name: value}`` mapping.
+            ``metadata["series_key"]`` is its key as a ``{name: value}`` mapping.
 
         Raises
         ------
@@ -213,7 +213,7 @@ class DataLoader:
     ) -> RTTDataset:
         """Normalize the raw rows of one series and attach the file metadata."""
         try:
-            dataset = normalize(frame, config)
+            dataset = normalize(frame, config, raw.path_keys)
         except NoValidRowsError as e:
             raise NoValidRowsError(f"Failed to load {reader.label} file {file_path}: {e}") from e
         except ValueError as e:
@@ -221,7 +221,7 @@ class DataLoader:
         dataset.metadata.update({"source": reader.name, "file_path": str(file_path)})
         dataset.metadata.update(raw.metadata)
         if key:
-            dataset.metadata["series"] = series_key_dict(key)
+            dataset.metadata["series_key"] = series_key_dict(key)
         if raw.finish is not None:
             raw.finish(dataset)
         return dataset
@@ -477,7 +477,7 @@ def _normalize_frame_series(key: SeriesKey, frame: pd.DataFrame, config: InputCo
     """Normalize the rows of one DataFrame series, recording its key."""
     dataset = normalize(frame, config)
     if key:
-        dataset.metadata["series"] = series_key_dict(key)
+        dataset.metadata["series_key"] = series_key_dict(key)
     return dataset
 
 

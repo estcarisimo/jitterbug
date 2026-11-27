@@ -154,3 +154,52 @@ def test_missing_group_by_column_is_reported(mixed_csv: Path):
     report = inspect_file(mixed_csv, input_config=InputConfig(group_by=["probe"]))
     assert "no column for series key 'probe'" in report["errors"][0]
     assert "rows" not in report
+
+
+def test_atlas_lists_its_paths_by_probe_measurement_and_destination(tmp_path: Path):
+    records = [
+        {
+            "type": "ping",
+            "prb_id": prb_id,
+            "msm_id": 1001,
+            "timestamp": 1_700_000_000 + 240 * i,
+            "from": "193.0.0.1",
+            "dst_addr": "8.8.8.8",
+            "result": [{"rtt": 5.0}],
+        }
+        for i in range(2)
+        for prb_id in (6001, 6002)
+    ]
+    path = tmp_path / "atlas.json"
+    path.write_text(json.dumps(records))
+    report = inspect_file(path)
+    assert (report["format"], report["format_detail"]) == ("json", "ripe_atlas")
+    assert report["series_by"] == ["prb_id", "msm_id", "destination"]
+    assert [e["key"]["prb_id"] for e in report["series"]] == ["6001", "6002"]
+    grouped = inspect_file(path, input_config=InputConfig(group_by=["prb_id"]))
+    assert grouped["grouped"] is True and len(grouped["series"]) == 2
+
+
+def test_fping_lists_its_hosts(tmp_path: Path):
+    path = tmp_path / "fping.log"
+    path.write_text(
+        "[1700000000.1] 8.8.8.8 : [0], 64 bytes, 12.3 ms (12.3 avg, 0% loss)\n"
+        "[1700000000.1] 1.1.1.1 : [0], 64 bytes, 4.1 ms (4.1 avg, 0% loss)\n"
+    )
+    report = inspect_file(path)
+    assert report["format"] == "fping" and report["series_by"] == ["destination"]
+    assert [e["key"] for e in report["series"]] == [
+        {"destination": "8.8.8.8"},
+        {"destination": "1.1.1.1"},
+    ]
+
+
+def test_parquet_file(tmp_path: Path):
+    pytest.importorskip("pyarrow")
+    import pandas as pd
+
+    path = tmp_path / "rtts.parquet"
+    pd.DataFrame({"epoch": [10, 20], "rtt": [1.0, 2.0], "destination": ["a", "b"]}).to_parquet(path)
+    report = inspect_file(path)
+    assert report["format"] == "parquet" and report["errors"] == []
+    assert len(report["series"]) == 2

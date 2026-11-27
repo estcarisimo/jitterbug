@@ -189,8 +189,8 @@ def test_inspect_text_lists_pairs_and_warns_about_mixing(small_mixed: Path):
     result = runner.invoke(app, ["inspect", str(small_mixed)])
     assert result.exit_code == 0, result.output
     assert "Format: csv, compression: none" in flat(result.output)
-    assert "Source/destination pairs (analyzed as one series): 2" in flat(result.output)
-    assert "--group-by source,destination" in flat(result.output)
+    assert "Paths by destination (analyzed as one series): 2" in flat(result.output)
+    assert "--group-by destination or keep one" in flat(result.output)
     assert "Loading would succeed" in flat(result.output)
 
 

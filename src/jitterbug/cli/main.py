@@ -1335,7 +1335,7 @@ def _display_inspection(report: dict[str, Any]) -> None:
         title = (
             f"Series by {', '.join(names)}"
             if report["grouped"]
-            else "Source/destination pairs (analyzed as one series)"
+            else f"Paths by {', '.join(names)} (analyzed as one series)"
             if names
             else "Series (no source or destination column)"
         )
@@ -1362,8 +1362,8 @@ def _display_inspection(report: dict[str, Any]) -> None:
         console.print(table)
         if not report["grouped"] and len(entries) > 1:
             console.print(
-                "⚠️  Several pairs would be analyzed as one mixed series; separate them with "
-                "--group-by source,destination or keep one with --series destination=VALUE",
+                "⚠️  Several paths would be analyzed as one mixed series; separate them with "
+                f"--group-by {','.join(names)} or keep one with --series {names[-1]}=VALUE",
                 style="yellow",
             )
 

@@ -36,9 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `validate`, `visualize` and `replay`) keeps only matching rows. Python:
   `DataLoader.load_series`, `JitterbugAnalyzer.analyze_series_from_file` /
   `analyze_series_from_dataframe` / `save_series_results`. Single-series output is
-  unchanged. A file holding several (source, destination) pairs with neither setting is
-  still analyzed as one series, now with a warning naming the pair count (recorded in
-  `metadata["source_destination_pairs"]`). See `docs/INPUT_FORMATS.md`.
+  unchanged. A file holding several paths with neither setting is still analyzed as one
+  series, now with a warning naming how many there are and the `--group-by` that
+  separates them (`metadata["source_destination_pairs"]` counts the (source,
+  destination) pairs). Each grouped dataset records its key in
+  `metadata["series_key"]`. See `docs/INPUT_FORMATS.md`.
 - `jitterbug inspect FILE`: a dry run of loading that reports the format and compression,
   the column mapping and units in effect (including what `time_unit: auto` inferred), how
   many rows each row policy would drop or reorder, and the series in the file with their
@@ -65,7 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RIPE Atlas ping results (`--format atlas`), as the API's JSON array or one result per
   line, with timeouts and errors counted in the metadata; and `ping -D` / `fping -D` text
   output (`--format ping|fping`), which is an error without the `-D` timestamps. Files with
-  several destinations or Atlas probes are pooled into one series with a warning. `.json`
+  several destinations or Atlas probes are one series unless `--group-by` or `--series`
+  separates them (`--group-by prb_id,msm_id,destination` for Atlas, `--group-by
+  destination` for ping and fping), with a warning that says so. `.json`
   files holding Atlas results, `.txt`/`.log` files holding ping or fping output, and
   Parquet/Arrow files with any name (by their magic bytes) are detected automatically;
   JSON arrays of flat objects now load as generic JSON lines. Compressed Parquet and Arrow

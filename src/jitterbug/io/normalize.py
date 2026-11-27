@@ -15,10 +15,12 @@ end here, so the input contract is enforced in one place. The steps, in order:
 
 Selecting series (``InputConfig.series`` and ``group_by``) happens before, on the raw
 rows (``jitterbug.io.series``), so these steps apply to each series on its own. When
-neither is set and the rows hold several (source, destination) pairs, a warning says so.
+neither is set and the rows hold several paths (distinct (source, destination) pairs, or
+the combinations of a format's ``path_keys``), a warning says so.
 """
 
 import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -27,7 +29,7 @@ import pandas as pd
 
 from ..models import MAX_RTT_MS, RTTDataset, RTTMeasurement
 from ..models.config import RTT_COLUMN_SYNONYMS, InputConfig
-from .series import count_source_destination_pairs
+from .series import count_paths, count_source_destination_pairs, path_key_names
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,14 @@ Unix seconds stay below 1e11 until the year 5138, milliseconds since 1973 are ab
 and each finer unit is 1000 times larger. Anything at or above 1e17 is nanoseconds."""
 
 
-def normalize(df: pd.DataFrame, config: InputConfig | None = None) -> RTTDataset:
+def _describe_names(names: Sequence[str]) -> str:
+    """``destination values`` for one key name, ``(a, b) combinations`` for several."""
+    return f"{names[0]} values" if len(names) == 1 else f"({', '.join(names)}) combinations"
+
+
+def normalize(
+    df: pd.DataFrame, config: InputConfig | None = None, path_keys: Sequence[str] = ()
+) -> RTTDataset:
     """
     Turn a raw frame into a validated, time-ordered ``RTTDataset``.
 
@@ -63,6 +72,10 @@ def normalize(df: pd.DataFrame, config: InputConfig | None = None) -> RTTDataset
         Column mapping, units and row policies; ``None`` uses the defaults (``epoch`` in
         seconds, RTT in milliseconds, duplicates kept, out-of-range RTTs dropped,
         unsorted rows sorted).
+    path_keys : Sequence[str]
+        Key names that tell the input's paths apart (``RawData.path_keys``); empty means
+        ``source`` and ``destination``. Several distinct combinations, without
+        ``group_by`` or ``series``, log a warning that suggests grouping by them.
 
     Returns
     -------
@@ -123,13 +136,16 @@ def normalize(df: pd.DataFrame, config: InputConfig | None = None) -> RTTDataset
 
     frame = df.loc[keep]
     pairs = count_source_destination_pairs(frame, config)
-    if pairs > 1 and not config.group_by and not config.series:
-        logger.warning(
-            f"Input holds {pairs} distinct (source, destination) pairs, analyzed as one mixed "
-            "series. To separate them, group with --group-by source,destination "
-            "(input.group_by) or keep one with --series destination=VALUE (input.series); "
-            "'jitterbug inspect' lists them"
-        )
+    if not config.group_by and not config.series:
+        names = path_key_names(frame, config, path_keys)
+        paths = count_paths(frame, config, names)
+        if paths > 1:
+            logger.warning(
+                f"Input holds {paths} distinct {_describe_names(names)}, analyzed "
+                f"as one mixed series. To separate them, group with --group-by "
+                f"{','.join(names)} (input.group_by) or keep one with --series "
+                f"{names[-1]}=VALUE (input.series); 'jitterbug inspect' lists them"
+            )
     epoch_values = epochs[keep].to_numpy(dtype=float)
     rtt_values = rtts[keep].to_numpy(dtype=float)
 
