@@ -42,6 +42,9 @@ ATLAS_SCHEMA = {
 }
 """The frame the RIPE Atlas reader builds is in this fixed schema."""
 
+ATLAS_PATH_KEYS = ("prb_id", "msm_id", "destination")
+"""Key names that tell RIPE Atlas paths apart (``RawData.path_keys``)."""
+
 ATLAS_COLUMNS = ["epoch", "rtt", "source", "destination", "prb_id", "msm_id", "src_addr"]
 
 
@@ -89,9 +92,10 @@ def atlas_data(records: list[Any], invalid: int, path: Path) -> RawData:
         ``skipped_records`` (other measurement types and non-Atlas records),
         ``timeouts``, ``errors`` (error entries, and results without a usable timestamp
         or result list) and ``duplicate_replies``, and ``series`` is the number of
-        distinct (probe, measurement, destination) combinations, which are pooled into
-        one series (with a warning when there are several); after normalization
-        ``dropped_responses`` counts replies outside ``(0, MAX_RTT_MS]``.
+        distinct (probe, measurement, destination) combinations (``path_keys``: several
+        are analyzed as one series, with a warning, unless ``group_by`` or ``series``
+        separates them); after normalization ``dropped_responses`` counts replies
+        outside ``(0, MAX_RTT_MS]``.
 
     Raises
     ------
@@ -146,12 +150,6 @@ def atlas_data(records: list[Any], invalid: int, path: Path) -> RawData:
     if counts["skipped"]:
         logger.info(f"Skipped {counts['skipped']} record(s) that are not RIPE Atlas pings")
     series = sorted({(row[4], row[5], row[3]) for row in rows}, key=str)
-    if len(series) > 1:
-        logger.warning(
-            f"{path} has replies from {len(series)} (probe, measurement, destination) "
-            "combinations; they are pooled into one RTT series. Split the results per "
-            "probe and destination to analyze each path on its own."
-        )
 
     def finish(dataset: RTTDataset) -> None:
         dropped = dataset.metadata["dropped_rows"]
@@ -172,6 +170,7 @@ def atlas_data(records: list[Any], invalid: int, path: Path) -> RawData:
         },
         schema=ATLAS_SCHEMA,
         finish=finish,
+        path_keys=list(ATLAS_PATH_KEYS),
     )
 
 

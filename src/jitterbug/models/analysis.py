@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 import pandas as pd
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 
 class ChangePoint(BaseModel):
@@ -270,3 +270,119 @@ class CongestionInferenceResult(BaseModel):
         return total_duration
 
     model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
+
+
+class SeriesResult(BaseModel):
+    """
+    The outcome for one series of a grouped analysis: a result, or why it was skipped.
+
+    Attributes
+    ----------
+    key : dict[str, str | None]
+        The series key, ``{name: value}`` in ``InputConfig.group_by`` order.
+    result : CongestionInferenceResult | None
+        The analysis, as a single-series run on the same rows would give it; ``None``
+        when skipped.
+    skipped_reason : str | None
+        Why the series was not analyzed (no valid rows, too few minimum-RTT intervals,
+        an analysis error); ``None`` when it was.
+    """
+
+    key: dict[str, str | None]
+    result: CongestionInferenceResult | None = None
+    skipped_reason: str | None = None
+
+    @model_validator(mode="after")
+    def _result_or_reason(self) -> "SeriesResult":
+        """Exactly one of ``result`` and ``skipped_reason`` is set."""
+        if (self.result is None) == (self.skipped_reason is None):
+            raise ValueError("A series has either a result or a skipped_reason")
+        return self
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return the JSON form: ``{"key": ..., "result": ...}`` or
+        ``{"key": ..., "skipped_reason": ...}``.
+
+        Returns
+        -------
+        dict[str, Any]
+            The entry, with the result serialized like a single-series output file.
+        """
+        if self.result is not None:
+            return {"key": self.key, "result": self.result.model_dump()}
+        return {"key": self.key, "skipped_reason": self.skipped_reason}
+
+
+class MultiSeriesResult(BaseModel):
+    """
+    Results of a grouped analysis (``InputConfig.group_by``), one entry per series.
+
+    Attributes
+    ----------
+    group_by : list[str]
+        Names of the key columns.
+    series : list[SeriesResult]
+        One entry per series, in order of first appearance in the input.
+    metadata : dict
+        ``series_count``, ``analyzed``, ``skipped`` and the ``series`` filters applied.
+    """
+
+    group_by: list[str]
+    series: list[SeriesResult]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def analyzed(self) -> list[SeriesResult]:
+        """
+        Return the entries that have a result.
+
+        Returns
+        -------
+        list[SeriesResult]
+            Analyzed series, in order.
+        """
+        return [entry for entry in self.series if entry.result is not None]
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Return the JSON document written by ``jitterbug analyze --group-by``.
+
+        Returns
+        -------
+        dict[str, Any]
+            ``{"group_by": [...], "series": [entry, ...], "metadata": {...}}``, entries as
+            in :meth:`SeriesResult.to_dict`.
+        """
+        return {
+            "group_by": list(self.group_by),
+            "series": [entry.to_dict() for entry in self.series],
+            "metadata": self.metadata,
+        }
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Return every period of every analyzed series as one table.
+
+        Returns
+        -------
+        pd.DataFrame
+            The ``group_by`` key columns first, then ``starts``, ``ends`` and
+            ``congestion`` as in :meth:`CongestionInferenceResult.to_dataframe`. Skipped
+            series, and series without periods, have no rows.
+
+        Raises
+        ------
+        ValueError
+            If a key column is named ``starts``, ``ends`` or ``congestion``.
+        """
+        period_columns = ["starts", "ends", "congestion"]
+        clash = sorted(set(self.group_by) & set(period_columns))
+        if clash:
+            raise ValueError(f"group_by names {clash} clash with the result columns")
+        rows = [
+            {**entry.key, **inference.to_dict()}
+            for entry in self.series
+            if entry.result is not None
+            for inference in entry.result.inferences
+        ]
+        return pd.DataFrame(rows, columns=[*self.group_by, *period_columns])

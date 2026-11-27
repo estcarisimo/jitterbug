@@ -123,6 +123,157 @@ jitterbug validate rtts.csv --config config.yaml    # validate reads the input s
 In Python, pass the settings through `JitterbugConfig(input=InputConfig(...))` or
 `DataLoader(InputConfig(...))`.
 
+## Several series in one file
+
+A file often holds more than one series: pings from one source to several destinations,
+several probes, several devices. Jitterbug's analysis assumes **one** path, so these
+must be separated. Two settings select series on the raw rows, before the row policies
+run:
+
+| Setting | Flag | Meaning |
+| --- | --- | --- |
+| `group_by` | `--group-by` (repeatable or comma-separated) | Columns whose values identify a series; each distinct combination is analyzed on its own. |
+| `series` | `--series NAME=VALUE` (repeatable) | Keep only the rows where the column equals the value. |
+
+In both, `source` and `destination` name the mapped `source_column` and
+`destination_column` (for scamper, `src` and `dst`); any other name is a raw input
+column, such as a probe id: `prb_id` and `msm_id` for RIPE Atlas, a Parquet or Arrow
+column, or `destination` for the hosts of a ping or fping log. Values are compared as text; a numeric column with gaps
+(read as floats) is written without the `.0` (`probe=1234`), and a number given as a
+filter value (`probe: 1234` in YAML) is read as the same text.
+
+```yaml
+input:
+  group_by: [source, destination]
+  series:
+    destination: 8.8.8.8
+```
+
+```bash
+jitterbug analyze pings.json --group-by destination --output results.json
+jitterbug analyze rtts.csv --group-by probe_id --output results.csv --output-format csv
+jitterbug analyze pings.json --series destination=8.8.8.8          # one series, usual output
+jitterbug validate pings.json --series source=10.0.0.1 --series destination=8.8.8.8
+```
+
+- **Filters first, then groups, then the row policies per series.** Duplicates,
+  sorting and drops are counted and applied within each series, so two destinations
+  probed at the same second are not duplicates of each other. `time_unit: auto` is
+  inferred once from all the selected rows.
+- **A filter that matches nothing** is an error that lists the values the column has.
+  A missing key column is an error that lists the columns.
+- **A series that cannot be analyzed** (every row dropped, fewer than two
+  `minimum_interval_minutes` intervals, an analysis error) is reported as skipped with
+  its reason; the other series are analyzed as usual. A row policy set to `error` that
+  any series violates fails the whole run.
+- **One-series commands.** `validate`, `visualize` and `replay` take `--series` but not
+  `--group-by`. If the configuration sets `group_by` and the rows hold several series,
+  they exit with an error that lists the keys; add `--series` to pick one.
+- **Mixed input.** With neither setting, a file whose rows hold more than one path is
+  still analyzed as one series, as in earlier versions, but a `WARNING` names how many
+  paths there are and the `--group-by` that separates them, and
+  `metadata["source_destination_pairs"]` counts the distinct (source, destination)
+  pairs. A path is a distinct (source, destination) pair, or for RIPE Atlas a (`prb_id`,
+  `msm_id`, `destination`) combination.
+
+### Grouped output
+
+Without `group_by` (with or without `series`), the output files are exactly those of a
+single-series run. With `group_by`, the console prints one row per series (samples,
+periods, congested periods, congestion ratio, or why it was skipped), and the files are:
+
+**JSON**: one document. Each `result` is what a single-series run on that series'
+rows writes; a skipped series has a `skipped_reason` instead.
+
+```json
+{
+  "group_by": ["destination"],
+  "series": [
+    {"key": {"destination": "8.8.8.8"}, "result": {"inferences": [...], "metadata": {...}}},
+    {"key": {"destination": "9.9.9.9"}, "skipped_reason": "1 minimum-RTT interval(s) of 15 min, need at least 2"}
+  ],
+  "metadata": {"series_count": 2, "analyzed": 1, "skipped": 1, "series_filter": {}}
+}
+```
+
+Series appear in order of first appearance in the file; series whose rows were all
+dropped while loading come last. A missing key value is `null`.
+
+**CSV and Parquet**: every period of every analyzed series, with the key columns first:
+
+```csv
+destination,starts,ends,congestion
+8.8.8.8,1512216010.0,1512243010.0,True
+8.8.8.8,1512243010.0,1512301509.0,False
+1.1.1.1,1512207010.0,1512220509.0,True
+```
+
+Skipped series and series without periods have no rows. A key column may not be named
+`starts`, `ends` or `congestion`.
+
+In Python:
+
+```python
+from jitterbug import JitterbugAnalyzer, JitterbugConfig
+from jitterbug.io import DataLoader
+from jitterbug.models import InputConfig
+
+config = JitterbugConfig(input=InputConfig(group_by=["destination"]))
+analyzer = JitterbugAnalyzer(config)
+results = analyzer.analyze_series_from_file("pings.json")   # or analyze_series_from_dataframe
+for entry in results.series:
+    print(entry.key, entry.skipped_reason or len(entry.result.inferences))
+analyzer.save_series_results(results, "results.json")
+
+datasets = DataLoader(config.input).load_series("pings.json")  # {key: RTTDataset}
+```
+
+A key is a tuple of `(name, value)` pairs in `group_by` order (`SeriesKey`), e.g.
+`(("destination", "8.8.8.8"),)`; `entry.key` and `dataset.metadata["series_key"]` hold it as
+a `{name: value}` mapping. The single-series methods (`load_from_file`,
+`analyze_from_file`, `analyze_from_dataframe`) keep their return types; they apply
+`series` and refuse input that `group_by` splits into several series.
+
+## Inspecting a file
+
+`jitterbug inspect` is a dry run of loading: it reads the file with the same reader,
+mapping, units and policies as `analyze`, and reports what would happen, without
+analyzing anything.
+
+```bash
+jitterbug inspect pings.json
+jitterbug inspect rtts.csv --time-column ts --time-unit auto --group-by probe_id
+jitterbug inspect rtts.csv --config config.yaml --json > report.json
+```
+
+It shows:
+
+- the detected format and compression, and reader details (CSV separator, invalid JSON
+  lines);
+- the columns found and the mapping in effect: time and RTT columns and units,
+  including the unit `time_unit: auto` inferred and the RTT synonym that was picked, and
+  the settings a format fixes (scamper);
+- row counts: read, selected by `series`, missing, non-positive, too large, valid; and
+  for each row policy its setting, the rows it concerns and its effect (dropped,
+  sorted, kept, or an error);
+- the series: under `group_by`, or the distinct (source, destination) pairs when
+  `group_by` is empty (with a reminder that they would be analyzed as one series), each
+  with its sample count, time range, median interval and largest gap between distinct
+  timestamps, and duplicate timestamps.
+
+It takes the input flags of `analyze` (`--format`, `--time-column`, `--rtt-column`,
+`--time-unit`, `--rtt-unit`, `--group-by`, `--series`) and `--config` (only the `input`
+section is used). `--json` prints the report as JSON (`jitterbug.io.inspection.inspect_file`
+returns the same dictionary). It exits with status 1 when loading would fail (a missing
+column, an unreadable value, a policy set to `error` that the data violates), after
+printing the report with the reason.
+
+**`inspect` or `validate`?** Use `inspect` first, on a file you do not know: it explains
+how the file will be read and which series it holds, and it works when loading would
+fail. Use `validate` on the one series you are about to analyze: it loads it for real and
+reports its data quality (ordering, duplicates, intervals, gaps, RTT statistics and
+outliers).
+
 ## Formats
 
 | Format | Extensions | Detected from content | Notes |
@@ -240,10 +391,13 @@ result's `result` list with an `rtt` (milliseconds) becomes one sample at the re
 by default, and `duplicates: min` keeps the lowest RTT of each result. The source is
 `from` (the probe's public address), or `src_addr` when `from` is empty; the destination
 is `dst_addr`, or `dst_name`. `prb_id`, `msm_id` and `src_addr` are kept as columns of the
-raw frame. Results of several probes, measurements or destinations in one file are
-**pooled into one series**, which mixes different paths; a warning says so and
-`metadata["series"]` counts the (probe, measurement, destination) combinations. Download
-one probe's results per file (the API's `probe_ids` parameter) to analyze each path.
+raw frame, so they work as `group_by` and `series` keys. Results of several probes,
+measurements or destinations in one file are one series unless you separate them, which
+mixes different paths; a warning says so and `metadata["series"]` counts the (probe,
+measurement, destination) combinations. Analyze each path with
+`--group-by prb_id,msm_id,destination` (or just `--group-by prb_id` for one measurement),
+or keep one with `--series prb_id=6001`; `jitterbug inspect atlas.json` lists the paths
+(see [Several series in one file](#several-series-in-one-file)).
 
 Entries without an `rtt` are skipped and counted: `{"x": "*"}` in `metadata["timeouts"]`,
 `{"error": ...}` (and anything else) in `metadata["errors"]`; duplicate replies (`"dup"`)
@@ -309,11 +463,13 @@ Supported line shapes:
   `-C`.
 
 **One path per file.** Jitterbug analyzes one RTT series from one source to one
-destination. A file with replies from several destinations (`fping host1 host2`) is read,
-but the samples are **pooled into one series**, which mixes the paths' latencies; a
-warning says so and `metadata["destinations"]` lists them. Split such a file per host
-first (for example `grep ' 8.8.8.8 ' fping.log > fping-8.8.8.8.log`); `jitterbug stream`
-warns the same way.
+destination. A file with replies from several destinations (`fping host1 host2`) is read
+as one series unless you separate them, which mixes the paths' latencies; a warning says
+so and `metadata["destinations"]` lists them. Analyze each host with
+`jitterbug analyze fping.log --group-by destination`, or keep one with
+`--series destination=8.8.8.8`. `jitterbug stream` reads one series per process; it warns
+when its input mixes destinations, so filter the lines first there (for example
+`grep ' 8.8.8.8 '`).
 
 Each timestamped reply becomes one sample: the bracketed time (Unix seconds), `time=` (or
 the `ms` value of fping) in milliseconds, and the host as `destination`; the sequence

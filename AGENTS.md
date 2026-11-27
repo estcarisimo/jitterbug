@@ -44,9 +44,12 @@ src/jitterbug/
                          extension, first-line sniffer or magic bytes: delimited.py, jsonl.py
                          + atlas.py + json_records.py, columnar.py (Parquet/Arrow, `parquet`
                          extra), ping.py (ping/fping text, line parsers shared with
-                         `stream --format`)), normalize.py (the only place for column mapping,
-                         units and row policies of `InputConfig`), compression.py, exporters.py
-  cli/main.py            Typer CLI: `jitterbug analyze|validate|config|visualize|stream|replay|version`
+                         `stream --format`)), series.py (`series` filters and `group_by` keys
+                         on raw rows), normalize.py (the only place for column mapping,
+                         units and row policies of `InputConfig`), inspection.py (`inspect`
+                         dry run), compression.py, exporters.py
+  cli/main.py            Typer CLI: `jitterbug analyze|inspect|validate|config|visualize|stream|replay|
+                         version`
   visualization/         plotter.py (JitterbugPlotter, matplotlib)
 tests/                   pytest; test_cli.py runs the CLI on the bundled dataset;
                          test_paper_regression.py pins the paper-dataset results

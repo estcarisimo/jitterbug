@@ -41,6 +41,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--format scamper` and `--format jsonl` force one reader.
 - gzip (`.gz`), bzip2 (`.bz2`) and xz (`.xz`) compressed input and output, like
   `.zst`, with the standard library only.
+- Multi-series input. `input.group_by` (`--group-by` on `analyze`) names the columns
+  that identify a series (`source`, `destination` or any raw column such as a probe id);
+  each series is loaded with the row policies applied on its own and analyzed
+  separately, and a series too short to analyze is reported as skipped with its reason.
+  Grouped JSON output is one document with a `series` list of `{key, result}` or
+  `{key, skipped_reason}` entries; CSV and Parquet gain leading key columns; the console
+  prints one row per series. `input.series` (`--series NAME=VALUE` on `analyze`,
+  `validate`, `visualize` and `replay`) keeps only matching rows. Python:
+  `DataLoader.load_series`, `JitterbugAnalyzer.analyze_series_from_file` /
+  `analyze_series_from_dataframe` / `save_series_results`. Single-series output is
+  unchanged. A file holding several paths with neither setting is still analyzed as one
+  series, now with a warning naming how many there are and the `--group-by` that
+  separates them (`metadata["source_destination_pairs"]` counts the (source,
+  destination) pairs). Each grouped dataset records its key in
+  `metadata["series_key"]`. See `docs/INPUT_FORMATS.md`.
+- `jitterbug inspect FILE`: a dry run of loading that reports the format and compression,
+  the column mapping and units in effect (including what `time_unit: auto` inferred), how
+  many rows each row policy would drop or reorder, and the series in the file with their
+  sample counts, time ranges, median sampling interval, largest gap and duplicate
+  timestamps; `--json` for machine-readable output.
 - State changes in the online mode: `jitterbug.streaming.StateChangeTracker` follows either
   back end and reports transitions of the path between `baseline` and `congested`, first
   `suspected` from the latency jump of the new period's first closed bin
@@ -62,7 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RIPE Atlas ping results (`--format atlas`), as the API's JSON array or one result per
   line, with timeouts and errors counted in the metadata; and `ping -D` / `fping -D` text
   output (`--format ping|fping`), which is an error without the `-D` timestamps. Files with
-  several destinations or Atlas probes are pooled into one series with a warning. `.json`
+  several destinations or Atlas probes are one series unless `--group-by` or `--series`
+  separates them (`--group-by prb_id,msm_id,destination` for Atlas, `--group-by
+  destination` for ping and fping), with a warning that says so. `.json`
   files holding Atlas results, `.txt`/`.log` files holding ping or fping output, and
   Parquet/Arrow files with any name (by their magic bytes) are detected automatically;
   JSON arrays of flat objects now load as generic JSON lines. Compressed Parquet and Arrow

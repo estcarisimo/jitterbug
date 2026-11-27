@@ -3,9 +3,17 @@ Configuration models using Pydantic for validation and serialization.
 """
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -446,6 +454,18 @@ class InputConfig(BaseModel):
         metadata) or raise. Missing values are always dropped.
     unsorted : Literal['sort', 'error']
         Rows not in time order: sort them (stable) or raise.
+    group_by : list[str]
+        Columns whose values identify a series; each distinct combination is loaded and
+        analyzed on its own, with the row policies applied per series. ``source`` and
+        ``destination`` name the mapped ``source_column`` and ``destination_column``; any
+        other name is a raw input column (a probe id, a device). Empty (the default)
+        reads the input as one series.
+    series : dict[str, str]
+        Keep only the rows whose column equals the value (``{"destination":
+        "8.8.8.8"}``), compared as text (numbers in a file or in Python become text:
+        ``1234`` means ``"1234"``); names resolve like ``group_by``. Applied before
+        grouping and before the row policies. A filter that matches no row is an error
+        naming the values that exist.
     """
 
     time_column: str = Field(default="epoch", min_length=1, description="Time column")
@@ -479,6 +499,62 @@ class InputConfig(BaseModel):
     unsorted: Literal["sort", "error"] = Field(
         default="sort", description="Rows out of time order: sort or error"
     )
+    group_by: list[str] = Field(
+        default_factory=list,
+        description="Columns identifying a series (source, destination or raw column names)",
+    )
+    series: dict[str, str] = Field(
+        default_factory=dict, description="Keep only rows whose column equals the value"
+    )
+
+    @field_validator("group_by")
+    @classmethod
+    def _validate_group_by(cls, v: list[str]) -> list[str]:
+        names = [name.strip() for name in v]
+        if any(not name for name in names):
+            raise ValueError("group_by names must not be empty")
+        if len(set(names)) != len(names):
+            raise ValueError(f"group_by names must be distinct: {names}")
+        return names
+
+    @field_validator("series", mode="before")
+    @classmethod
+    def _series_values_as_text(cls, v: Any) -> Any:
+        """Filter values are compared as text, so ``probe: 1234`` in a YAML file means
+        ``"1234"`` as on the command line; integral floats lose their ``.0``."""
+        if not isinstance(v, dict):
+            return v
+
+        def text(value: Any) -> Any:
+            if isinstance(value, bool):
+                return str(value)
+            if isinstance(value, float) and value.is_integer():
+                return str(int(value))
+            if isinstance(value, int | float):
+                return str(value)
+            return value
+
+        return {name: text(value) for name, value in v.items()}
+
+    @field_validator("series")
+    @classmethod
+    def _validate_series(cls, v: dict[str, str]) -> dict[str, str]:
+        cleaned = {name.strip(): value for name, value in v.items()}
+        if any(not name for name in cleaned):
+            raise ValueError("series filter names must not be empty")
+        return cleaned
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_series_settings(self, handler: SerializerFunctionWrapHandler) -> Any:
+        """Leave ``group_by`` and ``series`` out of dumps while they are empty, so a
+        single-series run writes the same configuration (and result files) as before
+        they existed. Loading fills them back with their defaults."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for name in ("group_by", "series"):
+                if not data.get(name, True):
+                    del data[name]
+        return data
 
     model_config = ConfigDict(validate_assignment=True)
 
