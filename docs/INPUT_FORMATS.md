@@ -7,10 +7,11 @@ Loading has three steps:
 
 1. A **reader** turns a file into a table of raw rows. There is one reader per format
    (CSV, TSV, JSON lines, scamper, RIPE Atlas, Parquet, Arrow, ping and fping output),
-   chosen by extension or content.
+   chosen by extension or content. A database query (ClickHouse, InfluxDB, DuckDB; see
+   [Data sources](DATA_SOURCES.md)) gives raw rows the same way.
 2. The **normalizer** (`jitterbug.io.normalize`) applies the `input` settings to those
-   rows: column mapping, then units, then row policies. Files, pandas DataFrames and
-   InfluxDB results all go through it, so the rules below are enforced in one place.
+   rows: column mapping, then units, then row policies. Files, query results and pandas
+   DataFrames all go through it, so the rules below are enforced in one place.
 3. The result is an `RTTDataset`: Unix-second times, millisecond RTTs, in time order.
 
 Everything is configured in the `input` section of the configuration file
@@ -526,13 +527,21 @@ results = JitterbugAnalyzer(config).analyze_from_dataframe(df)
 The frame goes through the same normalizer as a file, so anything that can be turned
 into a frame (a database query, a live probe) can be analyzed.
 
-## InfluxDB
+## Databases
 
-With the `influx` extra, `DataLoader.load_from_influxdb(url, token, org, bucket, query)`
-runs a Flux query and maps `_time` to `epoch` (seconds, UTC, rounded to microseconds)
-and `_value` (or `rtt`, `latency`, `values`) to the RTT column. The column names and the
-time unit are fixed by this mapping; `rtt_unit` and the row policies apply. The token is
-used only for the connection and is never written to configuration, logs or results.
+ClickHouse, InfluxDB 2 (Flux), InfluxDB 3 (SQL, InfluxQL) and DuckDB queries are read
+with a source URI or a `sources:` profile in place of the file
+(`jitterbug analyze clickhouse://db/netmon --query "..."`); the result rows go through
+everything on this page, `series` and `group_by` included. Datetime time columns are
+read as datetimes whatever `time_unit` says, and InfluxDB results default to their
+`_time`/`_value` (Flux) or `time` (InfluxDB 3) columns. Credentials come only from
+environment variables. See [Data sources](DATA_SOURCES.md).
+
+`DataLoader.load_from_influxdb(url, token, org, bucket, query)` still runs a Flux query
+for existing code: `_time` is the time and `_value` (or `rtt`, `latency`, `values`) the
+RTT unless `input` maps other columns; `rtt_unit`, the row policies and `series` apply.
+The token is used only for the connection and is never written to configuration, logs
+or results.
 
 ## Adding a format
 

@@ -26,6 +26,7 @@ from .models import (
     MultiSeriesResult,
     RTTDataset,
     SeriesResult,
+    SourceConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,46 @@ class JitterbugAnalyzer:
 
         # Perform analysis
         return self.analyze(rtt_data)
+
+    def analyze_from_source(self, source: SourceConfig) -> CongestionInferenceResult:
+        """
+        Analyze RTT data read from a database query.
+
+        Parameters
+        ----------
+        source : SourceConfig
+            Back end, connection settings and query; the result rows are mapped through
+            ``config.input`` like a file's. Credentials come from environment variables.
+
+        Returns
+        -------
+        CongestionInferenceResult
+            Complete analysis results including congestion inferences.
+        """
+        logger.info(f"Loading RTT data from a {source.kind} query")
+        rtt_data = self.data_loader.load_from_source(source)
+        self.raw_data = rtt_data
+        return self.analyze(rtt_data)
+
+    def analyze_series_from_source(self, source: SourceConfig) -> MultiSeriesResult:
+        """
+        Analyze each series of a database query result on its own; see
+        :meth:`analyze_series_from_file`.
+
+        Parameters
+        ----------
+        source : SourceConfig
+            Back end, connection settings and query.
+
+        Returns
+        -------
+        MultiSeriesResult
+            One entry per series.
+        """
+        logger.info(f"Loading RTT series from a {source.kind} query")
+        skipped: dict[SeriesKey, str] = {}
+        datasets = self.data_loader.load_series_from_source(source, skipped)
+        return self._analyze_each(datasets, skipped)
 
     def analyze_from_dataframe(self, df: pd.DataFrame) -> CongestionInferenceResult:
         """

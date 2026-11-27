@@ -19,6 +19,7 @@ from .config import (
     JitterAnalysisConfig,
     JitterbugConfig,
     LatencyJumpConfig,
+    SourceConfig,
     StreamingConfig,
 )
 from .rtt_data import MAX_RTT_MS, MinimumRTTDataset, RTTDataset, RTTMeasurement
@@ -36,6 +37,7 @@ __all__ = [
     "SeriesResult",
     "MultiSeriesResult",
     "JitterbugConfig",
+    "SourceConfig",
     "ChangePointDetectionConfig",
     "JitterAnalysisConfig",
     "LatencyJumpConfig",

@@ -13,6 +13,7 @@ from typing import Any
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -23,7 +24,14 @@ from ..io.compression import open_text
 from ..io.readers import available_formats
 from ..io.readers.ping import LINE_PARSERS, NO_TIMESTAMP_HINT, LineParser
 from ..io.series import series_flags
-from ..models import CongestionInferenceResult, JitterbugConfig, MultiSeriesResult
+from ..io.sources import install_redacting_filter, is_source_uri, parse_source_uri
+from ..models import (
+    CongestionInferenceResult,
+    JitterbugConfig,
+    MultiSeriesResult,
+    RTTDataset,
+    SourceConfig,
+)
 
 # matplotlib is an optional dependency; the visualize command checks for it at run time.
 try:
@@ -71,6 +79,127 @@ SERIES_OPTION = typer.Option(
     help="Keep only rows where COLUMN equals VALUE (COLUMN=VALUE, repeatable; source and "
     "destination name the mapped columns)",
 )
+
+
+# Database sources, shared by analyze, validate, inspect, visualize and replay.
+INPUT_HELP = (
+    "RTT data file (CSV, TSV, JSONL, scamper or RIPE Atlas JSON, ping/fping output, "
+    "Parquet/Arrow; may be compressed), or a database source URI: "
+    "clickhouse://host[:port][/database], influxdb2://host[:port]?org=ORG, "
+    "influxdb3://host[:port]/database, duckdb: or duckdb:///path/to.db (with --query)"
+)
+SOURCE_OPTION = typer.Option(
+    None,
+    "--source",
+    help="Read from the database source NAME defined under `sources:` in --config",
+)
+QUERY_OPTION = typer.Option(
+    None,
+    "--query",
+    help="Query to run on a database source (SQL; Flux for influxdb2; replaces the "
+    "profile's query)",
+)
+QUERY_FILE_OPTION = typer.Option(
+    None, "--query-file", help="File holding the query to run on a database source"
+)
+
+InputTarget = Path | SourceConfig
+"""What an input argument resolves to: a file, or a database source with its query."""
+
+
+def _resolve_input(
+    input_arg: str | None,
+    jitterbug_config: JitterbugConfig,
+    *,
+    source: str | None,
+    query: str | None,
+    query_file: Path | None,
+    file_format: str | None = None,
+) -> InputTarget:
+    """
+    Turn the INPUT argument and the source options into a file path or a source.
+
+    A source comes from ``--source NAME`` (a profile of ``jitterbug_config.sources``) or
+    from a URI given as INPUT; ``--query``/``--query-file`` replace its query. Anything
+    else is a file path, which must exist. Errors are ``typer.BadParameter`` (exit 2).
+    """
+    target: SourceConfig
+    if source is not None:
+        if input_arg is not None:
+            raise typer.BadParameter(
+                "give either INPUT (a file or source URI) or --source, not both",
+                param_hint="'--source'",
+            )
+        profile = jitterbug_config.sources.get(source)
+        if profile is None:
+            names = ", ".join(sorted(jitterbug_config.sources)) or "none"
+            raise typer.BadParameter(
+                f"no source named {source!r} under `sources:` in the configuration "
+                f"(defined: {names}; pass the file with --config)",
+                param_hint="'--source'",
+            )
+        target = profile
+    elif input_arg is None:
+        raise typer.BadParameter(
+            "missing INPUT: a file, a source URI, or --source NAME", param_hint="'INPUT'"
+        )
+    elif is_source_uri(input_arg):
+        try:
+            target = parse_source_uri(input_arg)
+        except ValueError as e:
+            raise typer.BadParameter(str(e), param_hint="'INPUT'") from None
+    else:
+        if query is not None or query_file is not None:
+            raise typer.BadParameter(
+                "--query and --query-file apply to a database source (a URI or --source), "
+                "not to a file",
+                param_hint="'--query'",
+            )
+        path = Path(input_arg)
+        if not path.exists():
+            raise typer.BadParameter(f"File '{input_arg}' does not exist.", param_hint="'INPUT'")
+        return path
+
+    # Client libraries log on their own; keep secrets out of whatever they write.
+    install_redacting_filter()
+    if file_format is not None:
+        raise typer.BadParameter(
+            "--format applies to files; a database query returns columns",
+            param_hint="'--format'",
+        )
+    if query is not None and query_file is not None:
+        raise typer.BadParameter("give --query or --query-file, not both", param_hint="'--query'")
+    if query_file is not None and not query_file.is_file():
+        raise typer.BadParameter(
+            f"Query file '{query_file}' does not exist.", param_hint="'--query-file'"
+        )
+    if query is not None or query_file is not None:
+        target = target.model_copy(update={"query": query, "query_file": query_file})
+    if target.query is None and target.query_file is None:
+        raise typer.BadParameter(
+            f"a {target.kind} source needs a query: --query, --query-file, or query in its profile",
+            param_hint="'--query'",
+        )
+    return target
+
+
+def _shown_input(
+    input_file: str | None, source: str | None, query: str | None, query_file: Path | None
+) -> str:
+    """The input options as they can be typed again, for tips (a query is abbreviated)."""
+    shown = input_file if input_file is not None else f"--source {source}"
+    if query is not None:
+        shown += " --query '...'"
+    elif query_file is not None:
+        shown += f" --query-file {query_file}"
+    return shown
+
+
+def _load_dataset(loader: DataLoader, target: InputTarget, file_format: str | None) -> RTTDataset:
+    """Load a file or run a source's query."""
+    if isinstance(target, SourceConfig):
+        return loader.load_from_source(target)
+    return loader.load_from_file(target, file_format)
 
 
 def _parse_group_by(values: list[str] | None) -> list[str] | None:
@@ -206,11 +335,7 @@ app = typer.Typer(
 
 @app.command()
 def analyze(
-    input_file: Path = typer.Argument(
-        ...,
-        help="Path to RTT data file (CSV, TSV, JSONL or scamper JSON; may be compressed)",
-        exists=True,
-    ),
+    input_file: str | None = typer.Argument(None, metavar="INPUT", help=INPUT_HELP),
     output: Path | None = typer.Option(
         None, "--output", "-o", help="Output file path (default: stdout)"
     ),
@@ -227,6 +352,9 @@ def analyze(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    source: str | None = SOURCE_OPTION,
+    query: str | None = QUERY_OPTION,
+    query_file: Path | None = QUERY_FILE_OPTION,
     group_by: list[str] | None = GROUP_BY_OPTION,
     series: list[str] | None = SERIES_OPTION,
     output_format: str | None = typer.Option(
@@ -280,6 +408,10 @@ def analyze(
     • One analysis per destination, or one destination only:
       [cyan]jitterbug analyze pings.json --group-by destination -o results.json[/cyan]
       [cyan]jitterbug analyze pings.json --series destination=8.8.8.8[/cyan]
+
+    • From a database (password in CLICKHOUSE_PASSWORD), or a profile of the config:
+      [cyan]jitterbug analyze clickhouse://db:8123/net --query-file rtts.sql[/cyan]
+      [cyan]jitterbug analyze --source probes --config jitterbug.yaml[/cyan]
     """
     # Set up logging
     logging.basicConfig(
@@ -312,11 +444,21 @@ def analyze(
             series=series,
         )
 
+        target = _resolve_input(
+            input_file,
+            jitterbug_config,
+            source=source,
+            query=query,
+            query_file=query_file,
+            file_format=format,
+        )
+        shown = _shown_input(input_file, source, query, query_file)
+
         # Create analyzer
         analyzer = JitterbugAnalyzer(jitterbug_config)
 
         if jitterbug_config.input.group_by:
-            _analyze_grouped(analyzer, input_file, format, output)
+            _analyze_grouped(analyzer, target, format, output, shown)
             return
 
         # Show progress
@@ -328,7 +470,11 @@ def analyze(
         ) as progress:
             # Load data
             task = progress.add_task("Loading RTT data...", total=None)
-            results = analyzer.analyze_from_file(input_file, format)
+            results = (
+                analyzer.analyze_from_source(target)
+                if isinstance(target, SourceConfig)
+                else analyzer.analyze_from_file(target, format)
+            )
 
             # Save results
             if output:
@@ -347,7 +493,7 @@ def analyze(
             # Suggest saving results
             console.print(
                 f"\n💡 [dim]Tip: To save full results, use --output flag:[/dim]\n"
-                f"   [cyan]jitterbug analyze {input_file} "
+                f"   [cyan]jitterbug analyze {escape(shown)} "
                 f"--output results.{jitterbug_config.output_format}[/cyan]"
             )
 
@@ -359,7 +505,11 @@ def analyze(
 
 
 def _analyze_grouped(
-    analyzer: JitterbugAnalyzer, input_file: Path, file_format: str | None, output: Path | None
+    analyzer: JitterbugAnalyzer,
+    target: InputTarget,
+    file_format: str | None,
+    output: Path | None,
+    shown: str,
 ) -> None:
     """``analyze --group-by``: one analysis per series, one summary row per series."""
     output_format = analyzer.config.output_format
@@ -370,7 +520,11 @@ def _analyze_grouped(
         transient=True,
     ) as progress:
         task = progress.add_task("Loading and analyzing series...", total=None)
-        results = analyzer.analyze_series_from_file(input_file, file_format)
+        results = (
+            analyzer.analyze_series_from_source(target)
+            if isinstance(target, SourceConfig)
+            else analyzer.analyze_series_from_file(target, file_format)
+        )
         if output:
             progress.update(task, description="Saving results...")
             analyzer.save_series_results(results, output, output_format)
@@ -384,7 +538,7 @@ def _analyze_grouped(
     else:
         console.print(
             f"\n💡 [dim]Tip: To save full results, use --output flag:[/dim]\n"
-            f"   [cyan]jitterbug analyze {input_file} --group-by "
+            f"   [cyan]jitterbug analyze {escape(shown)} --group-by "
             f"{','.join(analyzer.config.input.group_by)} --output results.{output_format}[/cyan]"
         )
 
@@ -429,7 +583,7 @@ def config(
 
 @app.command()
 def validate(
-    input_file: Path = typer.Argument(..., help="Path to RTT data file to validate", exists=True),
+    input_file: str | None = typer.Argument(None, metavar="INPUT", help=INPUT_HELP),
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Configuration file path (YAML or JSON); only `input` is used"
     ),
@@ -443,6 +597,9 @@ def validate(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    source: str | None = SOURCE_OPTION,
+    query: str | None = QUERY_OPTION,
+    query_file: Path | None = QUERY_FILE_OPTION,
     series: list[str] | None = SERIES_OPTION,
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ) -> None:
@@ -473,6 +630,14 @@ def validate(
             rtt_unit=rtt_unit,
             series=series,
         )
+        target = _resolve_input(
+            input_file,
+            jitterbug_config,
+            source=source,
+            query=query,
+            query_file=query_file,
+            file_format=format,
+        )
         data_loader = DataLoader(jitterbug_config.input)
 
         with Progress(
@@ -483,7 +648,7 @@ def validate(
         ) as progress:
             task = progress.add_task("Loading and validating data...", total=None)
 
-            dataset = data_loader.load_from_file(input_file, format)
+            dataset = _load_dataset(data_loader, target, format)
             validation_results = data_loader.validate_data(dataset)
 
             progress.update(task, description="Validation complete!", total=1, completed=1)
@@ -500,7 +665,7 @@ def validate(
 
 @app.command()
 def inspect(
-    input_file: Path = typer.Argument(..., help="Path to RTT data file to inspect", exists=True),
+    input_file: str | None = typer.Argument(None, metavar="INPUT", help=INPUT_HELP),
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Configuration file path (YAML or JSON); only `input` is used"
     ),
@@ -509,12 +674,15 @@ def inspect(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    source: str | None = SOURCE_OPTION,
+    query: str | None = QUERY_OPTION,
+    query_file: Path | None = QUERY_FILE_OPTION,
     group_by: list[str] | None = GROUP_BY_OPTION,
     series: list[str] | None = SERIES_OPTION,
     as_json: bool = typer.Option(False, "--json", help="Print the report as JSON"),
 ) -> None:
     """
-    Show what loading a file would do, without analyzing it.
+    Show what loading a file or a database query would do, without analyzing it.
 
     Reports the detected format and compression, the column mapping and units in effect
     (including what --time-unit auto inferred), how many rows each row policy would drop
@@ -530,6 +698,9 @@ def inspect(
 
     • The series `analyze --group-by` would analyze, as JSON:
       [cyan]jitterbug inspect rtts.csv --group-by source,destination --json[/cyan]
+
+    • The columns a database query returns (runs the query):
+      [cyan]jitterbug inspect duckdb: --query "SELECT * FROM 'rtts/*.parquet'"[/cyan]
     """
     logging.basicConfig(
         level=logging.WARNING,
@@ -537,7 +708,7 @@ def inspect(
         stream=sys.stderr,
     )
     try:
-        from ..io.inspection import inspect_file
+        from ..io.inspection import inspect_file, inspect_source
 
         jitterbug_config = JitterbugConfig.from_file(config) if config else JitterbugConfig()
         jitterbug_config = _apply_input_overrides(
@@ -549,7 +720,19 @@ def inspect(
             group_by=group_by,
             series=series,
         )
-        report = inspect_file(input_file, format, jitterbug_config.input)
+        target = _resolve_input(
+            input_file,
+            jitterbug_config,
+            source=source,
+            query=query,
+            query_file=query_file,
+            file_format=format,
+        )
+        report = (
+            inspect_source(target, jitterbug_config.input)
+            if isinstance(target, SourceConfig)
+            else inspect_file(target, format, jitterbug_config.input)
+        )
     except typer.BadParameter:
         raise
     except Exception as e:
@@ -566,11 +749,7 @@ def inspect(
 
 @app.command()
 def visualize(
-    input_file: Path = typer.Argument(
-        ...,
-        help="Path to RTT data file (CSV, TSV, JSONL or scamper JSON; may be compressed)",
-        exists=True,
-    ),
+    input_file: str | None = typer.Argument(None, metavar="INPUT", help=INPUT_HELP),
     output_dir: Path = typer.Option(
         "visualization_output",
         "--output-dir",
@@ -590,6 +769,9 @@ def visualize(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    source: str | None = SOURCE_OPTION,
+    query: str | None = QUERY_OPTION,
+    query_file: Path | None = QUERY_FILE_OPTION,
     series: list[str] | None = SERIES_OPTION,
     method: str | None = typer.Option(
         None,
@@ -673,6 +855,14 @@ def visualize(
             series=series,
         )
 
+        target = _resolve_input(
+            input_file,
+            jitterbug_config,
+            source=source,
+            query=query,
+            query_file=query_file,
+            file_format=format,
+        )
         # Create analyzer
         analyzer = JitterbugAnalyzer(jitterbug_config)
 
@@ -685,7 +875,11 @@ def visualize(
             transient=True,
         ) as progress:
             task = progress.add_task("Loading and analyzing RTT data...", total=None)
-            results = analyzer.analyze_from_file(input_file, format)
+            results = (
+                analyzer.analyze_from_source(target)
+                if isinstance(target, SourceConfig)
+                else analyzer.analyze_from_file(target, format)
+            )
 
             progress.update(task, description="Generating plots...")
             if analyzer.raw_data is None or analyzer.min_rtt_data is None:
@@ -1007,9 +1201,7 @@ def stream(
 
 @app.command()
 def replay(
-    input_file: Path = typer.Argument(
-        ..., help="RTT data file to replay in time order", exists=True
-    ),
+    input_file: str | None = typer.Argument(None, metavar="INPUT", help=INPUT_HELP),
     output: Path | None = typer.Option(
         None, "--output", "-o", help="Write every event as a JSON array to this file"
     ),
@@ -1024,6 +1216,9 @@ def replay(
     rtt_column: str | None = RTT_COLUMN_OPTION,
     time_unit: str | None = TIME_UNIT_OPTION,
     rtt_unit: str | None = RTT_UNIT_OPTION,
+    source: str | None = SOURCE_OPTION,
+    query: str | None = QUERY_OPTION,
+    query_file: Path | None = QUERY_FILE_OPTION,
     series: list[str] | None = SERIES_OPTION,
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Configuration file (YAML or JSON)", exists=True
@@ -1096,6 +1291,14 @@ def replay(
             rtt_unit=rtt_unit,
             series=series,
         )
+        target = _resolve_input(
+            input_file,
+            jitterbug_config,
+            source=source,
+            query=query,
+            query_file=query_file,
+            file_format=format,
+        )
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -1103,7 +1306,7 @@ def replay(
             transient=True,
         ) as progress:
             task = progress.add_task("Replaying...", total=None)
-            dataset = DataLoader(jitterbug_config.input).load_from_file(input_file, format)
+            dataset = _load_dataset(DataLoader(jitterbug_config.input), target, format)
             events, changes = replay_state_changes(dataset, jitterbug_config)
             progress.update(task, total=1, completed=1)
         summary = score(events, reference)
@@ -1283,14 +1486,22 @@ def _display_series_results(results: MultiSeriesResult, analyzer: JitterbugAnaly
 
 
 def _display_inspection(report: dict[str, Any]) -> None:
-    """Human-readable form of an ``inspect_file`` report."""
-    compression = report["compression"] or "none"
-    detail = f" ({report['format_detail']})" if report.get("format_detail") else ""
-    console.print(f"📄 [bold]{report['file']}[/bold]")
-    console.print(f"   Format: {report['format']}{detail}, compression: {compression}")
-    for key, value in report["reader"].items():
-        console.print(f"   {key.replace('_', ' ').capitalize()}: {value!r}")
-    console.print(f"   Columns: {', '.join(report['columns'])}")
+    """Human-readable form of an ``inspect_file`` or ``inspect_source`` report."""
+    if "source" in report:
+        details = dict(report["source"])
+        kind = details.pop("kind")
+        settings = ", ".join(f"{k}: {v}" for k, v in details.items())
+        console.print(f"🗄️  [bold]{kind} source[/bold] ({escape(settings)})")
+        query = "\n".join(f"     {line}" for line in report["query"].splitlines())
+        console.print("   Query:\n" + escape(query))
+    else:
+        compression = report["compression"] or "none"
+        detail = f" ({report['format_detail']})" if report.get("format_detail") else ""
+        console.print(f"📄 [bold]{report['file']}[/bold]")
+        console.print(f"   Format: {report['format']}{detail}, compression: {compression}")
+        for key, value in report["reader"].items():
+            console.print(f"   {key.replace('_', ' ').capitalize()}: {value!r}")
+    console.print(f"   Columns: {escape(', '.join(report['columns']))}")
 
     mapping = report.get("mapping")
     if mapping is not None:
