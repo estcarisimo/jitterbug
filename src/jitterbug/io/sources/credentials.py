@@ -19,8 +19,9 @@ REDACTED = "***"
 """What a secret is replaced with."""
 
 _PATTERNS = (
-    # user:password@ in a URL or DSN
-    (re.compile(r"(?P<keep>://[^/\s:@]*:)[^@\s/]+(?=@)"), r"\g<keep>" + REDACTED),
+    # user:password@ in a URL or DSN; the password may contain spaces (not on one line
+    # with another '@' or '/' though, which ends the user information)
+    (re.compile(r"(?P<keep>://[^/\s:@]*:)[^@/\n]{1,256}(?=@)"), r"\g<keep>" + REDACTED),
     # Authorization: Token abc / Bearer abc / Basic abc
     (
         re.compile(r"(?P<keep>authorization['\"]?\s*[:=]\s*['\"]?(?:\w+\s+)?)[^\s'\",}]+", re.I),

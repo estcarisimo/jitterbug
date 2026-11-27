@@ -35,8 +35,8 @@ from jitterbug.models.config import InputConfig
 runner = CliRunner()
 
 T0 = 1_700_000_000
-# A made-up credential that must never appear in any output (named so for the reader;
-# CodeQL flags variables named like secrets even where logging one is the test).
+# A made-up credential that must never appear in any output. Not named SECRET: CodeQL
+# flags logging a variable named like a secret, which one test here does on purpose.
 CANARY = "s3cr3t-Pa55w0rd-xyz"
 
 
@@ -669,6 +669,7 @@ class TestCLI:
         assert json.loads(result.output)["columns"] == ["x"]
 
     def test_replay_and_analyze_accept_a_source(self, tmp_path: Path) -> None:
+        pytest.importorskip("bayesian_changepoint_detection")  # replay's default back end
         query = f"SELECT {T0} + 15 * i AS epoch, 20.0 + (i % 7) AS rtt FROM range(2000) r(i)"
         result = runner.invoke(app, ["analyze", "duckdb:", "--query", query, "--summary-only"])
         assert result.exit_code == 0, result.output
@@ -756,3 +757,26 @@ def test_help_shows_the_uri_forms(command: str) -> None:
     text = flat(result.output)
     assert "clickhouse://host[:port][/database]" in text
     assert "--source" in text and "--query-file" in text
+
+
+@pytest.mark.parametrize("command", ["analyze", "validate", "inspect", "replay"])
+def test_cli_missing_extra_hint_keeps_its_brackets(
+    monkeypatch: pytest.MonkeyPatch, command: str
+) -> None:
+    """Regression: error messages were printed as Rich markup, which ate the
+    ``[duckdb]`` of ``pip install 'jitterbug-inference[duckdb]'``."""
+    monkeypatch.setitem(sys.modules, "duckdb", None)
+    result = runner.invoke(app, [command, "duckdb:", "--query", "SELECT 1"])
+    assert result.exit_code == 1
+    assert "pip install 'jitterbug-inference[duckdb]'" in flat(result.output)
+
+
+def test_cli_error_with_brackets_is_printed_verbatim(clickhouse: FakeClient) -> None:
+    clickhouse.error = RuntimeError("no route to [::1]:8123 [/x] [bold]")
+    result = runner.invoke(app, ["validate", "clickhouse://db/net", "--query", QUERY])
+    assert result.exit_code == 1
+    assert "no route to [::1]:8123 [/x] [bold]" in flat(result.output)
+
+
+def test_redact_dsn_password_with_spaces() -> None:
+    assert redact("POST http://u:pa ss word@db:8123/ failed") == "POST http://u:***@db:8123/ failed"

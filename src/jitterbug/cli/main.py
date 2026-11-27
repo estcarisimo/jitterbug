@@ -501,7 +501,7 @@ def analyze(
     except typer.BadParameter:
         raise
     except Exception as e:
-        console.print(f"❌ Error: {e}", style="red")
+        console.print(f"❌ Error: {escape(str(e))}", style="red")
         raise typer.Exit(1) from None
 
 
@@ -660,7 +660,7 @@ def validate(
     except typer.BadParameter:
         raise
     except Exception as e:
-        console.print(f"❌ Validation failed: {e}", style="red")
+        console.print(f"❌ Validation failed: {escape(str(e))}", style="red")
         raise typer.Exit(1) from None
 
 
@@ -737,7 +737,7 @@ def inspect(
     except typer.BadParameter:
         raise
     except Exception as e:
-        err_console.print(f"❌ Error: {e}", style="red")
+        err_console.print(f"❌ Error: {escape(str(e))}", style="red")
         raise typer.Exit(1) from None
 
     if as_json:
@@ -909,7 +909,7 @@ def visualize(
     except typer.BadParameter:
         raise
     except Exception as e:
-        console.print(f"❌ Error: {e}", style="red")
+        console.print(f"❌ Error: {escape(str(e))}", style="red")
         if verbose:
             import traceback
 
@@ -1196,7 +1196,7 @@ def stream(
             f"{n_samples} samples read, {n_skipped} lines skipped, {n_events} events emitted"
         )
     except Exception as e:
-        err_console.print(f"❌ Error: {e}", style="red")
+        err_console.print(f"❌ Error: {escape(str(e))}", style="red")
         raise typer.Exit(1) from None
 
 
@@ -1368,7 +1368,7 @@ def replay(
     except typer.BadParameter:
         raise
     except Exception as e:
-        console.print(f"❌ Error: {e}", style="red")
+        console.print(f"❌ Error: {escape(str(e))}", style="red")
         raise typer.Exit(1) from None
 
 
@@ -1666,7 +1666,7 @@ def main() -> None:
         console.print("\n👋 Goodbye!", style="yellow")
         sys.exit(0)
     except Exception as e:
-        console.print(f"❌ Unexpected error: {e}", style="red")
+        console.print(f"❌ Unexpected error: {escape(str(e))}", style="red")
         sys.exit(1)
 
 
