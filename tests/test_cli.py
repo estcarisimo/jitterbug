@@ -678,3 +678,35 @@ def test_cli_overrides_do_not_repeat_or_invent_deprecation_warnings(tmp_path: Pa
         overridden = _apply_overrides(JitterbugConfig.from_file(cfg), threshold=0.3)
     assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1
     assert overridden.data_processing.outlier_threshold == 2.0
+
+
+def test_override_helpers_keep_sources_and_deprecated_options_without_new_warnings(
+    tmp_path: Path,
+):
+    """A configuration with a `sources:` profile and a deprecated option goes through
+    every override helper: the option warns once at load, never again, and both the
+    option and the profile survive."""
+    import warnings
+
+    from jitterbug.cli.main import (
+        _apply_input_overrides,
+        _apply_overrides,
+        _apply_streaming_overrides,
+    )
+
+    cfg = tmp_path / "with_sources.yaml"
+    cfg.write_text(
+        "sources:\n  lab:\n    kind: duckdb\n    query: SELECT 1 AS epoch, 2.0 AS rtt\n"
+        "data_processing:\n  outlier_detection: false\n"
+    )
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        loaded = JitterbugConfig.from_file(cfg)
+        final = _apply_streaming_overrides(
+            _apply_input_overrides(_apply_overrides(loaded, threshold=0.3), time_unit="s"),
+            backend="window",
+        )
+    assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1
+    assert final.data_processing.outlier_detection is False
+    assert list(final.sources) == ["lab"]
+    assert final.sources["lab"].query == "SELECT 1 AS epoch, 2.0 AS rtt"
