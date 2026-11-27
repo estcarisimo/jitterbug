@@ -2,9 +2,13 @@
 Tests for Jitterbug data models.
 """
 
+import logging
+import warnings
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from jitterbug.models import (
@@ -348,3 +352,86 @@ class TestInputConfig:
         assert config.input.duplicates == "min"
         config.to_file(tmp_path / "out.json")
         assert JitterbugConfig.from_file(tmp_path / "out.json").input == config.input
+
+
+DEPRECATED_SETTINGS = [
+    ("min_samples_per_interval", 50),
+    ("outlier_detection", False),
+    ("outlier_threshold", 1.5),
+]
+
+
+def _deprecation_messages(record: list[warnings.WarningMessage]) -> list[str]:
+    return [str(w.message) for w in record if issubclass(w.category, DeprecationWarning)]
+
+
+PAPER_CSV = (
+    Path(__file__).resolve().parents[1] / "examples" / "network_analysis" / "data" / "raw.csv"
+)
+
+
+class TestDeprecatedDataProcessingOptions:
+    """The three never-read `data_processing` options: accepted, warned about, no effect."""
+
+    @pytest.mark.parametrize(("name", "value"), DEPRECATED_SETTINGS)
+    def test_setting_an_option_warns_once(self, name, value, caplog):
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            config = JitterbugConfig(data_processing={name: value})
+        assert getattr(config.data_processing, name) == value
+        messages = _deprecation_messages(record)
+        assert len(messages) == 1
+        assert f"data_processing.{name}" in messages[0]
+        assert "3.0" in messages[0]
+        logged = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert [r.getMessage() for r in logged] == messages
+
+    def test_default_config_does_not_warn(self, caplog):
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            config = JitterbugConfig()
+            config.data_processing.minimum_interval_minutes = 10
+            JitterbugConfig.model_validate(config.model_dump())
+        assert _deprecation_messages(record) == []
+        assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+    def test_dumps_leave_unset_options_out_and_keep_set_ones(self):
+        assert JitterbugConfig().model_dump()["data_processing"] == {"minimum_interval_minutes": 15}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            config = JitterbugConfig(data_processing={"outlier_detection": False})
+        assert config.model_dump()["data_processing"] == {
+            "minimum_interval_minutes": 15,
+            "outlier_detection": False,
+        }
+
+    def test_old_config_file_still_loads(self, tmp_path):
+        cfg = tmp_path / "old.yaml"
+        cfg.write_text(
+            "data_processing:\n  minimum_interval_minutes: 30\n"
+            "  min_samples_per_interval: 5\n  outlier_detection: true\n"
+            "  outlier_threshold: 3.0\n"
+        )
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            config = JitterbugConfig.from_file(cfg)
+        assert config.data_processing.minimum_interval_minutes == 30
+        assert len(_deprecation_messages(record)) == 3
+
+    @pytest.mark.skipif(not PAPER_CSV.exists(), reason="example dataset not present")
+    def test_setting_the_options_does_not_change_the_analysis(self):
+        from jitterbug.analyzer import JitterbugAnalyzer
+
+        df = pd.read_csv(PAPER_CSV, nrows=6000)  # first days: congested periods, ~0.1 s
+        baseline = JitterbugAnalyzer(JitterbugConfig()).analyze_from_dataframe(df)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            config = JitterbugConfig(data_processing=dict(DEPRECATED_SETTINGS))
+        result = JitterbugAnalyzer(config).analyze_from_dataframe(df)
+        assert any(i.is_congested for i in baseline.inferences)
+        assert [i.model_dump() for i in result.inferences] == [
+            i.model_dump() for i in baseline.inferences
+        ]
+        assert {k: v for k, v in result.metadata.items() if k != "config"} == {
+            k: v for k, v in baseline.metadata.items() if k != "config"
+        }

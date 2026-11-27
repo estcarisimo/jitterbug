@@ -134,6 +134,10 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
   with status `suspected`/`confirmed`/`retracted`; do not call it an alarm in identifiers,
   options, events or docs. Its goldens are `TestStateChangeReplay`, its table in
   `docs/ONLINE_MODE.md` comes from `tools/state_change_sweep.py`.
+- `data_processing.min_samples_per_interval`, `outlier_detection` and `outlier_threshold`
+  are deprecated no-ops (never read by any code): they warn when set and stay out of
+  dumps. Do not implement them in 2.x (it would move the paper goldens). Things to
+  remove in 3.0 carry a `remove in 3.0` comment (`git grep "remove in 3.0"`).
 - Readers' first-line sniffers run in registration order, which is the import order in
   `io/readers/__init__.py`: ping and fping come before CSV because fping lines contain
   commas. pyarrow is optional (`parquet` extra) and imported lazily; only the `test-bcp`

@@ -123,6 +123,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   virtualenv 21.14.13. The first four no longer install on Python 3.10 (see
   *Removed*).
 
+### Deprecated
+
+- `data_processing.min_samples_per_interval`, `data_processing.outlier_detection` and
+  `data_processing.outlier_threshold`. No code has ever read them: they were accepted,
+  validated and documented, but no minimum number of samples per interval and no outlier
+  filtering was ever applied. They are still accepted through 2.x, with no effect;
+  setting one now emits a `DeprecationWarning` and a log warning. They are removed in
+  3.0. `jitterbug config --template`, `JitterbugConfig.to_file` and the `metadata.config`
+  of result files leave them out unless they were set explicitly, and README and
+  `examples/` no longer show them.
+
 ### Removed
 
 - **Python 3.11 or newer is required** (was 3.10). Python 3.10 reached end of life in

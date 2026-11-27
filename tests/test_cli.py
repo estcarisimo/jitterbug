@@ -645,3 +645,31 @@ def test_format_help_lists_the_registered_formats():
     assert result.exit_code == 0
     expected = "parquet, arrow, ping, fping, csv, tsv, atlas, json, scamper, jsonl"
     assert expected in " ".join(result.output.split())
+
+
+def test_config_template_omits_the_deprecated_options():
+    result = runner.invoke(app, ["config", "--template"])
+    assert result.exit_code == 0, result.output
+    for name in ("min_samples_per_interval", "outlier_detection", "outlier_threshold"):
+        assert name not in result.output
+
+
+def test_cli_overrides_do_not_repeat_or_invent_deprecation_warnings(tmp_path: Path):
+    """The override helpers re-validate a dump: no warning for options the user never
+    set, and a set option keeps its value without warning a second time."""
+    import warnings
+
+    from jitterbug.cli.main import _apply_input_overrides, _apply_overrides
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        _apply_input_overrides(_apply_overrides(JitterbugConfig(), threshold=0.3))
+    assert not [w for w in record if issubclass(w.category, DeprecationWarning)]
+
+    cfg = tmp_path / "old.yaml"
+    cfg.write_text("data_processing:\n  outlier_threshold: 2.0\n")
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        overridden = _apply_overrides(JitterbugConfig.from_file(cfg), threshold=0.3)
+    assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1
+    assert overridden.data_processing.outlier_threshold == 2.0

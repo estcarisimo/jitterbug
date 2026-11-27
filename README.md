@@ -265,8 +265,6 @@ latency_jump:
 
 data_processing:
   minimum_interval_minutes: 15 # width of the minimum-RTT intervals
-  outlier_detection: true
-  outlier_threshold: 3.0
 
 clustering:                    # used when analysis_mode is clustering
   algorithm: gmm               # gmm | kmeans | kmeans_silhouette
