@@ -309,3 +309,21 @@ def count_paths(df: pd.DataFrame, config: InputConfig, names: Sequence[str]) -> 
     if not names:
         return 1
     return len(df[[resolve_key_column(name, config) for name in names]].drop_duplicates())
+
+
+def series_flags(names: Sequence[str]) -> str:
+    """
+    Return the ``--series`` flags that keep one path, one per key name.
+
+    Parameters
+    ----------
+    names : Sequence[str]
+        Key names (see :func:`path_key_names`).
+
+    Returns
+    -------
+    str
+        ``--series NAME=VALUE`` for each name, separated by spaces
+        (``--series destination=VALUE`` without names).
+    """
+    return " ".join(f"--series {name}=VALUE" for name in names or ["destination"])

@@ -29,7 +29,7 @@ import pandas as pd
 
 from ..models import MAX_RTT_MS, RTTDataset, RTTMeasurement
 from ..models.config import RTT_COLUMN_SYNONYMS, InputConfig
-from .series import count_paths, count_source_destination_pairs, path_key_names
+from .series import count_paths, count_source_destination_pairs, path_key_names, series_flags
 
 logger = logging.getLogger(__name__)
 
@@ -143,8 +143,8 @@ def normalize(
             logger.warning(
                 f"Input holds {paths} distinct {_describe_names(names)}, analyzed "
                 f"as one mixed series. To separate them, group with --group-by "
-                f"{','.join(names)} (input.group_by) or keep one with --series "
-                f"{names[-1]}=VALUE (input.series); 'jitterbug inspect' lists them"
+                f"{','.join(names)} (input.group_by) or keep one with "
+                f"{series_flags(names)} (input.series); 'jitterbug inspect' lists them"
             )
     epoch_values = epochs[keep].to_numpy(dtype=float)
     rtt_values = rtts[keep].to_numpy(dtype=float)

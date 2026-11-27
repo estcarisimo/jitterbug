@@ -478,6 +478,7 @@ def test_atlas_without_grouping_warns_with_its_path_keys(
         DataLoader().load_from_file(atlas_two_probes)
     (warning,) = [r.message for r in caplog.records if "mixed series" in r.message]
     assert "--group-by prb_id,msm_id,destination" in warning
+    assert "--series prb_id=VALUE --series msm_id=VALUE --series destination=VALUE" in warning
 
 
 FPING_TWO_HOSTS = "".join(

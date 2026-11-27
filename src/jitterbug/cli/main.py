@@ -22,6 +22,7 @@ from ..io import DataLoader
 from ..io.compression import open_text
 from ..io.readers import available_formats
 from ..io.readers.ping import LINE_PARSERS, NO_TIMESTAMP_HINT, LineParser
+from ..io.series import series_flags
 from ..models import CongestionInferenceResult, JitterbugConfig, MultiSeriesResult
 
 # matplotlib is an optional dependency; the visualize command checks for it at run time.
@@ -1363,7 +1364,7 @@ def _display_inspection(report: dict[str, Any]) -> None:
         if not report["grouped"] and len(entries) > 1:
             console.print(
                 "⚠️  Several paths would be analyzed as one mixed series; separate them with "
-                f"--group-by {','.join(names)} or keep one with --series {names[-1]}=VALUE",
+                f"--group-by {','.join(names)} or keep one with {series_flags(names)}",
                 style="yellow",
             )
 
