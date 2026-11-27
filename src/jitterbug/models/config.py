@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 #: Options of :class:`DataProcessingConfig` that have never been read by any code.
 #: They are still accepted through the 2.x line, with no effect.
-# Deprecated after 2.5.0: remove in 3.0 (with their validators and the serializer below).
+# Deprecated after 2.6.0: remove in 3.0 (with their validators and the serializer below).
 DEPRECATED_DATA_PROCESSING_OPTIONS = (
     "min_samples_per_interval",
     "outlier_detection",
