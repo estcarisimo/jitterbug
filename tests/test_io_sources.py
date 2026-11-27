@@ -739,3 +739,13 @@ def test_influxdb3_without_token_says_which_variable(influx3: FakeClient) -> Non
     source = SourceConfig(kind="influxdb3", database="probes", query="SELECT 1")
     with pytest.raises(SourceError, match="INFLUX_TOKEN"):
         DataLoader().load_from_source(source)
+
+
+@pytest.mark.parametrize("command", ["analyze", "validate", "inspect", "visualize", "replay"])
+def test_help_shows_the_uri_forms(command: str) -> None:
+    """Regression: the INPUT help is Rich markup, where [/database] is a closing tag."""
+    result = runner.invoke(app, [command, "--help"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0, result.output
+    text = flat(result.output)
+    assert "clickhouse://host[:port][/database]" in text
+    assert "--source" in text and "--query-file" in text

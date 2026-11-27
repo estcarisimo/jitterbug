@@ -82,7 +82,8 @@ SERIES_OPTION = typer.Option(
 
 
 # Database sources, shared by analyze, validate, inspect, visualize and replay.
-INPUT_HELP = (
+# Escaped: the help is rendered as Rich markup, where [/database] would be a closing tag.
+INPUT_HELP = escape(
     "RTT data file (CSV, TSV, JSONL, scamper or RIPE Atlas JSON, ping/fping output, "
     "Parquet/Arrow; may be compressed), or a database source URI: "
     "clickhouse://host[:port][/database], influxdb2://host[:port]?org=ORG, "
