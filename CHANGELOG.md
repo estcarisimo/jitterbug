@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.6.0] - 2026-11-26
-
 ### Added
 
 - Database sources: ClickHouse (`clickhouse` extra, SQL), InfluxDB 2 (`influx`
@@ -30,6 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DataLoader.load_from_source`/`load_series_from_source`,
   `JitterbugAnalyzer.analyze_from_source`/`analyze_series_from_source`,
   `jitterbug.io.sources`. See `docs/DATA_SOURCES.md`.
+
+### Changed
+
+- `DataLoader.load_from_influxdb` runs through the new database source layer: its
+  errors are redacted, `input.series` applies, and an `input.time_column`/`rtt_column`
+  mapping is honored instead of being replaced by `_time`/`_value`.
+- Configuration validation errors no longer echo the offending input value
+  (`hide_input_in_errors`), so that a rejected secret is never printed back.
+
+## [2.6.0] - 2026-11-26
+
+### Added
+
 - Change point revisions in the online mode (`streaming.revise_change_points`,
   `--revise-change-points` on `stream` and `replay`; off by default, `bocpd` back end
   with the `map` rule). When the MAP rule refines the last change point within
@@ -123,11 +134,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `DataLoader.load_from_influxdb` runs through the new database source layer: its
-  errors are redacted, `input.series` applies, and an `input.time_column`/`rtt_column`
-  mapping is honored instead of being replaced by `_time`/`_value`.
-- Configuration validation errors no longer echo the offending input value
-  (`hide_input_in_errors`), so that a rejected secret is never printed back.
 - Loading is split into readers (`jitterbug.io.readers`, one per format, registered by
   name and extension) and a single normalizer (`jitterbug.io.normalize`) that applies
   the column mapping, units and row policies; `DataLoader.load_from_dataframe` is a
