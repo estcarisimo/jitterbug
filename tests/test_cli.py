@@ -495,7 +495,12 @@ def test_stream_on_state_change_runs_the_command_and_survives_failures(tmp_path:
     )
     assert result.exit_code == 0, result.output
     assert result.stdout.strip() == ""  # the hook alone does not print state changes
-    received = [json.loads(line) for line in log.read_text().splitlines()]
+    # The stream never waits for a hook command, so two commands can append to the log in
+    # either order; the events themselves carry the order.
+    received = sorted(
+        (json.loads(line) for line in log.read_text().splitlines()),
+        key=lambda change: change["emitted_at"],
+    )
     assert [c["status"] for c in received][:2] == ["suspected", "confirmed"]
 
     failing = runner.invoke(
