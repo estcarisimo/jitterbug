@@ -9,7 +9,9 @@ congested period counts as recovered when one of ours overlaps more than half of
 how many reference period boundaries have a change point within 30 min.
 
 Delays are measured from the change point to the sample that reported it. *Onset* is the
-change point that opens a congested final period, *return* the one that closes it.
+change point that opens a congested final period, *return* the one that closes it. With
+``streaming.revise_change_points``, ``revision`` events move change points; the scores use
+each change point's latest epoch and count the revisions.
 
 ``replay_state_changes`` runs the same replay through ``StateChangeTracker`` and
 ``score_state_changes`` summarizes the state changes: how many were suspected, confirmed and
@@ -127,21 +129,53 @@ def score(events: list[StreamingEvent], reference: Path | None = None) -> dict[s
         Output of ``replay``.
     reference : Path, optional
         CSV with ``starts,ends,congestion`` columns (the paper's ``expected_results``).
-        Adds ``recovered``, ``reference_congested`` and ``spurious``.
+        Adds ``recovered``, ``reference_congested``, ``spurious`` and boundary placement:
+        reference boundaries with a change point within 30 min and within 5 min (the same
+        bin), and the median and mean distance from a reference boundary to the nearest
+        change point (``boundary_offset_min_*``).
 
     Returns
     -------
     dict
-        Counts, delays in minutes and provisional-to-final agreement.
+        Counts, delays in minutes and provisional-to-final agreement. Change point
+        revisions are applied before scoring: boundaries, period ends and delays use the
+        latest epoch of each change point. A boundary's delay is that of its first
+        report (``emitted_at`` minus the epoch first reported). ``revisions`` counts the
+        revision events, ``revised_change_points`` the change points they moved,
+        ``revision_shift_min_*`` how far (minutes, later in time), ``revision_lag_min_*``
+        how long after the change point was first reported. ``provisional_superseded``
+        counts provisional verdicts judged on a boundary that was revised afterward and
+        ``provisional_superseded_changed`` those the provisional verdict on the revised
+        boundary contradicted.
     """
     cps = [e for e in events if e.kind == "change_point"]
+    revisions = [e for e in events if e.kind == "revision"]
     finals = [e for e in events if e.kind == "verdict" and e.stage == "final"]
-    provisional = {e.start_epoch: e for e in events if e.stage == "provisional"}
+    provisionals = [e for e in events if e.kind == "verdict" and e.stage == "provisional"]
+    provisional = {e.start_epoch: e for e in provisionals}
     congested = [e for e in finals if e.is_congested]
 
-    cp_delay_min = {e.start_epoch: e.delay / 60 for e in cps}
+    # Revisions move a change point: follow each epoch to its latest value.
+    moved = {e.revised_from: e.start_epoch for e in revisions if e.revised_from is not None}
+
+    def _latest(epoch: float) -> float:
+        while epoch in moved:
+            epoch = moved[epoch]
+        return epoch
+
+    reported_at = {e.start_epoch: e.emitted_at for e in cps}
+    for e in revisions:  # a revised change point keeps the time it was first reported
+        if e.revised_from in reported_at:
+            reported_at.setdefault(e.start_epoch, reported_at[e.revised_from])
+
+    # The delay of a boundary is that of its first report, from the epoch it was reported at.
+    cp_delay_min = {_latest(e.start_epoch): e.delay / 60 for e in cps}
     onset = [cp_delay_min[e.start_epoch] for e in congested if e.start_epoch in cp_delay_min]
-    back = [cp_delay_min[e.end_epoch] for e in congested if e.end_epoch in cp_delay_min]
+    back = [
+        cp_delay_min[_latest(e.end_epoch)]
+        for e in congested
+        if e.end_epoch is not None and _latest(e.end_epoch) in cp_delay_min
+    ]
 
     flips = 0
     lead_s = 0.0
@@ -161,6 +195,24 @@ def score(events: list[StreamingEvent], reference: Path | None = None) -> dict[s
 
     onset_med, onset_max = _stats(onset)
     back_med, back_max = _stats(back)
+    shift_med, shift_max = _stats(
+        [(e.start_epoch - e.revised_from) / 60 for e in revisions if e.revised_from is not None]
+    )
+    lag_med, lag_max = _stats(
+        [
+            (e.emitted_at - reported_at[e.revised_from]) / 60
+            for e in revisions
+            if e.revised_from in reported_at
+        ]
+    )
+    # Provisional verdicts judged on a boundary that was revised afterward, and how many
+    # of them the provisional verdict on the revised boundary contradicted.
+    superseded = [p for p in provisionals if _latest(p.start_epoch) != p.start_epoch]
+    superseded_changed = sum(
+        provisional[_latest(p.start_epoch)].is_congested != p.is_congested
+        for p in superseded
+        if _latest(p.start_epoch) in provisional
+    )
     result: dict[str, Any] = {
         "change_points": len(cps),
         "periods": len(finals),
@@ -172,20 +224,30 @@ def score(events: list[StreamingEvent], reference: Path | None = None) -> dict[s
         "provisional_pairs": pairs,
         "provisional_flips": flips,
         "provisional_lead_h_mean": (lead_s / pairs / 3600) if pairs else None,
+        "revisions": len(revisions),
+        "revised_change_points": len({_latest(e.start_epoch) for e in revisions}),
+        "revision_shift_min_median": shift_med,
+        "revision_shift_min_max": shift_max,
+        "revision_lag_min_median": lag_med,
+        "revision_lag_min_max": lag_max,
+        "provisional_superseded": len(superseded),
+        "provisional_superseded_changed": superseded_changed,
     }
     if reference is not None:
         periods = _read_reference(reference)
         ref = [period for period, is_congested in periods if is_congested]
-        ours = [(e.start_epoch, e.end_epoch) for e in congested if e.end_epoch is not None]
+        ours = [(e.start_epoch, _latest(e.end_epoch)) for e in congested if e.end_epoch is not None]
         result["recovered"] = sum(_covers(r, ours) for r in ref)
         result["reference_congested"] = len(ref)
         result["spurious"] = sum(not _covers(mine, ref) for mine in ours)
         # Boundary placement: reference period edges with a change point within 30 min.
         bounds = sorted({edge for period, _ in periods for edge in period})
-        cp_epochs = np.asarray([e.start_epoch for e in cps])
-        result["boundaries_within_30min"] = (
-            int(sum(np.min(np.abs(cp_epochs - b)) <= 1800 for b in bounds)) if len(cps) else 0
-        )
+        cp_epochs = np.asarray([_latest(e.start_epoch) for e in cps])
+        offsets = [float(np.min(np.abs(cp_epochs - b))) / 60 for b in bounds] if len(cps) else []
+        result["boundaries_within_30min"] = sum(o <= 30 for o in offsets)
+        result["boundaries_within_5min"] = sum(o <= 5 for o in offsets)
+        result["boundary_offset_min_median"] = float(np.median(offsets)) if offsets else None
+        result["boundary_offset_min_mean"] = float(np.mean(offsets)) if offsets else None
         result["reference_boundaries"] = len(bounds)
     return result
 
@@ -256,6 +318,9 @@ def score_state_changes(
     result: dict[str, Any] = {
         "state_changes": len(by_id),
         "state_changes_confirmed": sum(s == "confirmed" for s in outcome.values()),
+        "state_changes_revised": sum(
+            any(c.revised_from is not None for c in v) for v in by_id.values()
+        ),
         "suspected": len(suspected),
         "suspected_onsets": len(onsets),
         "suspected_returns": len(suspected) - len(onsets),

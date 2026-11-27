@@ -254,6 +254,69 @@ def test_ids_are_unique_per_change_and_events_serialize() -> None:
         assert json.loads(json.dumps(change.to_dict()))["kind"] == "state_change"
 
 
+def _revision(old: float, new: float, at: float) -> StreamingEvent:
+    return StreamingEvent(kind="revision", emitted_at=at, start_epoch=new, revised_from=old)
+
+
+def test_revision_moves_the_change_epoch_and_keeps_the_id() -> None:
+    tracker, backend = _tracker()
+    (suspected,) = _open(tracker, backend, S1, [30.0])
+    (confirmed,) = tracker.observe([_verdict(S1, "provisional", True, S1 + 3 * BIN)], S1 + 3 * BIN)
+    revised_epoch = S1 + 2 * BIN
+    at = S1 + 6 * BIN
+    # The back end re-judges the open period on the revised boundary, in the same batch.
+    (revised,) = tracker.observe(
+        [_revision(S1, revised_epoch, at), _verdict(revised_epoch, "provisional", True, at)], at
+    )
+    assert revised.id == suspected.id == f"{S1:.0f}:baseline->congested"
+    assert revised.status == "confirmed"
+    assert revised.change_epoch == revised_epoch
+    assert revised.revised_from == S1
+    assert revised.emitted_at == at
+    assert (revised.suspected_at, revised.confirmed_at) == (S1 + BIN, S1 + 3 * BIN)
+    assert confirmed.revised_from is None
+    # Later evidence about the period keeps the id and the revised epoch.
+    final = _verdict(revised_epoch, "final", False, S2, S2)
+    (retracted,) = tracker.observe([_cp(S2, S2), final], S2)
+    assert retracted.id == suspected.id
+    assert retracted.status == "retracted"
+    assert retracted.change_epoch == revised_epoch
+    assert retracted.revised_from is None
+    assert json.loads(json.dumps(revised.to_dict()))["revised_from"] == S1
+
+
+def test_revision_whose_new_verdict_contradicts_the_old_one() -> None:
+    tracker, backend = _tracker()
+    _open(tracker, backend, S1, [10.0])  # no rise: nothing suspected
+    assert tracker.observe([_verdict(S1, "provisional", False, S1 + 3 * BIN)], S1 + 3 * BIN) == []
+    revised_epoch = S1 + 3 * BIN
+    at = S1 + 7 * BIN
+    (confirmed,) = tracker.observe(
+        [_revision(S1, revised_epoch, at), _verdict(revised_epoch, "provisional", True, at)], at
+    )
+    assert confirmed.id == f"{S1:.0f}:baseline->congested"  # first-reported epoch
+    assert confirmed.change_epoch == revised_epoch
+    assert confirmed.status == "confirmed"
+    assert confirmed.revised_from is None  # nothing existed to revise; a new change
+    assert tracker.state == "congested"
+
+
+def test_revision_of_an_unknown_period_is_ignored() -> None:
+    tracker, backend = _tracker()
+    _open(tracker, backend, S1, [30.0])
+    assert tracker.observe([_revision(S1 + 5, S1 + 2 * BIN, S1 + 4 * BIN)], S1 + 4 * BIN) == []
+
+
+def test_score_counts_revised_changes() -> None:
+    tracker, backend = _tracker()
+    _open(tracker, backend, S1, [30.0])
+    events = [_revision(S1, S1 + BIN, S1 + 4 * BIN)]
+    tracker.observe(events, S1 + 4 * BIN)
+    s = score_state_changes(events, tracker.state_changes)
+    assert s["state_changes"] == 1
+    assert s["state_changes_revised"] == 1
+
+
 def test_old_periods_are_frozen() -> None:
     tracker, backend = _tracker()
     start = S1

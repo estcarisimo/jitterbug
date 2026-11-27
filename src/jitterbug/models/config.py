@@ -308,6 +308,16 @@ class StreamingConfig(BaseModel):
     min_time_elapsed : int
         Minimum seconds between change points. The MAP rule refines a boundary a few
         bins after first reporting it; one hour absorbs those refinements.
+    revise_change_points : bool
+        ``bocpd`` back end with the ``map`` rule only. When the MAP rule moves the last
+        change point by less than ``min_time_elapsed`` (it only moves later), emit a
+        ``revision`` event instead of dropping the refinement: the open period starts at
+        the revised epoch, its provisional verdict is judged again, and its final verdict
+        and ``StateChangeTracker`` use it. The previous period's final verdict, already
+        emitted, keeps its ``end_epoch``. Off by default: on the paper dataset it puts 13
+        instead of 8 of the 30 reference boundaries in the right bin but one revision
+        moves a boundary away from the reference (19 instead of 20 within 30 min), and
+        revisions arrive hours after the first report (see ``docs/ONLINE_MODE.md``).
     prior_alpha, prior_beta, prior_kappa : float
         Normal-Gamma prior of the Student-t predictive (see ``online_likelihoods.StudentT``).
     prior_mu : float or None
@@ -355,6 +365,10 @@ class StreamingConfig(BaseModel):
     )
     min_time_elapsed: int = Field(
         default=3600, gt=0, description="Minimum seconds between change points"
+    )
+    revise_change_points: bool = Field(
+        default=False,
+        description="Report MAP refinements within min_time_elapsed as revisions (bocpd, map)",
     )
     prior_alpha: float = Field(default=0.1, gt=0, description="Gamma prior shape on precision")
     prior_beta: float = Field(default=0.1, gt=0, description="Gamma prior rate on precision")

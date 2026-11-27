@@ -21,6 +21,16 @@ the period. This module runs the same decision rule one RTT sample at a time:
    jitter samples. When the next change point closes the period, the *final* verdict is
    emitted with the full period, which is exactly what the sequential pipeline computes.
 
+The MAP rule refines a boundary after first reporting it: a few bins later, the most
+probable segment start moves one to three bins later. Such a refinement is closer than
+``streaming.min_time_elapsed`` to the change point it refines, so by default it is dropped.
+With ``streaming.revise_change_points`` it is reported as a ``revision`` event instead
+(``start_epoch`` the new epoch, ``revised_from`` the old one): the open period starts at
+the revised epoch from then on, its provisional verdict is emitted again on the revised
+period, and its final verdict uses it. The stream start is never revised, and the final
+verdict of the period before, already emitted, keeps its ``end_epoch``; consumers that
+want the period's revised end follow the revision.
+
 Both jitter methods work online. The Kolmogorov-Smirnov test uses consecutive RTT
 differences and is causal as it stands. Jitter dispersion uses the trailing version of
 the offline filters (``JitterAnalyzer.compute_causal_jitter_dispersion``): same window
@@ -56,9 +66,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StreamingEvent:
-    """Something the online pipeline decided while consuming the stream."""
+    """
+    Something the online pipeline decided while consuming the stream.
 
-    kind: Literal["change_point", "verdict"]
+    ``change_point``: a new period starts at ``start_epoch``. ``verdict``: a provisional or
+    final verdict on the period that starts at ``start_epoch``. ``revision``: the last
+    change point moved from ``revised_from`` to ``start_epoch`` (``bocpd`` back end with
+    ``streaming.revise_change_points``); later events about that period use the new epoch.
+    """
+
+    kind: Literal["change_point", "verdict", "revision"]
     emitted_at: float
     """Epoch of the sample whose arrival triggered the event."""
     start_epoch: float
@@ -79,6 +96,9 @@ class StreamingEvent:
     """Jitter test behind ``has_jitter``; the KS fields are set for ``ks_test`` only."""
     jitter_metric: float | None = None
     """The jitter test's metric: the KS statistic, or the dispersion change."""
+    revised_from: float | None = None
+    """For a ``revision``: the epoch the change point had before it (``start_epoch`` is the
+    new one). ``None`` for every other kind."""
 
     @property
     def delay(self) -> float:
@@ -168,6 +188,12 @@ class OnlineJitterbug:
 
         self._interval_s = self.config.data_processing.minimum_interval_minutes * 60
         self._min_sep_bins = max(1, math.ceil(self.streaming.min_time_elapsed / self._interval_s))
+        if self.streaming.revise_change_points and self.streaming.decision != "map":
+            logger.warning(
+                "streaming.revise_change_points only applies to the map decision rule; "
+                "ignored with decision=%s",
+                self.streaming.decision,
+            )
 
         # Current (open) minimum-RTT bin.
         self._bin_id: int | None = None
@@ -298,7 +324,38 @@ class OnlineJitterbug:
             # Index is the first bin of the new segment; the detector counts from 1.
             if idx - last >= self._min_sep_bins:
                 events.extend(self._accept_change_point(idx, prob, emitted_at=closing_epoch))
+            elif self._revisable(idx):
+                events.extend(self._revise_change_point(idx, prob, emitted_at=closing_epoch))
         return events
+
+    def _revisable(self, bin_index: int) -> bool:
+        """Whether a MAP refinement at ``bin_index`` revises the last change point."""
+        return (
+            self.streaming.revise_change_points
+            and self.streaming.decision == "map"
+            and len(self._cp_bin_index) >= 2  # never the stream start
+            and bin_index > self._cp_bin_index[-1]
+        )
+
+    def _revise_change_point(
+        self, bin_index: int, prob: float | None, emitted_at: float
+    ) -> list[StreamingEvent]:
+        """Move the last change point to ``bin_index`` and report it as a revision."""
+        old_epoch = self.change_points[-1]
+        new_epoch = self._bin_epochs[bin_index - self._pruned_bins]
+        self.change_points[-1] = new_epoch
+        self._cp_bin_index[-1] = bin_index
+        # The open period now starts later: its provisional verdict is judged again.
+        self._awaiting_provisional = True
+        return [
+            StreamingEvent(
+                kind="revision",
+                emitted_at=emitted_at,
+                start_epoch=new_epoch,
+                detector_probability=prob,
+                revised_from=old_epoch,
+            )
+        ]
 
     def _accept_change_point(
         self, bin_index: int, prob: float | None, emitted_at: float
