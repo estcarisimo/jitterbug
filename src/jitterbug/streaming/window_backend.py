@@ -71,6 +71,11 @@ class SlidingWindowJitterbug:
     def __init__(self, config: JitterbugConfig | None = None) -> None:
         self.config = config or JitterbugConfig()
         self.streaming = self.config.streaming
+        if self.streaming.revise_change_points:
+            logger.warning(
+                "streaming.revise_change_points only applies to the bocpd back end; "
+                "ignored with backend=window"
+            )
         offline = self.config.model_copy(deep=True)
         offline.analysis_mode = "sequential"
         offline.verbose = False

@@ -123,6 +123,12 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
   defaults changes those goldens
   and the table in `docs/ONLINE_MODE.md` (regenerate it with
   `tools/compare_online_backends.py`).
+- `streaming.revise_change_points` (off by default; `bocpd` + `map` only) turns MAP
+  refinements within `min_time_elapsed` into `revision` events (`revised_from` = old
+  epoch) instead of dropping them; the open period then uses the revised start, and
+  state changes keep the id of the first-reported epoch. Its goldens are
+  `TestRevisionReplay`, its table in `docs/ONLINE_MODE.md` comes from
+  `tools/boundary_revisions.py`. `score` applies revisions before scoring.
 - The state-change layer (`streaming/state_changes.py`) only reads back-end events and
   `open_period_bins()`; it must never alter the events. Its vocabulary is *state change*
   with status `suspected`/`confirmed`/`retracted`; do not call it an alarm in identifiers,

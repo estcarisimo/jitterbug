@@ -6,6 +6,7 @@ import importlib.util
 
 import numpy as np
 import pytest
+from numpy.testing import assert_allclose
 
 from jitterbug.models import JitterbugConfig, StreamingConfig
 
@@ -506,3 +507,157 @@ def test_window_backend_provisional_follows_the_dispersion_method() -> None:
     for prov in provisional:
         if prov.start_epoch in finals:
             assert prov.is_congested == finals[prov.start_epoch].is_congested
+
+
+# ---------------------------------------------------------------------------- revisions
+
+
+class ScriptedDetector:
+    """Stands in for the online detector: the MAP segment start follows a script."""
+
+    def __init__(self, script: dict[int, int]) -> None:
+        self.script = script  # bins fed -> start of the current segment (bin index)
+        self.t = 0
+        self.start = 0
+
+    def update(self, value: float) -> np.ndarray:
+        self.t += 1
+        self.start = self.script.get(self.t, self.start)
+        posterior = np.zeros(self.t + 1)
+        posterior[self.t - self.start] = 1.0  # run length t - start is the MAP
+        return posterior
+
+
+def _bins_series(congested_bins: range, n_bins: int = 72) -> tuple[np.ndarray, np.ndarray]:
+    """Samples every 30 s; the bins in ``congested_bins`` are congested."""
+    rng = np.random.default_rng(1)
+    epochs, rtts = [], []
+    t0 = 1_700_000_000.0 - 1_700_000_000.0 % INTERVAL_S  # bins aligned with the epochs
+    for b in range(n_bins):
+        e = t0 + b * INTERVAL_S + np.arange(30) * 30.0
+        if b in congested_bins:
+            r = 30.0 + rng.exponential(8.0, 30)
+        else:
+            r = 10.0 + rng.exponential(0.5, 30)
+        epochs.append(e)
+        rtts.append(r)
+    return np.concatenate(epochs), np.concatenate(rtts) + 0.1
+
+
+def _scripted_run(
+    script: dict[int, int], congested_bins: range, track: bool = False, **streaming: object
+) -> tuple[list, list, float]:
+    from jitterbug.streaming import OnlineJitterbug, StateChangeTracker
+
+    config = _config(min_time_elapsed=8 * INTERVAL_S, min_period_samples=60, **streaming)
+    online = OnlineJitterbug(config)
+    online._detector = ScriptedDetector(script)
+    tracker = StateChangeTracker(online) if track else None
+    epochs, rtts = _bins_series(congested_bins)
+    for e, r in zip(epochs, rtts, strict=True):
+        (tracker or online).push(float(e), float(r))
+    (tracker or online).flush()
+    return online.events, tracker.state_changes if tracker else [], float(epochs[0])
+
+
+# The MAP start moves to bin 41 when bin 41 closes, is refined to bin 44 when bin 46
+# closes (3 bins later, within the 8-bin separation), and moves to bin 60 when bin 61 closes.
+SCRIPT = {42: 41, 47: 44, 62: 60}
+
+
+def test_revision_moves_the_open_period_and_changes_its_provisional_verdict() -> None:
+    events, _, t0 = _scripted_run(SCRIPT, range(44, 60), revise_change_points=True)
+    epoch = {b: t0 + b * INTERVAL_S for b in (41, 44, 60)}
+    summary = [(e.kind, e.stage, e.start_epoch, e.is_congested) for e in events[1:]]
+    assert summary == [
+        ("change_point", None, epoch[41], None),
+        ("verdict", "provisional", epoch[41], False),  # bins 41-42: no latency jump
+        ("revision", None, epoch[44], None),
+        ("verdict", "provisional", epoch[44], True),  # judged again on the revised period
+        ("change_point", None, epoch[60], None),
+        ("verdict", "final", epoch[44], True),
+        ("verdict", "provisional", epoch[60], False),
+    ]
+    revision = events[3]
+    assert revision.revised_from == epoch[41]
+    assert revision.emitted_at == epoch[44] + 3 * INTERVAL_S  # first sample of bin 47
+    assert revision.to_dict()["revised_from"] == epoch[41]
+    assert events[-2].end_epoch == epoch[60]
+    # The previous period's final verdict was emitted before the revision and keeps its end.
+    assert all(e.revised_from is None for e in events if e.kind != "revision")
+
+
+def test_without_revisions_the_refinement_is_dropped() -> None:
+    events, _, t0 = _scripted_run(SCRIPT, range(44, 60))
+    assert not [e for e in events if e.kind == "revision"]
+    finals = [e for e in events if e.stage == "final"]
+    assert [f.start_epoch for f in finals] == [t0 + 41 * INTERVAL_S]
+    provisional = [e for e in events if e.stage == "provisional"]
+    assert [(p.start_epoch, p.is_congested) for p in provisional] == [
+        (t0 + 41 * INTERVAL_S, False),
+        (t0 + 60 * INTERVAL_S, False),
+    ]
+
+
+def test_refinements_beyond_the_separation_or_of_the_stream_start_are_not_revisions() -> None:
+    # Bin 3 is within the separation of the stream start, which is never revised; bin 50
+    # is 9 bins after bin 41, a change point of its own.
+    events, _, t0 = _scripted_run({4: 3, 42: 41, 51: 50}, range(41, 50), revise_change_points=True)
+    assert not [e for e in events if e.kind == "revision"]
+    cps = [e.start_epoch for e in events if e.kind == "change_point"]
+    assert cps == [t0, t0 + 41 * INTERVAL_S, t0 + 50 * INTERVAL_S]
+
+
+def test_revisions_only_apply_to_the_map_rule(caplog: pytest.LogCaptureFixture) -> None:
+    from jitterbug.streaming import OnlineJitterbug, SlidingWindowJitterbug
+
+    with caplog.at_level("WARNING", logger="jitterbug.streaming"):
+        online = OnlineJitterbug(_config(decision="lag", revise_change_points=True))
+        SlidingWindowJitterbug(_config(backend="window", revise_change_points=True))
+    assert "ignored with decision=lag" in caplog.text
+    assert "ignored with backend=window" in caplog.text
+    online._cp_bin_index = [0, 10]
+    assert not online._revisable(12)
+    online.streaming.decision = "map"
+    assert online._revisable(12)
+    assert not online._revisable(10)  # a refinement only moves a boundary later
+
+
+def test_revision_moves_a_state_change_and_keeps_its_id() -> None:
+    # Congestion starts at bin 41: the early rule suspects it on the first bin, the MAP
+    # rule then moves the boundary 3 bins later (a refinement that is wrong here).
+    events, changes, t0 = _scripted_run(
+        SCRIPT, range(41, 60), track=True, revise_change_points=True
+    )
+    epoch41, epoch44 = t0 + 41 * INTERVAL_S, t0 + 44 * INTERVAL_S
+    onset = [c for c in changes if c.to_state == "congested"]
+    assert {c.id for c in onset} == {f"{epoch41:.0f}:baseline->congested"}
+    statuses = [(c.status, c.change_epoch, c.revised_from) for c in onset]
+    assert statuses[0] == ("suspected", epoch41, None)
+    assert ("confirmed", epoch41, None) in statuses  # the provisional verdict, before
+    revised = [c for c in onset if c.revised_from is not None]
+    assert [(c.status, c.change_epoch, c.revised_from) for c in revised] == [
+        ("confirmed", epoch44, epoch41)
+    ]
+    assert onset[-1].change_epoch == epoch44
+    assert [e.kind for e in events].count("revision") == 1
+
+
+def test_score_applies_revisions(tmp_path) -> None:
+    from jitterbug.streaming import score
+
+    events, _, t0 = _scripted_run(SCRIPT, range(44, 60), revise_change_points=True)
+    reference = tmp_path / "ref.csv"
+    e44, e60 = t0 + 44 * INTERVAL_S, t0 + 60 * INTERVAL_S
+    reference.write_text(f"starts,ends,congestion\n{t0},{e44},0\n{e44},{e60},1\n")
+    s = score(events, reference)
+    assert s["revisions"] == s["revised_change_points"] == 1
+    assert_allclose(s["revision_shift_min_median"], 45.0)
+    assert_allclose(s["revision_lag_min_median"], 5 * 15.0)  # reported at bin 42, revised at 47
+    assert s["provisional_superseded"] == 1
+    assert s["provisional_superseded_changed"] == 1
+    assert s["provisional_pairs"] == 1
+    assert s["provisional_flips"] == 0
+    assert s["boundaries_within_5min"] == 3  # the revised change point is at the onset
+    assert s["recovered"] == 1
+    assert s["spurious"] == 0

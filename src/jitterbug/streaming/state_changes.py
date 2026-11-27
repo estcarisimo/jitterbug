@@ -31,7 +31,13 @@ has a status:
     after ``retracted``.
 
 Each change has a stable ``id`` (period start and direction), so every event about it
-can be matched. The state before a period is the latest evidence on the period before it
+can be matched. The period start in the ``id`` is the epoch at which the change point was
+first reported: when the back end revises that change point (a ``revision`` event,
+``streaming.revise_change_points``), the change keeps its ``id``, ``change_epoch`` moves to
+the revised epoch, and every change of that period that is not retracted gets an update
+with its current status and ``revised_from`` set to the epoch it had before.
+
+The state before a period is the latest evidence on the period before it
 (final verdict, else provisional verdict, else a suspected change, else the state before
 that); when that evidence changes, the changes after it are re-derived, so a change whose
 direction no longer holds is retracted.
@@ -49,7 +55,7 @@ import math
 import shlex
 import subprocess  # nosec B404
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
@@ -101,6 +107,8 @@ class StateChangeEvent:
     ``latency_jump`` stage, jitter observations for a verdict."""
     n_curr: int = 0
     """Same for the period the change opens."""
+    revised_from: float | None = None
+    """On the update a change point revision caused: the ``change_epoch`` before it."""
     kind: Literal["state_change"] = "state_change"
 
     @property
@@ -127,11 +135,19 @@ class _Early:
 @dataclass
 class _Period:
     start: float
+    key: float = math.nan  # the start as first reported; ids keep it across revisions
     early: _Early | None = None
     early_done: bool = False
     provisional: StreamingEvent | None = None
     final: StreamingEvent | None = None
     emitted: dict[str, StateChangeEvent] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if math.isnan(self.key):
+            self.key = self.start
+
+    def change_id(self, from_state: PathState, to_state: PathState) -> str:
+        return f"{self.key:.0f}:{from_state}->{to_state}"
 
 
 def _state(is_congested: bool | None) -> PathState:
@@ -229,12 +245,15 @@ class StateChangeTracker:
         list[StateChangeEvent]
             The state-change updates, in order.
         """
+        out: list[StateChangeEvent] = []
         for event in events:
             if event.kind == "change_point" and (
                 not self._periods or event.start_epoch > self._periods[-1].start
             ):
                 self._periods.append(_Period(start=event.start_epoch))
                 check_early = True
+            elif event.kind == "revision" and event.revised_from is not None:
+                out.extend(self._revise(event.revised_from, event.start_epoch, now))
         for event in events:
             if event.kind != "verdict":
                 continue
@@ -247,7 +266,7 @@ class StateChangeTracker:
                 period.provisional = event
         if check_early:
             self._check_early(now)
-        out = self._reconcile(now)
+        out.extend(self._reconcile(now))
         self._prune()
         self.state_changes.extend(out)
         return out
@@ -258,6 +277,21 @@ class StateChangeTracker:
             if period.start == start:
                 return period
         return None
+
+    def _revise(self, old: float, new: float, now: float) -> list[StateChangeEvent]:
+        """Move a period's start to its revised change point; its changes keep their ids."""
+        period = self._period(old)
+        if period is None:
+            return []
+        period.start = new
+        out: list[StateChangeEvent] = []
+        for tid, last in list(period.emitted.items()):
+            if last.status == "retracted":
+                continue
+            event = replace(last, change_epoch=new, emitted_at=now, revised_from=old)
+            period.emitted[tid] = event
+            out.append(event)
+        return out
 
     def _check_early(self, now: float) -> None:
         """Evaluate the early rule on the open period once it holds enough closed bins."""
@@ -314,7 +348,7 @@ class StateChangeTracker:
         before = self._anchor
         for period in self._periods:
             after, stage = self._claim(period, before)
-            tid = f"{period.start:.0f}:{before}->{after}" if after != before else None
+            tid = period.change_id(before, after) if after != before else None
             for old in list(period.emitted.values()):
                 if old.status != "retracted" and old.id != tid:
                     out.append(
@@ -341,7 +375,7 @@ class StateChangeTracker:
         stage: EvidenceStage | None,
         now: float,
     ) -> StateChangeEvent:
-        tid = f"{period.start:.0f}:{from_state}->{to_state}"
+        tid = period.change_id(from_state, to_state)
         last = period.emitted.get(tid)
         suspected_at = last.suspected_at if last else None
         confirmed_at = last.confirmed_at if last else None
