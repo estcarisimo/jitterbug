@@ -8,6 +8,8 @@ from .analysis import (
     CongestionInferenceResult,
     JitterAnalysis,
     LatencyJump,
+    MultiSeriesResult,
+    SeriesResult,
 )
 from .config import (
     ChangePointDetectionConfig,
@@ -31,6 +33,8 @@ __all__ = [
     "JitterAnalysis",
     "CongestionInference",
     "CongestionInferenceResult",
+    "SeriesResult",
+    "MultiSeriesResult",
     "JitterbugConfig",
     "ChangePointDetectionConfig",
     "JitterAnalysisConfig",

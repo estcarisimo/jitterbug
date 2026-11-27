@@ -255,13 +255,6 @@ def _read_probe_output(path: Path, name: str, label: str) -> RawData:
         if counts[kind]:
             logger.info(f"Skipped {counts[kind]} {label} {kind} line(s) in {path}")
     destinations = sorted({row[2] for row in rows if row[2] is not None})
-    if len(destinations) > 1:
-        logger.warning(
-            f"{path} has replies from {len(destinations)} destinations "
-            f"({', '.join(destinations[:5])}{', ...' if len(destinations) > 5 else ''}); "
-            "they are pooled into one RTT series. Split the file per destination to "
-            "analyze each path on its own."
-        )
 
     return RawData(
         frame=pd.DataFrame(rows, columns=["epoch", "rtt", "destination", "seq"]),
@@ -293,8 +286,8 @@ def read_ping(path: Path, config: InputConfig) -> RawData:
     RawData
         One row per timestamped reply, with ``destination`` and ``seq`` columns;
         ``metadata`` counts ``timeouts``, ``errors``, ``duplicate_replies`` and
-        ``untimestamped_replies`` and lists the ``destinations`` (more than one is
-        pooled into one series, with a warning).
+        ``untimestamped_replies`` and lists the ``destinations`` (several are analyzed as
+        one series, with a warning, unless ``group_by`` or ``series`` separates them).
 
     Raises
     ------
@@ -320,8 +313,9 @@ def read_fping(path: Path, config: InputConfig) -> RawData:
     RawData
         One row per timestamped reply, with ``destination`` and ``seq`` columns;
         ``metadata`` counts ``timeouts``, ``errors``, ``duplicate_replies`` and
-        ``untimestamped_replies`` and lists the ``destinations`` (more than one, as
-        with ``fping host1 host2``, is pooled into one series, with a warning).
+        ``untimestamped_replies`` and lists the ``destinations`` (several, as with
+        ``fping host1 host2``, are analyzed as one series, with a warning, unless
+        ``group_by`` or ``series`` separates them).
 
     Raises
     ------

@@ -282,7 +282,8 @@ class TestAtlas:
         with caplog.at_level("WARNING"):
             ds = DataLoader().load_from_file(path)
         assert len(ds) == 2 and ds.metadata["series"] == 2
-        assert "2 (probe, measurement, destination) combinations" in caplog.text
+        assert "2 distinct (prb_id, msm_id, destination) combinations" in caplog.text
+        assert "--group-by prb_id,msm_id,destination" in caplog.text
 
     def test_out_of_range_rtts_are_counted(self, tmp_path: Path) -> None:
         path = tmp_path / "r.json"
@@ -508,7 +509,8 @@ class TestPingFiles:
         assert infer_format(path) == "fping"  # the first line has commas
         with caplog.at_level("WARNING"):
             ds = DataLoader().load_from_file(path)
-        assert "2 destinations (1.1.1.1, 8.8.8.8); they are pooled" in caplog.text
+        assert "2 distinct destination values" in caplog.text
+        assert "--group-by destination" in caplog.text
         assert ds.metadata["destinations"] == ["1.1.1.1", "8.8.8.8"]
         assert [(m.destination, m.rtt_value) for m in ds.measurements] == [
             ("8.8.8.8", 12.3),
