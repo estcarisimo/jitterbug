@@ -2,6 +2,8 @@
 Configuration models using Pydantic for validation and serialization.
 """
 
+import logging
+import warnings
 from pathlib import Path
 from typing import Any, Literal
 
@@ -10,11 +12,23 @@ from pydantic import (
     ConfigDict,
     Field,
     SerializerFunctionWrapHandler,
+    ValidationInfo,
     field_validator,
     model_serializer,
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+#: Options of :class:`DataProcessingConfig` that have never been read by any code.
+#: They are still accepted through the 2.x line, with no effect.
+# Deprecated after 2.6.0: remove in 3.0 (with their validators and the serializer below).
+DEPRECATED_DATA_PROCESSING_OPTIONS = (
+    "min_samples_per_interval",
+    "outlier_detection",
+    "outlier_threshold",
+)
 
 
 class ChangePointDetectionConfig(BaseModel):
@@ -166,24 +180,36 @@ class DataProcessingConfig(BaseModel):
     minimum_interval_minutes : int
         Interval in minutes for computing minimum RTT values.
     min_samples_per_interval : int
-        Minimum number of samples required per interval.
+        Deprecated, no effect: no minimum number of samples per interval has ever been
+        enforced. Accepted until 3.0, where it is removed.
     outlier_detection : bool
-        Whether to perform outlier detection.
+        Deprecated, no effect: no outlier filtering has ever been applied. Accepted
+        until 3.0, where it is removed.
     outlier_threshold : float
-        Z-score threshold for outlier detection.
+        Deprecated, no effect: no outlier filtering has ever been applied. Accepted
+        until 3.0, where it is removed.
+
+    Notes
+    -----
+    Setting a deprecated option emits one :class:`DeprecationWarning` and one log
+    warning per option. Dumps (configuration files written by ``to_file``, the
+    ``metadata.config`` of result files) leave the deprecated options out unless they
+    were set explicitly.
     """
 
     minimum_interval_minutes: int = Field(
         default=15, gt=0, description="Interval for minimum RTT computation"
     )
     min_samples_per_interval: int = Field(
-        default=5, gt=0, description="Minimum samples required per interval"
+        default=5,
+        gt=0,
+        description="Deprecated, no effect (never enforced); removed in 3.0",
     )
     outlier_detection: bool = Field(
-        default=True, description="Whether to perform outlier detection"
+        default=True, description="Deprecated, no effect (never applied); removed in 3.0"
     )
     outlier_threshold: float = Field(
-        default=3.0, gt=0, description="Z-score threshold for outlier detection"
+        default=3.0, gt=0, description="Deprecated, no effect (never applied); removed in 3.0"
     )
 
     @field_validator("minimum_interval_minutes")
@@ -206,6 +232,30 @@ class DataProcessingConfig(BaseModel):
         if v <= 0:
             raise ValueError("Outlier threshold must be positive")
         return v
+
+    @field_validator(*DEPRECATED_DATA_PROCESSING_OPTIONS)
+    @classmethod
+    def _warn_deprecated(cls, v: Any, info: ValidationInfo) -> Any:
+        """Warn once per deprecated option the user sets (defaults are not validated)."""
+        message = (
+            f"data_processing.{info.field_name} has never had any effect, is deprecated "
+            "and will be removed in Jitterbug 3.0; remove it from your configuration"
+        )
+        warnings.warn(message, DeprecationWarning, stacklevel=2)
+        logger.warning(message)
+        return v
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_deprecated_options(self, handler: SerializerFunctionWrapHandler) -> Any:
+        """Leave the deprecated options out of dumps unless they were set explicitly, so
+        templates and result files stop advertising them and reloading a dump does not
+        warn about options the user never set."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for name in DEPRECATED_DATA_PROCESSING_OPTIONS:
+                if name not in self.model_fields_set:
+                    data.pop(name, None)
+        return data
 
     model_config = ConfigDict(validate_assignment=True)
 

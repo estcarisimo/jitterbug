@@ -225,6 +225,18 @@ def _parse_series(values: list[str] | None) -> dict[str, str] | None:
     return filters
 
 
+def _revalidate(base: JitterbugConfig, data: dict[str, Any]) -> JitterbugConfig:
+    """
+    Validate ``data``, a modified dump of ``base``, into a new configuration.
+
+    ``data_processing`` is passed through as the validated instance of ``base``, which
+    none of the overrides change: re-validating its dump would repeat the deprecation
+    warnings for the options the user set (see ``DataProcessingConfig``).
+    """
+    data["data_processing"] = base.data_processing
+    return JitterbugConfig.model_validate(data)
+
+
 def _apply_input_overrides(
     base: JitterbugConfig,
     *,
@@ -254,7 +266,7 @@ def _apply_input_overrides(
     filters = _parse_series(series)
     if filters is not None:
         data["input"]["series"] = {**data["input"].get("series", {}), **filters}
-    return JitterbugConfig.model_validate(data)
+    return _revalidate(base, data)
 
 
 def _apply_overrides(
@@ -289,7 +301,7 @@ def _apply_overrides(
         data["analysis_mode"] = mode
     if clustering_algorithm is not None:
         data["clustering"]["algorithm"] = clustering_algorithm
-    return JitterbugConfig.model_validate(data)
+    return _revalidate(base, data)
 
 
 def _apply_streaming_overrides(
@@ -322,7 +334,7 @@ def _apply_streaming_overrides(
         data["streaming"]["revise_change_points"] = revise_change_points
     if verbose:
         data["verbose"] = True
-    return JitterbugConfig.model_validate(data)
+    return _revalidate(base, data)
 
 
 # Create Typer app

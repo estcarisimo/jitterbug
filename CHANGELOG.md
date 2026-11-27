@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration validation errors no longer echo the offending input value
   (`hide_input_in_errors`), so that a rejected secret is never printed back.
 
+### Deprecated
+
+- `data_processing.min_samples_per_interval`, `data_processing.outlier_detection` and
+  `data_processing.outlier_threshold`. No code has ever read them: they were accepted,
+  validated and documented, but no minimum number of samples per interval and no outlier
+  filtering was ever applied. They are still accepted through 2.x, with no effect;
+  setting one now emits a `DeprecationWarning` and a log warning. They are removed in
+  3.0. `jitterbug config --template`, `JitterbugConfig.to_file` and the `metadata.config`
+  of result files leave them out unless they were set explicitly, and README and
+  `examples/` no longer show them.
+
 ## [2.6.0] - 2026-11-26
 
 ### Added
