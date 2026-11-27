@@ -39,12 +39,16 @@ src/jitterbug/
                          (the two-period rule both share), state_changes.py (StateChangeTracker:
                          baseline <-> congested changes, suspected → confirmed | retracted;
                          CommandHook), replay.py (replay, score, score_state_changes)
-  io/                    data_loader.py (DataLoader: file/DataFrame/InfluxDB entry points),
+  io/                    data_loader.py (DataLoader: file/database/DataFrame entry points),
                          readers/ (one reader per format → raw DataFrame, registered by name,
                          extension, first-line sniffer or magic bytes: delimited.py, jsonl.py
                          + atlas.py + json_records.py, columnar.py (Parquet/Arrow, `parquet`
                          extra), ping.py (ping/fping text, line parsers shared with
-                         `stream --format`)), series.py (`series` filters and `group_by` keys
+                         `stream --format`)), sources/ (database queries → raw DataFrame,
+                         registered by kind: clickhouse.py, influxdb.py (v2 Flux, v3 SQL),
+                         duckdb.py; uri.py parses `clickhouse://`, `influxdb2://`,
+                         `influxdb3://`, `duckdb:`; credentials.py reads secrets from the
+                         environment and redacts them), series.py (`series` filters and `group_by` keys
                          on raw rows), normalize.py (the only place for column mapping,
                          units and row policies of `InputConfig`), inspection.py (`inspect`
                          dry run), compression.py, exporters.py
@@ -142,6 +146,17 @@ uv run --group docs mkdocs build --strict  # docs site (mkdocs.yml); `mkdocs ser
   `io/readers/__init__.py`: ping and fping come before CSV because fping lines contain
   commas. pyarrow is optional (`parquet` extra) and imported lazily; only the `test-bcp`
   CI job installs it, so the Parquet/Arrow tests skip in the other test jobs.
+- Database sources (`io/sources/`, `SourceConfig`, `sources:` profiles) never hold a
+  secret: passwords and tokens come only from environment variables
+  (`CLICKHOUSE_PASSWORD`, `INFLUXDB_V2_TOKEN`, `INFLUX_TOKEN`, or the variable named by
+  `password_env`/`token_env`); secret-like settings and URI user information are
+  rejected. Client errors go through `run_redacted` (redacted, not chained) and the CLI
+  installs `RedactingFilter` on its log handlers; `JitterbugConfig` and `SourceConfig`
+  set `hide_input_in_errors` so validation errors do not echo a rejected secret. Client
+  libraries are imported lazily inside each back end's `create_client`/`connect` seam,
+  which the tests replace with fakes; only DuckDB is tested for real, and only the
+  `test-bcp` CI job installs the `duckdb` extra. `sources` is left out of config dumps
+  while empty, so result files of file-based runs are unchanged.
 - Plotting is matplotlib only (`JitterbugPlotter`). The plotly dashboard and
   interactive modules were removed in 2.1; do not add plotly back without an explicit
   request for interactivity.

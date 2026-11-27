@@ -17,7 +17,8 @@ Documentation for language models: [`llms.txt`](https://estcarisimo.github.io/ji
 - 🔀 **Pluggable change point detection**: `ruptures` out of the box, the paper's Bayesian detector (`bcp`) as an extra
 - 📐 **Two jitter tests**: jitter dispersion (moving IQR + moving average) or a Kolmogorov–Smirnov test between periods
 - 🧩 **Non-sequential mode**: cluster 15-minute intervals by (latency, jitter) with a Gaussian mixture or k-means and compare each cluster with the baseline, no matter when its intervals occur
-- 📁 **Flexible input**: CSV, TSV, JSON lines, scamper JSON and InfluxDB queries, with configurable columns, time and RTT units, and gzip/bzip2/xz/Zstandard compression
+- 📁 **Flexible input**: CSV, TSV, JSON lines, scamper JSON and more, with configurable columns, time and RTT units, and gzip/bzip2/xz/Zstandard compression
+- 🗄️ **Database sources**: ClickHouse, InfluxDB 2 and 3, and DuckDB (Parquet/CSV globs, SQLite, PostgreSQL, object storage) queries, with credentials from environment variables only
 - 📊 **Rich terminal output**: summary and per-period tables, plus JSON or CSV results files
 - ⚙️ **Typed configuration**: Pydantic models, YAML/JSON config files, `JITTERBUG_*` environment variables
 - 🧪 **Reproducible**: the PAM 2022 dataset (47 163 measurements) and its reference results are bundled
@@ -55,7 +56,10 @@ See [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/do
 | --- | --- | --- |
 | `bcp` | [bayesian-changepoint](https://pypi.org/project/bayesian-changepoint/) + torch | The Bayesian detector used in the paper, and the online mode (`jitterbug stream` / `replay`) |
 | `clustering` | scikit-learn | The non-sequential mode (`--mode clustering`) |
-| `influx` | influxdb-client | Loading RTTs straight from InfluxDB |
+| `influx` | influxdb-client | InfluxDB 2 (Flux) sources |
+| `influxdb3` | influxdb3-python | InfluxDB 3 (SQL, InfluxQL) sources |
+| `clickhouse` | clickhouse-connect | ClickHouse sources |
+| `duckdb` | duckdb | DuckDB sources: SQL over Parquet/CSV globs, SQLite, PostgreSQL, object storage |
 | `zstd` | zstandard (not needed on Python 3.14+) | Reading and writing `.zst`-compressed files |
 | `parquet` | pyarrow | Parquet and Arrow/Feather input, Parquet output |
 | `visualization` | matplotlib | `jitterbug visualize` and the plotting helpers |
@@ -225,18 +229,14 @@ jitterbug analyze ping.txt                  # detected from the content
 ping -D example.net | jitterbug stream --format ping
 ```
 
-**InfluxDB** (`uv sync --extra influx`):
+**Databases**: ClickHouse, InfluxDB 2/3 and DuckDB queries, in place of a file (`uv sync --extra clickhouse`, `influx`, `influxdb3` or `duckdb`). Passwords and tokens come from environment variables only; see [docs/DATA_SOURCES.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/DATA_SOURCES.md):
 
-```python
-from jitterbug.io import DataLoader
-
-dataset = DataLoader().load_from_influxdb(
-    url="http://localhost:8086",
-    token="...",
-    org="my-org",
-    bucket="network-metrics",
-    query='from(bucket:"network-metrics") |> range(start: -1h) |> filter(fn: (r) => r._measurement == "rtt")',
-)
+```bash
+export CLICKHOUSE_PASSWORD=...
+jitterbug analyze clickhouse://db.example/netmon --query-file pings.sql --time-column ts --rtt-column rtt_ms
+jitterbug inspect influxdb3://influx.lab/probes --query "SELECT time, rtt FROM ping LIMIT 100"   # INFLUX_TOKEN
+jitterbug analyze duckdb: --query "SELECT epoch, rtt FROM read_parquet('archive/*.parquet')"
+jitterbug analyze --source netmon --config jitterbug.yaml     # a profile under `sources:`
 ```
 
 ## 🔧 Configuration
@@ -322,7 +322,7 @@ src/jitterbug/
 │   └── clustering_analyzer.py     # non-sequential mode (GMM / k-means over intervals)
 ├── streaming/              # Online mode: OnlineJitterbug (Bayesian online change points) and
 │                           #   SlidingWindowJitterbug (offline pipeline on a window); replay/score
-├── io/                     # readers (CSV, TSV, JSONL, scamper), normalizer, InfluxDB, exporters
+├── io/                     # readers (CSV, TSV, JSONL, scamper, ...), database sources, normalizer, exporters
 ├── cli/main.py             # Typer CLI: analyze, validate, config, visualize, stream, replay, version
 └── visualization/          # JitterbugPlotter (matplotlib): the figures behind `jitterbug visualize`
 ```
@@ -438,7 +438,8 @@ Contributions are welcome! Please see the [Contributing Guide](https://github.co
 | [SECURITY.md](https://github.com/estcarisimo/jitterbug/blob/main/SECURITY.md) | Vulnerability reporting, and what data this tool handles |
 | [CODE_OF_CONDUCT.md](https://github.com/estcarisimo/jitterbug/blob/main/CODE_OF_CONDUCT.md) | Community standards |
 | [docs/INSTALLATION.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INSTALLATION.md) | Installation details and troubleshooting |
-| [docs/INPUT_FORMATS.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INPUT_FORMATS.md) | Input contract: column mapping, units, row policies; CSV, TSV, JSONL, scamper JSON, DataFrame, InfluxDB |
+| [docs/INPUT_FORMATS.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/INPUT_FORMATS.md) | Input contract: column mapping, units, row policies; CSV, TSV, JSONL, scamper JSON, DataFrame |
+| [docs/DATA_SOURCES.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/DATA_SOURCES.md) | ClickHouse, InfluxDB 2/3 and DuckDB sources: URIs, profiles, credentials, DuckDB recipes |
 | [docs/ALGORITHM_SELECTION_GUIDE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_SELECTION_GUIDE.md) | Choosing a change point detector |
 | [docs/ALGORITHM_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/ALGORITHM_USAGE.md) | Per-detector options and examples |
 | [docs/VISUALIZATION_USAGE.md](https://github.com/estcarisimo/jitterbug/blob/main/docs/VISUALIZATION_USAGE.md) | `jitterbug visualize`, the five figures, `JitterbugPlotter` |

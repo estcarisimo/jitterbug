@@ -10,6 +10,12 @@
 
 ::: jitterbug.io.readers.base
 
+::: jitterbug.io.sources.base
+
+::: jitterbug.io.sources.uri
+
+::: jitterbug.io.sources.credentials
+
 ::: jitterbug.io.readers.delimited
 
 ::: jitterbug.io.readers.jsonl

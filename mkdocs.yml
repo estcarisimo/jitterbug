@@ -35,6 +35,7 @@ nav:
   - Home: index.md
   - Installation: INSTALLATION.md
   - Input formats: INPUT_FORMATS.md
+  - Data sources: DATA_SOURCES.md
   - Choosing a detector: ALGORITHM_SELECTION_GUIDE.md
   - Detectors and methods: ALGORITHM_USAGE.md
   - Visualization: VISUALIZATION_USAGE.md

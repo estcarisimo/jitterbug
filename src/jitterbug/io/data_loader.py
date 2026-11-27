@@ -1,9 +1,10 @@
 """
-Data loading: file and DataFrame entry points.
+Data loading: file, database and DataFrame entry points.
 
-A file goes through a reader (``jitterbug.io.readers``, chosen by format) that returns a
-raw DataFrame, then through the normalizer (``jitterbug.io.normalize``) that applies the
-column mapping, units and row policies of ``InputConfig``.
+A file goes through a reader (``jitterbug.io.readers``, chosen by format) and a database
+query through a source (``jitterbug.io.sources``, chosen by kind); both return a raw
+DataFrame, which then goes through the normalizer (``jitterbug.io.normalize``) that
+applies the column mapping, units and row policies of ``InputConfig``.
 """
 
 import logging
@@ -15,8 +16,8 @@ import numpy as np
 import pandas as pd
 
 from ..models import RTTDataset
-from ..models.config import RTT_COLUMN_SYNONYMS, InputConfig
-from .normalize import NoValidRowsError, datetimes_to_epoch, infer_time_unit, normalize
+from ..models.config import RTT_COLUMN_SYNONYMS, InputConfig, SourceConfig
+from .normalize import NoValidRowsError, infer_time_unit, normalize
 from .readers import RawData, Reader, get_reader, infer_format
 from .series import (
     SeriesKey,
@@ -26,6 +27,9 @@ from .series import (
     series_key_dict,
     split_series,
 )
+from .sources import fetch_raw, redact
+from .sources.base import raw_from_result, run_redacted
+from .sources.influxdb import INFLUXDB2, query_v2
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +45,8 @@ class DataLoader:
 
     Supports loading from files (CSV, TSV, generic JSONL, scamper JSON, RIPE Atlas
     results, ping/fping output, optionally compressed, and Parquet/Arrow; see
-    ``jitterbug.io.readers``), pandas DataFrames and InfluxDB query results.
+    ``jitterbug.io.readers``), database queries (ClickHouse, InfluxDB 2 and 3, DuckDB;
+    see ``jitterbug.io.sources``) and pandas DataFrames.
 
     Parameters
     ----------
@@ -320,11 +325,131 @@ class DataLoader:
         """
         return infer_format(file_path)
 
+    def read_raw_source(
+        self, source: SourceConfig, apply_series_filter: bool = True
+    ) -> tuple[RawData, InputConfig]:
+        """
+        Run the query of a database source into raw rows, without normalizing them.
+
+        The counterpart of :meth:`read_raw` for databases, shared with
+        :meth:`load_from_source`, :meth:`load_series_from_source` and
+        ``jitterbug inspect``.
+
+        Parameters
+        ----------
+        source : SourceConfig
+            Back end, connection settings (no secrets) and query.
+        apply_series_filter : bool
+            Whether to keep only the rows matching ``input.series``.
+
+        Returns
+        -------
+        tuple[RawData, InputConfig]
+            The result rows (``metadata`` records ``source``, ``source_details`` and
+            ``query``) and the input settings in effect (this loader's, with the column
+            names and time unit the result decides: ``_time``/``_value`` for Flux,
+            ``time`` for InfluxDB 3, ``iso`` for a datetime time column).
+
+        Raises
+        ------
+        ValueError
+            If there is no query, or a ``series`` filter names a missing column or
+            matches no row.
+        ImportError
+            If the back end's client library is not installed.
+        jitterbug.io.sources.SourceError
+            If the connection or the query fails (the message is redacted).
+        """
+        raw = fetch_raw(source, self.input_config)
+        config = (
+            self.input_config.model_copy(update=raw.schema) if raw.schema else self.input_config
+        )
+        if apply_series_filter:
+            try:
+                raw.frame = filter_rows(raw.frame, config)
+            except ValueError as e:
+                raise ValueError(f"Failed to load the {source.kind} query result: {e}") from e
+        return raw, config
+
+    def load_from_source(self, source: SourceConfig) -> RTTDataset:
+        """
+        Load RTT data from a database query.
+
+        The result rows are mapped like a file's: ``input`` column mapping, units, row
+        policies, ``series`` filters; with ``group_by``, they must form a single series.
+        Credentials come from environment variables (``SourceConfig.secret_env``).
+
+        Parameters
+        ----------
+        source : SourceConfig
+            Back end, connection settings and query.
+
+        Returns
+        -------
+        RTTDataset
+            Loaded dataset; ``metadata`` records ``source`` (the kind),
+            ``source_details`` (host, port, database, ... never a secret) and ``query``.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`load_from_file`.
+        ImportError
+            If the back end's client library is not installed.
+        jitterbug.io.sources.SourceError
+            If the connection or the query fails (the message is redacted).
+        """
+        raw, config = self.read_raw_source(source)
+        origin = f"The {source.kind} query result"
+        key, frame = _single_series(split_series(raw.frame, config), config, origin)
+        return _normalize_raw_series(raw, config, key, frame, f"the {source.kind} query result")
+
+    def load_series_from_source(
+        self, source: SourceConfig, skipped: dict[SeriesKey, str] | None = None
+    ) -> dict[SeriesKey, RTTDataset]:
+        """
+        Load a database query as one dataset per series; see :meth:`load_series`.
+
+        Parameters
+        ----------
+        source : SourceConfig
+            Back end, connection settings and query.
+        skipped : dict[SeriesKey, str] | None
+            If given, receives the series whose rows were all dropped, with the reason.
+
+        Returns
+        -------
+        dict[SeriesKey, RTTDataset]
+            Datasets in order of first appearance in the result.
+
+        Raises
+        ------
+        ValueError
+            As :meth:`load_series`.
+        ImportError
+            If the back end's client library is not installed.
+        jitterbug.io.sources.SourceError
+            If the connection or the query fails (the message is redacted).
+        """
+        raw, config = self.read_raw_source(source)
+        label = f"the {source.kind} query result"
+
+        def load(key: SeriesKey, frame: pd.DataFrame, config: InputConfig) -> RTTDataset:
+            return _normalize_raw_series(raw, config, key, frame, label)
+
+        datasets = _load_each_series(raw.frame, config, load, skipped)
+        logger.info(f"Loaded {len(datasets)} series from {label}")
+        return datasets
+
     def load_from_influxdb(
         self, url: str, token: str, org: str, bucket: str, query: str
     ) -> RTTDataset:
         """
-        Load RTT data directly from InfluxDB.
+        Load RTT data directly from InfluxDB 2 with a Flux query.
+
+        Kept for existing callers; :meth:`load_from_source` with an ``influxdb2``
+        ``SourceConfig`` does the same and reads the token from the environment. The
+        Flux columns ``_time`` and ``_value`` are used unless ``input`` maps others.
 
         Parameters
         ----------
@@ -335,7 +460,7 @@ class DataLoader:
         org : str
             InfluxDB organization.
         bucket : str
-            InfluxDB bucket.
+            InfluxDB bucket (unused: the Flux query names it).
         query : str
             Flux query to execute.
 
@@ -343,49 +468,30 @@ class DataLoader:
         -------
         RTTDataset
             Loaded RTT dataset.
+
+        Raises
+        ------
+        ValueError
+            If the result has no RTT column, or as :meth:`load_from_file`.
+        ImportError
+            If ``influxdb-client`` is not installed.
+        jitterbug.io.sources.SourceError
+            If the connection or the query fails (the message is redacted).
         """
-        try:
-            from influxdb_client import InfluxDBClient
-        except ImportError as e:
-            raise ImportError("influxdb-client package is required for InfluxDB support") from e
-
-        client = InfluxDBClient(url=url, token=token, org=org)
-        query_api = client.query_api()
-
-        try:
-            # Execute query
-            result = query_api.query_data_frame(query)
-
-            # Convert to RTTDataset
-            # A list means multiple tables were returned
-            df = pd.concat(result, ignore_index=True) if isinstance(result, list) else result
-
-            # Map InfluxDB columns to expected format
-            if "_time" in df.columns:
-                # Seconds since the epoch regardless of the datetime resolution
-                # (pandas >= 3 parses to microseconds, so `.astype(int) / 1e9` was
-                # off by a factor of 1000).
-                df["epoch"] = datetimes_to_epoch(pd.to_datetime(df["_time"], utc=True))
-
-            # Look for RTT value column
-            rtt_column = None
-            for col in ["_value", "rtt", "latency", "values"]:
-                if col in df.columns:
-                    rtt_column = col
-                    break
-
-            if rtt_column is None:
-                raise ValueError("No RTT value column found in InfluxDB result")
-
-            df["rtt_value"] = df[rtt_column]
-
-            # The columns built above are fixed; units of the RTT and row policies
-            # still come from the user's settings.
-            schema = {"time_column": "epoch", "time_unit": "s", "rtt_column": "rtt_value"}
-            return normalize(df, self.input_config.model_copy(update=schema))
-
-        finally:
-            client.close()
+        frame = run_redacted(INFLUXDB2.label, lambda: query_v2(url, token, org, query), [token])
+        if self.input_config.rtt_column is None and not any(
+            c in frame.columns for c in ("_value", *RTT_COLUMN_SYNONYMS)
+        ):
+            raise ValueError("No RTT value column found in InfluxDB result")
+        details = {"kind": "influxdb2", "url": redact(url, [token]), "org": org}
+        metadata = {"source": "influxdb2", "source_details": details, "query": query}
+        raw = raw_from_result(frame, self.input_config, INFLUXDB2, metadata)
+        config = (
+            self.input_config.model_copy(update=raw.schema) if raw.schema else self.input_config
+        )
+        frame = filter_rows(raw.frame, config)
+        key, frame = _single_series(split_series(frame, config), config, "The InfluxDB result")
+        return _normalize_raw_series(raw, config, key, frame, "the InfluxDB 2 query result")
 
     def validate_data(self, dataset: RTTDataset) -> dict[str, Any]:
         """
@@ -471,6 +577,22 @@ def _single_series(
         )
     ((key, frame),) = frames.items()
     return key, frame
+
+
+def _normalize_raw_series(
+    raw: RawData, config: InputConfig, key: SeriesKey, frame: pd.DataFrame, label: str
+) -> RTTDataset:
+    """Normalize the rows of one series of a query result and attach its metadata."""
+    try:
+        dataset = normalize(frame, config, raw.path_keys)
+    except NoValidRowsError as e:
+        raise NoValidRowsError(f"Failed to load {label}: {e}") from e
+    except ValueError as e:
+        raise ValueError(f"Failed to load {label}: {e}") from e
+    dataset.metadata.update(raw.metadata)
+    if key:
+        dataset.metadata["series_key"] = series_key_dict(key)
+    return dataset
 
 
 def _normalize_frame_series(key: SeriesKey, frame: pd.DataFrame, config: InputConfig) -> RTTDataset:
